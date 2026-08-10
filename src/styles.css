@@ -1,0 +1,131 @@
+@import 'tailwindcss';
+
+/* Шрифты — самохостинг, никаких внешних запросов. Каждый файл несёт подмножество
+   cyrillic-ext: оно покрывает казахские ә ғ қ ң ө ұ ү һ і. */
+@import '@fontsource-variable/inter/index.css';
+@import '@fontsource/ibm-plex-serif/400.css';
+@import '@fontsource/ibm-plex-serif/600.css';
+@import '@fontsource-variable/jetbrains-mono/index.css';
+
+/* ============================================================================
+   ТОКЕНЫ. Одна цветовая температура: глубокий холодный фон, единственная
+   тёплая пара — янтарь (пласт/нефть). Фиолетовый зарезервирован строго под
+   системный слой Nedra, бирюза — строго под данные и потоки. Ничего больше
+   насыщенного в палитре нет: это и есть дизайн-дисциплина из ТЗ §2.
+   ========================================================================= */
+@theme {
+  /* Фон и поверхности */
+  --color-bg-0: #050810;
+  --color-bg-1: #0a1120;
+  --color-bg-2: #0f1a2e;
+  --color-glass: oklch(19% 0.03 250 / 0.82);
+  --color-line: oklch(72% 0.05 250 / 0.20);
+  --color-line-strong: oklch(78% 0.06 250 / 0.38);
+
+  /* Текст */
+  --color-txt: #d7e2f2;
+  --color-txt-dim: #7c8da6;
+  --color-txt-faint: #4d5c73;
+
+  /* Контуры двойника */
+  --color-plast: #f0ae4a;
+  --color-skv: #8fbaf0;
+  --color-dob: #35d0c2;
+
+  /* Источники систем (легенда покрытия) */
+  --color-abai: #4ea3f0;
+  --color-nedra: #9b7be8;
+  --color-ext: #8a99a8;
+  --color-target: #5c6b84;
+
+  /* Семантика статусов */
+  --color-ok: #35d0c2;
+  --color-warn: #f0ae4a;
+  --color-risk: #e8674f;
+
+  /* Потоки среды */
+  --color-oil: #f0ae4a;
+  --color-water: #5fa8e8;
+  --color-chem: #cfe8e4;
+
+  /* Типографика */
+  --font-ui: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'IBM Plex Serif', Georgia, serif;
+  --font-mono: 'JetBrains Mono Variable', 'Cascadia Mono', Consolas, monospace;
+
+  /* Ритм */
+  --radius-panel: 2px;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg-0);
+    color: var(--color-txt);
+    font-family: var(--font-ui);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  /* Скролл ведёт таймлайн, полосу не показываем. */
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+  html {
+    scrollbar-width: none;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 1px solid var(--color-skv);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Надзаголовок: моно, разряженный — единственный «технический» голос в UI. */
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-txt-dim);
+  }
+
+  .panel {
+    background: var(--color-glass);
+    border: 1px solid var(--color-line);
+    backdrop-filter: blur(10px) saturate(1.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

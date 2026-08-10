@@ -1,0 +1,2456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Программа «Цифровой двойник» · пилот Молдабек Восточный</title>
+<style>
+/* ================================================================
+   ИНТЕРФЕЙС · тёмное стекло, тонкие линии, Cambria + моноширинный
+   ================================================================ */
+:root{
+  --c-plast:#F0AE4A; --c-skv:#8FBAF0; --c-dob:#35D0C2;
+  --c-abai:#4EA3F0; --c-nedra:#9B7BE8; --c-exist:#8A99A8;
+  --bg0:#050810; --bg1:#0C1626;
+  --glass:rgba(10,18,32,.8); --line:rgba(140,170,210,.22);
+  --txt:#D7E2F2; --txt-dim:#7C8DA6;
+  --mono:Consolas,"Courier New",monospace;
+  --serif:Cambria,Georgia,serif;
+  --ui:"Segoe UI",Calibri,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:linear-gradient(180deg,var(--bg0),var(--bg1));font-family:var(--ui);color:var(--txt)}
+#scene{position:fixed;inset:0}
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+
+.obj-label{
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:#EAF2FF;background:rgba(8,14,26,.84);border:1px solid var(--line);
+  padding:3px 8px;white-space:nowrap;border-left:2px solid var(--c-plast);
+  transform:translate(10px,-50%);
+}
+.obj-label.small{font-size:10px;padding:2px 6px;opacity:.9}
+.sys-label{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+  color:#EAF2FF;background:rgba(8,14,26,.9);border:1px solid var(--line);
+  padding:3px 7px;white-space:nowrap;border-top:2px solid var(--c-nedra);
+  transform:translate(-50%,-120%);line-height:1.5;
+}
+.sys-label b{font-weight:700;letter-spacing:.16em}
+.obj-label.persist{opacity:.78;font-size:10px;padding:2px 6px;border-left-width:2px;background:rgba(8,14,26,.7)}
+
+/* --- легенда источника систем --- */
+#legend{position:fixed;left:16px;bottom:70px;z-index:20;width:352px;max-width:calc(100vw - 32px);
+  background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(8px);padding:10px 14px;display:none}
+#legend.vis{display:block}
+#legend h3{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--lgc,#9B7BE8);margin-bottom:6px}
+.lg-row{display:flex;gap:8px;padding:3px 0;border-top:1px solid rgba(140,170,210,.1);font-size:11px;line-height:1.35}
+.lg-row:first-of-type{border-top:none}
+.lg-m{font-family:var(--mono);font-size:10px;letter-spacing:.06em;flex:0 0 128px;text-transform:uppercase}
+.lg-d{color:var(--txt-dim)}
+#cap-legend{margin-top:8px;text-align:left;max-width:860px;margin-left:auto;margin-right:auto;
+  column-count:2;column-gap:26px}
+#cap-legend .lg-row{break-inside:avoid}
+@media (max-width:900px){ #cap-legend{column-count:1} }
+
+/* --- шапка --- */
+#hdr{position:fixed;top:16px;left:16px;z-index:20;max-width:352px;
+  background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(8px);padding:14px 16px 12px}
+#hdr h1{font-family:var(--serif);font-size:17px;font-weight:600;line-height:1.3}
+#hdr .sub{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--txt-dim);margin-top:4px;text-transform:uppercase}
+#twins{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.twbtn{display:flex;align-items:center;gap:10px;width:100%;text-align:left;cursor:pointer;
+  background:rgba(255,255,255,.03);border:1px solid var(--line);color:var(--txt);
+  font-family:var(--ui);font-size:13px;padding:8px 10px;transition:background .2s,border-color .2s}
+.twbtn .dot{width:9px;height:9px;flex:0 0 9px;border:1px solid rgba(255,255,255,.35)}
+.twbtn .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--txt-dim);letter-spacing:.1em}
+.twbtn:hover{background:rgba(255,255,255,.07)}
+.twbtn.active{border-color:var(--tc);background:rgba(255,255,255,.06)}
+.twbtn.active .cnt{color:var(--tc)}
+#sysrow{display:flex;gap:5px;margin-top:12px}
+.sf{flex:1;cursor:pointer;background:transparent;border:1px solid var(--line);color:var(--txt-dim);
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;padding:6px 2px;transition:color .2s,border-color .2s}
+.sf:hover{color:var(--txt)}
+.sf.on{color:var(--sc);border-color:var(--sc)}
+#btn-vend{margin-top:6px;width:100%;cursor:pointer;background:transparent;border:1px solid var(--line);
+  color:var(--txt-dim);font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;padding:5px}
+#btn-vend.on{color:var(--c-nedra);border-color:var(--c-nedra)}
+#btn-show{margin-top:10px;width:100%;cursor:pointer;background:transparent;border:1px solid var(--c-plast);
+  color:var(--c-plast);font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;padding:8px}
+#btn-show:hover{background:rgba(240,174,74,.1)}
+
+/* --- панель процессов --- */
+#panel{position:fixed;top:16px;right:16px;bottom:70px;width:372px;max-width:calc(100vw - 32px);z-index:20;
+  background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(8px);
+  transform:translateX(110%);transition:transform .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
+#panel.open{transform:translateX(0)}
+#panel header{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+#panel header h2{font-family:var(--serif);font-size:16px;font-weight:600}
+#panel header .scope{font-size:12px;color:var(--txt-dim);margin-top:6px;line-height:1.45}
+#plist{overflow-y:auto;flex:1;padding:8px}
+#plist::-webkit-scrollbar{width:6px}
+#plist::-webkit-scrollbar-thumb{background:rgba(140,170,210,.3)}
+.proc{display:block;width:100%;text-align:left;cursor:pointer;background:transparent;color:var(--txt);
+  border:1px solid transparent;border-left:2px solid var(--line);padding:8px 10px;margin-bottom:4px;
+  font-family:var(--ui);transition:background .15s,border-color .15s}
+.proc:hover{background:rgba(255,255,255,.05)}
+.proc.sel{border-color:var(--tc);background:rgba(255,255,255,.06)}
+.proc.linked{border-left-color:var(--tc)}
+.proc.dim{opacity:.35}
+.proc .n{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--tc)}
+.proc .t{font-size:13px;font-weight:600;margin-top:2px;line-height:1.3}
+.proc .d{font-size:11.5px;color:var(--txt-dim);margin-top:3px;line-height:1.4}
+.badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:.08em;padding:2px 6px;
+  border:1px solid var(--bc);color:var(--bc);white-space:nowrap;text-transform:uppercase}
+
+/* --- строка состояния --- */
+#status{position:fixed;left:16px;right:16px;bottom:16px;z-index:20;
+  background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(8px);
+  display:flex;align-items:center;gap:6px;padding:6px 10px;flex-wrap:wrap}
+#hint{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-dim);
+  flex:1 1 200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.tgl{cursor:pointer;background:transparent;border:1px solid var(--line);color:var(--txt-dim);
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  padding:5px 9px;transition:color .2s,border-color .2s;white-space:nowrap}
+.tgl:hover{color:var(--txt)}
+.tgl.on{color:var(--c-dob);border-color:var(--c-dob)}
+#clipwrap{display:none;align-items:center;gap:6px}
+#clipwrap.vis{display:flex}
+#clip{width:110px;accent-color:var(--c-dob)}
+
+/* --- режим показа --- */
+#showbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:none;flex-direction:column;align-items:center;
+  padding:0 24px 18px;pointer-events:none}
+body.show #showbar{display:flex}
+body.show #hdr, body.show #panel, body.show #status{display:none}
+#cap{max-width:1100px;text-align:center;background:var(--glass);border:1px solid var(--line);
+  backdrop-filter:blur(8px);padding:14px 28px 12px;pointer-events:auto}
+#cap .ch{font-family:var(--mono);font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--cc,#F0AE4A)}
+#cap .t{font-family:var(--serif);font-size:29px;font-weight:600;line-height:1.2;margin-top:4px}
+#cap .d{font-size:17px;color:var(--txt-dim);margin-top:6px;line-height:1.4}
+#cap-sys{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:8px}
+#prog{display:flex;gap:3px;margin-top:10px;height:4px;width:min(760px,80vw)}
+#prog .cell{flex:1;background:rgba(140,170,210,.18)}
+#prog .cell.gap{flex:0 0 10px;background:transparent}
+#prog .cell.done{background:var(--cc,#F0AE4A)}
+#showhint{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt-dim);margin-top:8px}
+
+/* --- титульная плашка главы --- */
+#plate{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;opacity:0;transition:opacity .6s}
+#plate.vis{opacity:1}
+#plate .inner{text-align:center;background:rgba(6,11,20,.86);border-top:1px solid var(--pc,#F0AE4A);
+  border-bottom:1px solid var(--pc,#F0AE4A);padding:44px 8vw;width:100%}
+#plate .k{font-family:var(--mono);font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--pc,#F0AE4A)}
+#plate .n{font-family:var(--serif);font-size:46px;font-weight:600;margin-top:10px;line-height:1.15}
+#plate .c{font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:var(--txt-dim);margin-top:12px;text-transform:uppercase}
+
+/* --- пустой режим (только 3D) --- */
+body.clean #hdr, body.clean #panel, body.clean #status, body.clean #showbar{display:none !important}
+
+button:focus-visible{outline:1px solid var(--c-skv);outline-offset:2px}
+
+/* --- загрузка --- */
+#loader{position:fixed;inset:0;z-index:50;background:linear-gradient(180deg,var(--bg0),var(--bg1));
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .5s}
+#loader.done{opacity:0;pointer-events:none}
+#loader .lt{font-family:var(--serif);font-size:20px}
+#loader .lm{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--txt-dim)}
+#barw{width:280px;height:2px;background:rgba(140,170,210,.18)}
+#bar{width:0%;height:100%;background:var(--c-plast);transition:width .2s}
+
+@media (max-width:768px){
+  #hdr{max-width:calc(100vw - 32px)}
+  #panel{top:auto;height:42vh;bottom:70px}
+  #cap .t{font-size:20px}
+}
+@media (prefers-reduced-motion:reduce){ #panel,#plate{transition:none} }
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="lt">Цифровой двойник месторождения</div>
+  <div id="barw"><div id="bar"></div></div>
+  <div class="lm" id="loadmsg">Загрузка библиотеки…</div>
+</div>
+
+<div id="scene"></div>
+<div id="labels"></div>
+
+<div id="hdr">
+  <h1>Программа «Цифровой двойник»</h1>
+  <div class="sub">Пилот · Молдабек Восточный · ЭМГ</div>
+  <div id="twins"></div>
+  <div id="sysrow">
+    <button class="sf" id="sf-ABAI"  style="--sc:var(--c-abai)">ABAI</button>
+    <button class="sf" id="sf-NEDRA" style="--sc:var(--c-nedra)">NEDRA</button>
+    <button class="sf" id="sf-EXIST" style="--sc:var(--c-exist)">EXIST</button>
+  </div>
+  <button id="btn-vend">Скрыть названия вендора</button>
+  <button id="btn-show">Показ</button>
+</div>
+
+<aside id="panel" aria-label="Процессы контура">
+  <header><h2 id="p-name"></h2><div class="scope" id="p-scope"></div></header>
+  <div id="plist"></div>
+</aside>
+
+<div id="legend"><h3 id="legend-h"></h3><div id="legend-b"></div></div>
+
+<div id="status">
+  <div id="hint">Вращение — мышь · выберите контур или запустите показ</div>
+  <button class="tgl on" id="tg-names">Подписи</button>
+  <button class="tgl" id="tg-explode">Слои</button>
+  <button class="tgl" id="tg-clip">Разрез</button>
+  <span id="clipwrap"><input type="range" id="clip" min="-700" max="700" value="700" step="5" aria-label="Положение сечения"></span>
+  <button class="tgl" id="tg-grid">Сетка ГГДМ</button>
+  <button class="tgl" id="tg-map">Карта</button>
+  <button class="tgl" id="tg-seis">Сейсмика</button>
+  <button class="tgl" id="tg-flood">Заводнение</button>
+  <button class="tgl on" id="tg-flow">Поток</button>
+  <button class="tgl on" id="tg-tele">Телеметрия</button>
+  <button class="tgl" id="tg-sys">Сист. слой</button>
+  <button class="tgl" id="tg-clean">Скрыть UI</button>
+  <button class="tgl" id="btn-cam">Камера</button>
+</div>
+
+<div id="showbar">
+  <div id="cap">
+    <div class="ch" id="cap-ch"></div>
+    <div class="t" id="cap-t"></div>
+    <div class="d" id="cap-d"></div>
+    <div id="cap-sys"></div>
+    <div id="cap-legend"></div>
+    <div id="prog"></div>
+    <div id="showhint">→ / Space — дальше · ← — назад · A — авто · F — весь экран · Esc — выход</div>
+  </div>
+</div>
+
+<div id="plate"><div class="inner">
+  <div class="k" id="plate-k"></div>
+  <div class="n" id="plate-n"></div>
+  <div class="c" id="plate-c"></div>
+</div></div>
+
+<script>
+window.__APP_OK = false;
+setTimeout(function(){
+  if(!window.__APP_OK){
+    var m = document.getElementById('loadmsg');
+    if(m) m.textContent = 'Нет доступа к CDN three.js — нужен интернет при первом открытии';
+  }
+}, 9000);
+</script>
+
+<script type="importmap">
+{ "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+window.__APP_OK = true;
+
+/* ================================================================
+   0. ОБЩЕЕ: константы, реестр объектов, данные 20 процессов
+   ================================================================ */
+const V3 = (x,y,z)=>new THREE.Vector3(x,y,z);
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const LOW = Math.min(innerWidth, innerHeight) < 760;
+
+const TWIN_COLORS = { plast:'#F0AE4A', skv:'#8FBAF0', dob:'#35D0C2' };
+const SYS_COLORS  = { ABAI:'#4EA3F0', NEDRA:'#9B7BE8', EXIST:'#8A99A8' };
+const SYS_NAMES   = {
+  ABAI:  'Внутренние модули ИС ABAI (КМГ Инжиниринг)',
+  NEDRA: 'Продукты вендора',
+  EXIST: 'Существующие системы'
+};
+// Справочник: модуль → что делает (кратко, по формулировкам процессов)
+const SYS_INFO = {
+  ABAI: [
+    { m:'Картопостроитель',  d:'карты и структурные построения по пласту' },
+    { m:'ЦРНС',              d:'цифровой рейтинг точек бурения новых скважин' },
+    { m:'ПДИМ',              d:'планирование добычи и мониторинг отклонений' },
+    { m:'ПАЭГТМ',            d:'подбор и анализ эффективности ГТМ' },
+    { m:'УЗ',                d:'управление заводнением, баланс закачки и отборов' },
+    { m:'ТР',                d:'технологический режим работы скважин' },
+    { m:'ПГНО',              d:'подбор глубинно-насосного оборудования' }
+  ],
+  NEDRA: [
+    { m:'NUMEX / NUMEX Optimize', d:'стратегия разработки: размещение фонда, ранжирование бурения, подбор ГТМ' },
+    { m:'RTM',               d:'онлайн-мониторинг строительства скважин и сводки' },
+    { m:'WWO · СТПА',        d:'график и контроль ТКРС, данные датчиков' },
+    { m:'DIGITAL TWIN',      d:'режимы скважин, КНС и ППД, химизация, подготовка, экономика, дашборды' },
+    { m:'DIGITAL TWIN ПАОТ', d:'предиктивный анализ отказов трубопроводов' },
+    { m:'INFRAPLAN',         d:'гидравлика сбора, энергетика, оценка бизнес-кейса' },
+    { m:'DATA',              d:'сквозная аналитика и интеграции' }
+  ],
+  EXIST: [
+    { m:'t-Navigator, Petrel', d:'геологическое и гидродинамическое моделирование' },
+    { m:'MES, СКАДА',        d:'учёт операций и телеметрия объектов' },
+    { m:'SAP ТОРО',          d:'планирование ТО и ремонтов оборудования' },
+    { m:'Интеллектуальное месторождение', d:'действующий контур мониторинга добычи' }
+  ]
+};
+function legendHTML(src, hideVendor){
+  const items = SYS_INFO[src];
+  return items.map((it,i)=>{
+    const name = (hideVendor && src==='NEDRA') ? ('Модуль вендора ' + (i+1)) : it.m;
+    return `<div class="lg-row"><span class="lg-m" style="color:${SYS_COLORS[src]}">${name}</span><span class="lg-d">${it.d}</span></div>`;
+  }).join('');
+}
+const GHOST = new THREE.Color('#3A4657');
+const COL_OIL = '#F0AE4A', COL_WATER = '#5FA8E8', COL_DATA = '#35D0C2', COL_CHEM = '#CFE8E4';
+
+const TWINS = {
+  plast: {
+    name: "ЦД пласта", color: "#F0AE4A",
+    scope: "Что лежит в недрах и как это правильно разрабатывать — от сейсмики до программы ГТМ и режима заводнения.",
+    procs: [
+      {t:"Обработка сейсмики и геологическое моделирование", d:"Интерпретация данных и статическая модель: структура, свойства коллектора, запасы.",
+       f:["res-seismic","res-structure","res-fault","res-map"], cam:"section",
+       sys:[{s:"ABAI",m:"Картопостроитель"},{s:"EXIST",m:"t-Navigator, Petrel"}]},
+      {t:"Геолого-гидродинамическое моделирование (ГГДМ)", d:"Построение и адаптация ГГДМ, модели характеристик вытеснения и Кпрод по скважине.",
+       f:["res-grid","res-structure"], cam:"reservoir",
+       sys:[{s:"ABAI",m:"Картопостроитель"},{s:"NEDRA",m:"Стратегия разработки месторождения"},{s:"EXIST",m:"t-Navigator, Petrel"}]},
+      {t:"Подбор стратегии разработки и ввод новых скважин", d:"Автовыбор системы разработки, оптимизация размещения фонда и заканчивания, ранжирование точек бурения, ТЭО КИН.",
+       f:["res-grid","w-all","res-drainage"], cam:"top",
+       sys:[{s:"ABAI",m:"ЦРНС · Цифровой рейтинг новых скважин"},{s:"ABAI",m:"ПДИМ · Планирование добычи и мониторинг"},{s:"NEDRA",m:"NUMEX, NUMEX Optimize"}]},
+      {t:"Подбор и анализ эффективности ГТМ", d:"Формирование и ранжирование программы ГТМ, подбор мероприятий на ПВЛГ/ПНЛГ, разбор «план — факт».",
+       f:["perf-all","w-prod-4","w-prod-3"], cam:"reservoir",
+       sys:[{s:"ABAI",m:"ПАЭГТМ · Подбор и анализ эффективности ГТМ"},{s:"NEDRA",m:"NUMEX Optimize"}]},
+      {t:"Геолого-экономическая оценка актива", d:"Расчёт CAPEX и OPEX на лёгкие ГТМ по удельным показателям, экономика проекта в целом.",
+       f:["res-oil","res-drainage"], cam:"reservoir",
+       sys:[{s:"NEDRA",m:"INFRAPLAN · Оценка бизнес-кейса"}]},
+      {t:"Управление системой заводнения", d:"Оптимизация ППД включая нестационарное заводнение, баланс закачки и отборов, контроль продвижения ВНК.",
+       f:["res-flood","res-owc","res-cone","w-inj-1","w-inj-2"], cam:"flood",
+       sys:[{s:"ABAI",m:"УЗ · Управление заводнением"},{s:"NEDRA",m:"NUMEX"}]}
+    ]
+  },
+  skv: {
+    name: "ЦД скважины", color: "#8FBAF0",
+    scope: "Жизненный цикл ствола: как построить скважину и как её ремонтировать без простоев и аварий.",
+    procs: [
+      {t:"Планирование, мониторинг и контроль ТКРС", d:"График мероприятий, выявление пересечений движения бригад, оперативный контроль ремонта, интеграция с датчиками СТПА.",
+       f:["w-workover","w-prod-1","w-prod-2","tubing-all"], cam:"workover",
+       sys:[{s:"NEDRA",m:"WWO · График мероприятий ТКРС"},{s:"NEDRA",m:"WWO · СТПА"}]},
+      {t:"Онлайн-мониторинг бурения и ВСР", d:"Мониторинг строительства скважин, база выученных уроков, совместная работа подрядчика и заказчика.",
+       f:["w-drill","w-cement"], cam:"rig",
+       sys:[{s:"NEDRA",m:"RTM · Онлайн-мониторинг бурения и сводки"}]}
+    ]
+  },
+  dob: {
+    name: "ЦД добычи и наземной инфраструктуры", color: "#35D0C2",
+    scope: "Эксплуатация: как не терять добычу на поверхности и держать под контролем оборудование, трубу и затраты.",
+    procs: [
+      {t:"Планирование добычи и мониторинг", d:"Прогнозирование и контроль показателей добычи, оперативное выявление отклонений режима работы скважин.",
+       f:["s-pad-1","s-pad-2","s-kp","w-prod-1","w-prod-2"], cam:"surface",
+       sys:[{s:"ABAI",m:"ТР · Технологический режим"},{s:"ABAI",m:"ПДИМ · Планирование добычи и мониторинг"},{s:"NEDRA",m:"DIGITAL TWIN · Скважины"}]},
+      {t:"Интегрированное моделирование", d:"Сквозная модель «пласт — скважина — система сбора»: режим цепочки считается целиком.",
+       f:["res-oil","w-prod-1","s-pipes","s-mfns","s-sp","s-cppn"], cam:"chain",
+       sys:[{s:"NEDRA",m:"DIGITAL TWIN"},{s:"NEDRA",m:"INFRAPLAN"}]},
+      {t:"Гидравлические расчёты", d:"Загрузка системы сбора с расчётом вязкости и лёгких ГТМ, загрузка системы ППД по ветке из 5 кустов.",
+       f:["s-pipes","s-neftesbor","s-mfns","s-ppd-line"], cam:"pipes",
+       sys:[{s:"NEDRA",m:"INFRAPLAN · Гидравлические расчёты"}]},
+      {t:"Управление ГНО", d:"Подбор и оптимизация глубинно-насосного оборудования, режимы работы, контроль наработки на отказ.",
+       f:["esp-all","w-prod-1","w-prod-2"], cam:"wellbore",
+       sys:[{s:"ABAI",m:"ПГНО · Подбор ГНО"},{s:"NEDRA",m:"DIGITAL TWIN · Скважины"}]},
+      {t:"Контроль осложнений и химизация", d:"Контроль дозировки УДР, выявление нехватки химии в точках подачи, визуализация параметров БРХ площадных объектов.",
+       f:["s-brh","tubing-all"], cam:"surface",
+       sys:[{s:"NEDRA",m:"DIGITAL TWIN · Химизация"}]},
+      {t:"КНС и ППД", d:"QH-характеристика ЦНС факт/паспорт, оценка износа насосов, расчёт объёмов неэффективной закачки через профиль-дизайны.",
+       f:["s-kns","s-ppd-line","w-inj-1","w-inj-2"], cam:"surface",
+       sys:[{s:"ABAI",m:"УЗ · Управление заводнением"},{s:"NEDRA",m:"DIGITAL TWIN · КНС и ППД"}]},
+      {t:"Учёт технологических операций", d:"Фиксация операций и событий на объектах — единый первичный факт вместо ручных сводок в Excel.",
+       f:["s-kp","s-sp","s-cio"], cam:"surface",
+       sys:[{s:"NEDRA",m:"DATA · сквозная аналитика и интеграции"},{s:"EXIST",m:"MES, СКАДА"}]},
+      {t:"Экономика добычи", d:"Подбор низкорентабельных скважин под остановку по МРП, давлению, добыче и энергозатратам; онлайн-список кандидатов под ограничения.",
+       f:["s-cppn","w-prod-1","w-prod-2"], cam:"plant",
+       sys:[{s:"NEDRA",m:"DIGITAL TWIN · Экономика"}]},
+      {t:"Управление ремонтами / ТОРО", d:"Планирование ТО и ремонтов наземного оборудования, история отказов, остаточный ресурс.",
+       f:["s-kns","s-mfns","s-cppn","s-ps"], cam:"surface",
+       sys:[{s:"EXIST",m:"SAP ТОРО"},{s:"EXIST",m:"Интеллектуальное месторождение"}]},
+      {t:"Подготовка и загрузка площадных объектов", d:"Дашборд технологических параметров подготовки, мнемосхема объектов, идентификация отклонений, загрузка ЦППН при росте добычи.",
+       f:["s-cppn","s-sp","s-flare"], cam:"plant",
+       sys:[{s:"NEDRA",m:"DIGITAL TWIN · Подготовка"},{s:"NEDRA",m:"DIGITAL TWIN · Дашборды"}]},
+      {t:"Предиктивная аналитика отказов трубопроводов", d:"Автоматизированный поиск потенциально аварийных участков напорного нефтепровода, снижение рисков отказов и потерь добычи.",
+       f:["s-napor","s-pipes"], cam:"pipes",
+       sys:[{s:"NEDRA",m:"DIGITAL TWIN ПАОТ · Предиктивный анализ отказов"}]},
+      {t:"Контроль энергоэффективности", d:"Расчёт потребления электроэнергии и электрических сетей по ветке ВЛ из 5 КП.",
+       f:["s-vl","s-ps","esp-all","s-kns"], cam:"power",
+       sys:[{s:"NEDRA",m:"INFRAPLAN · Энергетика"}]}
+    ]
+  }
+};
+
+const ALIASES = {
+  "strata-all":    ["g-soil","g-over","g-cap","g-res","g-water","g-base"],
+  "res-structure": ["g-soil","g-over","g-cap","g-res","g-water","g-base"],
+  "w-all":      ["w-prod-1","w-prod-2","w-prod-3","w-prod-4","w-inj-1","w-inj-2","w-drill","w-workover"],
+  "perf-all":   ["perf-w-prod-1","perf-w-prod-2","perf-w-prod-3","perf-w-prod-4","perf-w-inj-1","perf-w-inj-2","perf-w-workover"],
+  "esp-all":    ["esp-w-prod-1","esp-w-prod-2"],
+  "tubing-all": ["tub-w-prod-1","tub-w-prod-2","tub-w-prod-4"]
+};
+function expand(list){
+  const out = new Set();
+  list.forEach(id => (ALIASES[id] || [id]).forEach(x => out.add(x)));
+  return out;
+}
+
+const LABELS = {
+  "g-soil":"Почвенный слой · ЗСС","g-over":"Перекрывающая толща","g-cap":"Покрышка (флюидоупор)",
+  "g-res":"Продуктивный пласт","g-water":"Водонасыщенная зона","g-base":"Фундамент",
+  "res-fault":"Тектонический сброс","res-oil":"Нефтяная залежь","res-owc":"ВНК",
+  "res-grid":"Сетка ГГДМ","res-map":"Карта изолиний по кровле","res-seismic":"Сейсмический профиль",
+  "res-drainage":"Зоны дренирования","res-flood":"Фронт заводнения","res-cone":"Конус обводнения",
+  "w-prod-1":"Добывающая Д-1 · ШГН","w-prod-2":"Добывающая Д-2 · УЭВН",
+  "w-prod-3":"Горизонтальная Д-3","w-prod-4":"Добывающая Д-4 · ГРП",
+  "w-inj-1":"Нагнетательная Н-1 · ППД","w-inj-2":"Нагнетательная Н-2 · ППД",
+  "w-drill":"Бурящаяся Б-1","w-workover":"ПРС · подъёмник, ДЭЛ","w-cement":"Цементное кольцо",
+  "perf-w-prod-1":"Перфорация Д-1","perf-w-prod-2":"Перфорация Д-2","perf-w-prod-3":"Перфорация Д-3",
+  "perf-w-prod-4":"Трещина ГРП Д-4","perf-w-inj-1":"Перфорация Н-1","perf-w-inj-2":"Перфорация Н-2",
+  "perf-w-workover":"Перфорация РС-1",
+  "esp-w-prod-1":"ГНО Д-1 · ШГН","esp-w-prod-2":"ГНО Д-2 · УЭВН",
+  "tub-w-prod-1":"НКТ Д-1 · АСПО","tub-w-prod-2":"НКТ Д-2 · АСПО","tub-w-prod-4":"НКТ Д-4",
+  "s-pad-1":"Кустовая площадка 1","s-pad-2":"Кустовая площадка 2",
+  "s-kp":"Кустовые площадки · 5 КП","s-neftesbor":"Нефтесбор от 5 КП",
+  "s-mfns":"МФНС","s-sp":"СП «В-Молдабек»","s-napor":"Напорный нефтепровод",
+  "s-cppn":"ЦППН «Кенбай»","s-flare":"Факельная установка","s-brh":"БРХ · реагентное хозяйство",
+  "s-kns":"КНС ППД","s-ppd-line":"Водовод ППД",
+  "s-vl":"ВЛ · ветка 5 КП","s-ps":"Подстанция",
+  "s-cio":"ЦИО","s-tower":"Мачта связи",
+  "s-roads":"Проезды","s-vehicles":"Транспорт","s-fence":"Ограждение · КПП",
+  "s-terrain":"Поверхность","s-pipes":"Трубопроводы"
+};
+
+const REG = new Map();
+function ensureEntry(id, twin){
+  if(!REG.has(id)) REG.set(id, { twin, meshes:[], anchor:null, labelObj:null, labelParent:null, sysObj:null });
+  return REG.get(id);
+}
+function reg(id, twin, obj, anchor, labelParent){
+  const e = ensureEntry(id, twin);
+  obj.traverse(n => {
+    if(n.isMesh || n.isLine || n.isPoints){
+      if(!n.userData.ids) n.userData.ids = [];
+      if(!n.userData.ids.includes(id)) n.userData.ids.push(id);
+      if(!n.userData.twin) n.userData.twin = twin;
+      e.meshes.push(n);
+    }
+  });
+  if(anchor){ e.anchor = anchor.clone(); e.labelParent = labelParent || obj; }
+  return e;
+}
+
+// Аниматоры: {fn(t,dt)}
+const animators = [];
+
+/* ================================================================
+   0.1 СИСТЕМНЫЙ СЛОЙ: покрытие объектов модулями ABAI / NEDRA / EXIST
+   ================================================================ */
+// объект id → [{s, m}], источники → множество покрытых id, процессы по источнику
+const OBJ_MODULES = new Map();
+const SYS_COVER = { ABAI:new Set(), NEDRA:new Set(), EXIST:new Set() };
+for(const key of ['plast','skv','dob']){
+  for(const p of TWINS[key].procs){
+    const ids = expand(p.f);
+    for(const sm of p.sys){
+      for(const id of ids){
+        SYS_COVER[sm.s].add(id);
+        if(!OBJ_MODULES.has(id)) OBJ_MODULES.set(id, []);
+        const arr = OBJ_MODULES.get(id);
+        if(!arr.some(x => x.s===sm.s && x.m===sm.m)) arr.push({s:sm.s, m:sm.m});
+      }
+    }
+  }
+}
+function modText(sm, hideVendor){
+  if(hideVendor && sm.s==='NEDRA') return { tag:'ВЕНДОР', m:'Вендорское ПО' };
+  return { tag:sm.s, m:sm.m };
+}
+
+/* ================================================================
+   1. СЦЕНА, КАМЕРА, СВЕТ, ПОСТОБРАБОТКА
+   ================================================================ */
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a1220, 0.00034);
+
+const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 1, 16000);
+camera.position.set(1150, 760, 1250);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, LOW ? 1.25 : 1.5));
+renderer.shadowMap.enabled = !LOW;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.localClippingEnabled = true;
+renderer.setClearColor(0x050810, 1);
+document.getElementById('scene').appendChild(renderer.domElement);
+
+// Небесный градиент
+{
+  const m = new THREE.ShaderMaterial({
+    side:THREE.BackSide, depthWrite:false, fog:false,
+    uniforms:{ top:{value:new THREE.Color('#0C1626')}, bot:{value:new THREE.Color('#050810')} },
+    vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`varying vec3 vP; uniform vec3 top,bot;
+      void main(){ float h=clamp(vP.y/3200.0+0.5,0.0,1.0); gl_FragColor=vec4(mix(bot,top,h),1.0); }`
+  });
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(8000, 24, 16), m));
+}
+
+const labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
+labelRenderer.setSize(innerWidth, innerHeight);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.maxPolarAngle = 2.0;
+controls.minDistance = 240;
+controls.maxDistance = 3400;
+controls.target.set(0, -220, 0);
+controls.screenSpacePanning = false;
+
+let composer = null, outlinePass = null;
+if(!LOW){
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  outlinePass = new OutlinePass(new THREE.Vector2(innerWidth, innerHeight), scene, camera);
+  outlinePass.edgeStrength = 3.2;
+  outlinePass.edgeGlow = 0.4;
+  outlinePass.edgeThickness = 1.5;
+  outlinePass.pulsePeriod = REDUCED ? 0 : 1.5;
+  composer.addPass(outlinePass);
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.4, 0.75));
+  composer.addPass(new OutputPass());
+}
+
+// Свет: полусфера + ключ с тенью + контровой
+scene.add(new THREE.HemisphereLight(0x9fb8d8, 0x4a3a28, 0.75));
+const key = new THREE.DirectionalLight(0xEFE6D8, 1.35);
+key.position.set(760, 1100, 500);
+if(!LOW){
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  const sc = key.shadow.camera;
+  sc.left=-1100; sc.right=1100; sc.top=1100; sc.bottom=-1100; sc.near=100; sc.far=3600;
+  key.shadow.bias = -0.0006;
+}
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x6E86C8, 0.35);
+rim.position.set(-600, -300, -900);
+scene.add(rim);
+
+// Тень-пятно под приподнятым блоком диорамы
+{
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+  const c = cv.getContext('2d');
+  const g = c.createRadialGradient(128,128,20, 128,128,128);
+  g.addColorStop(0,'rgba(0,0,0,0.55)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle = g; c.fillRect(0,0,256,256);
+  const sh = new THREE.Mesh(new THREE.PlaneGeometry(2600, 1900),
+    new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(cv), transparent:true, depthWrite:false }));
+  sh.rotation.x = -Math.PI/2;
+  sh.position.y = -1010;
+  scene.add(sh);
+}
+
+/* ================================================================
+   2. НЕДРА: структура, сброс, слои, линза, ВНК, ГГДМ, карта, сейсмика
+   ================================================================ */
+const HW = 700, HD = 450;
+const OWC_Y = -520;
+
+function fbm(x, z){
+  return Math.sin(x*0.006 + z*0.009) * 0.55
+       + Math.sin(x*0.017 - z*0.013 + 1.7) * 0.30
+       + Math.sin(x*0.037 + z*0.031 + 4.2) * 0.15;
+}
+function dome(x, z){
+  return Math.exp(-((x*x)/(460*460) + (z*z)/(340*340)));
+}
+const sstep = t => { t = Math.min(1, Math.max(0, t)); return t*t*(3-2*t); };
+function faultTraceX(depth, z){ return 430 + 0.5*(depth + 40) + 0.12*z; }
+function throwAt(x, z, depth){ return -60 * sstep((x - faultTraceX(depth, z))/26 + 0.5); }
+
+const yResTop  = (x,z)=> -540 + 95*dome(x,z) + 10*fbm(x,z)            + throwAt(x,z,-540);
+const yResBot  = (x,z)=> -700 + 80*dome(x,z) + 9*fbm(x,z)             + throwAt(x,z,-700);
+const yCapTop  = (x,z)=> -480 + 90*dome(x,z) + 10*fbm(x*1.2,z*1.2)    + throwAt(x,z,-480);
+const yOverTop = (x,z)=> -180 + 34*dome(x,z) + 12*fbm(x,z)            + throwAt(x,z,-180);
+const ySoilTop = (x,z)=> -40  + 5*fbm(x*0.7,z*0.7)                    + throwAt(x,z,-40)*0.5;
+const yWaterBot= (x,z)=> -800 + 40*dome(x,z) + 7*fbm(x,z)             + throwAt(x,z,-800);
+const yBaseBot = ()=> -900;
+const marker = d => (x,z)=> d + 55*dome(x,z)*( (d+480)/300 + 0.4 ) + 10*fbm(x,z) + throwAt(x,z,d);
+
+/* ---------- Площадки: рельеф выполаживается под объектами ---------- */
+const PADS = [ [180,-120],[420,160],[60,300],[300,-340],[-280,80],[-120,-320],[-520,-140],[520,-220],
+               [-650,170],[-560,-50],[-430,-250],[-240,-390],[-80,-100],
+               [100,-20],[320,-40],[620,-60],[700,-210],[240,120],[-360,220],[-140,320],[200,-440],[120,-450] ];
+function surfY(x, z){
+  let damp = 1;
+  for(const p of PADS){
+    const d2 = (x-p[0])*(x-p[0]) + (z-p[1])*(z-p[1]);
+    damp *= 1 - Math.exp(-d2/(85*85));
+  }
+  return (7*fbm(x*0.9, z*0.9)) * damp;
+}
+
+/* ---------- Построитель слоя: кровля + подошва + стенки блока ---------- */
+const SEG_X = 52, SEG_Z = 36;
+function makeLayerGeometry(topFn, botFn){
+  const nx = SEG_X+1, nz = SEG_Z+1;
+  const pos = [], idx = [];
+  for(let pass=0; pass<2; pass++){
+    const fn = pass===0 ? topFn : botFn;
+    for(let j=0;j<nz;j++) for(let i=0;i<nx;i++){
+      const x = -HW + 2*HW*i/SEG_X, z = -HD + 2*HD*j/SEG_Z;
+      pos.push(x, fn(x,z), z);
+    }
+  }
+  const T=(i,j)=>j*nx+i, B=(i,j)=>nx*nz+j*nx+i;
+  for(let j=0;j<SEG_Z;j++) for(let i=0;i<SEG_X;i++){
+    idx.push(T(i,j),T(i,j+1),T(i+1,j),  T(i+1,j),T(i,j+1),T(i+1,j+1));
+    idx.push(B(i,j),B(i+1,j),B(i,j+1),  B(i+1,j),B(i+1,j+1),B(i,j+1));
+  }
+  for(let i=0;i<SEG_X;i++){
+    idx.push(T(i,0),T(i+1,0),B(i,0),  T(i+1,0),B(i+1,0),B(i,0));
+    idx.push(T(i,SEG_Z),B(i,SEG_Z),T(i+1,SEG_Z),  T(i+1,SEG_Z),B(i,SEG_Z),B(i+1,SEG_Z));
+  }
+  for(let j=0;j<SEG_Z;j++){
+    idx.push(T(0,j),B(0,j),T(0,j+1),  T(0,j+1),B(0,j),B(0,j+1));
+    idx.push(T(SEG_X,j),T(SEG_X,j+1),B(SEG_X,j),  T(SEG_X,j+1),B(SEG_X,j+1),B(SEG_X,j));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+function rockMat(color, opacity=1, extra={}){
+  return new THREE.MeshStandardMaterial(Object.assign({
+    color, roughness:0.9, metalness:0.05, transparent:true, opacity, side:THREE.DoubleSide
+  }, extra));
+}
+
+/* ---------- Группы «разнести слои» ---------- */
+const gStrata = {};
+function stratumGroup(name, offset){
+  const g = new THREE.Group();
+  g.userData.explodeOffset = offset;
+  gStrata[name] = g; scene.add(g);
+  return g;
+}
+const grSoil  = stratumGroup('soil',  190);
+const grOver  = stratumGroup('over',  110);
+const grCap   = stratumGroup('cap',    40);
+const grRes   = stratumGroup('res',     0);
+const grWater = stratumGroup('water',-100);
+const grBase  = stratumGroup('base', -200);
+const grSurf  = stratumGroup('surf',  270);
+const grWells = new THREE.Group(); scene.add(grWells);
+
+function addLayer(id, group, topFn, botFn, color, opacity){
+  const mesh = new THREE.Mesh(makeLayerGeometry(topFn, botFn), rockMat(color, opacity));
+  group.add(mesh);
+  const ax = -HW+50, az = HD-40;
+  reg(id, 'plast', mesh, V3(ax, (topFn(ax,az)+botFn(ax,az))/2, az), group);
+  return mesh;
+}
+addLayer('g-soil',  grSoil,  ySoilTop, yOverTop, '#5C5448', 1.0);
+addLayer('g-over',  grOver,  yOverTop, yCapTop,  '#44423E', 1.0);
+for(const d of [-260, -340, -420]){
+  const m = new THREE.Mesh(makeLayerGeometry(marker(d), marker(d-9)), rockMat('#57534A', 1));
+  grOver.add(m);
+  reg('g-over', 'plast', m);
+}
+addLayer('g-cap',   grCap,   yCapTop,  yResTop,  '#26333E', 1.0);
+addLayer('g-res',   grRes,   yResTop,  yResBot,  '#7A5A33', 0.72);
+addLayer('g-water', grWater, yResBot,  yWaterBot,'#28455C', 1.0);
+addLayer('g-base',  grBase,  yWaterBot, yBaseBot,'#191C24', 1.0);
+
+/* ---------- Плоскость сброса (res-fault) ---------- */
+{
+  const nz = 20, nd = 16, pos = [], idx = [];
+  for(let j=0;j<=nd;j++) for(let i=0;i<=nz;i++){
+    const z = -HD + 2*HD*i/nz;
+    const d = -60 - 820*j/nd;
+    pos.push(faultTraceX(d, z), d, z);
+  }
+  for(let j=0;j<nd;j++) for(let i=0;i<nz;i++){
+    const a=j*(nz+1)+i, b=a+1, c=a+nz+1, e=c+1;
+    idx.push(a,c,b, b,c,e);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setIndex(idx); g.computeVertexNormals();
+  const fault = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+    color:'#6E4A3A', roughness:0.85, transparent:true, opacity:0.4,
+    side:THREE.DoubleSide, depthWrite:false,
+    emissive:new THREE.Color('#3A2118'), emissiveIntensity:0.25
+  }));
+  grRes.add(fault);
+  reg('res-fault', 'plast', fault, V3(faultTraceX(-400,0), -400, 0), grRes);
+}
+
+/* ---------- Нефтяная линза + контур нефтеносности ---------- */
+// Радиус кровли на уровне L вдоль луча (бинарный поиск, кровля монотонно падает от свода)
+function ringRadius(cx, cz, L){
+  let lo=0, hi=1000;
+  for(let it=0;it<30;it++){
+    const mid=(lo+hi)/2;
+    (yResTop(cx*mid, cz*mid) > L) ? lo=mid : hi=mid;
+  }
+  return (lo+hi)/2;
+}
+{
+  const topFn = (x,z)=> Math.max(yResTop(x,z) - 4, OWC_Y);
+  const botFn = (x,z)=> Math.min(Math.max(yResBot(x,z) + 4, OWC_Y), topFn(x,z));
+  const lens = new THREE.Mesh(makeLayerGeometry(topFn, botFn),
+    new THREE.MeshStandardMaterial({
+      color:'#8A5A16', roughness:0.5, metalness:0.1,
+      emissive:new THREE.Color('#C07B20'), emissiveIntensity:0.4,
+      transparent:true, opacity:0.82, depthWrite:false, side:THREE.DoubleSide
+    }));
+  grRes.add(lens);
+  reg('res-oil', 'plast', lens, V3(0, yResTop(0,0)-30, 0), grRes);
+
+  const pts = [];
+  const N = 180;
+  for(let k=0;k<=N;k++){
+    const a = k/N*Math.PI*2, cx = Math.cos(a), cz = Math.sin(a);
+    const r = ringRadius(cx, cz, OWC_Y+2);
+    pts.push(V3(cx*r, OWC_Y+2, cz*r));
+  }
+  const ring = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 240, 2.2, 6, true),
+    new THREE.MeshBasicMaterial({ color:COL_OIL, transparent:true, opacity:0.85, depthWrite:false }));
+  grRes.add(ring);
+  reg('res-oil', 'plast', ring);
+}
+
+/* ---------- ВНК ---------- */
+{
+  const W = 980, D = 700;
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(W, D),
+    new THREE.MeshBasicMaterial({ color:COL_WATER, transparent:true, opacity:0.14, side:THREE.DoubleSide, depthWrite:false }));
+  plane.rotation.x = -Math.PI/2; plane.position.y = OWC_Y;
+  grRes.add(plane);
+  const ep = [V3(-W/2,OWC_Y,-D/2),V3(W/2,OWC_Y,-D/2),V3(W/2,OWC_Y,D/2),V3(-W/2,OWC_Y,D/2),V3(-W/2,OWC_Y,-D/2)];
+  const edge = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ep),
+    new THREE.LineDashedMaterial({ color:'#8FD0F0', dashSize:18, gapSize:12, transparent:true, opacity:0.85 }));
+  edge.computeLineDistances();
+  grRes.add(edge);
+  const e = reg('res-owc', 'plast', plane, V3(W/2-40, OWC_Y, -D/2+30), grRes);
+  reg('res-owc', 'plast', edge);
+  const div = document.createElement('div');
+  div.className = 'obj-label small';
+  div.style.borderLeftColor = TWIN_COLORS.plast;
+  div.textContent = 'ВНК';
+  const lo = new CSS2DObject(div);
+  lo.position.copy(e.anchor);
+  grRes.add(lo);
+}
+
+/* ---------- Сетка ГГДМ: каркас + ячейки по условному свойству ---------- */
+const featGrid = new THREE.Group(); grRes.add(featGrid);
+{
+  const NX=10, NZ=8, NY=3, RX=440, RZ=340;
+  const lp = [];
+  for(let i=0;i<=NX;i++) for(let j=0;j<=NZ;j++){
+    const x=-RX+2*RX*i/NX, z=-RZ+2*RZ*j/NZ;
+    lp.push(V3(x, yResTop(x,z)-4, z), V3(x, yResBot(x,z)+4, z));
+  }
+  for(let j=0;j<=NZ;j++) for(let i=0;i<NX;i++){
+    const z=-RZ+2*RZ*j/NZ, x1=-RX+2*RX*i/NX, x2=-RX+2*RX*(i+1)/NX;
+    lp.push(V3(x1,yResTop(x1,z)-4,z), V3(x2,yResTop(x2,z)-4,z));
+    lp.push(V3(x1,yResBot(x1,z)+4,z), V3(x2,yResBot(x2,z)+4,z));
+  }
+  for(let i=0;i<=NX;i++) for(let j=0;j<NZ;j++){
+    const x=-RX+2*RX*i/NX, z1=-RZ+2*RZ*j/NZ, z2=-RZ+2*RZ*(j+1)/NZ;
+    lp.push(V3(x,yResTop(x,z1)-4,z1), V3(x,yResTop(x,z2)-4,z2));
+    lp.push(V3(x,yResBot(x,z1)+4,z1), V3(x,yResBot(x,z2)+4,z2));
+  }
+  featGrid.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lp),
+    new THREE.LineBasicMaterial({ color:COL_OIL, transparent:true, opacity:0.3 })));
+  const cellGeo = new THREE.BoxGeometry(1,1,1);
+  const cellMat = new THREE.MeshBasicMaterial({ transparent:true, opacity:0.16, depthWrite:false });
+  const inst = new THREE.InstancedMesh(cellGeo, cellMat, NX*NZ*NY);
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3();
+  const cAmb = new THREE.Color(COL_OIL), cBlu = new THREE.Color('#3E7FBF');
+  let k=0;
+  for(let i=0;i<NX;i++) for(let j=0;j<NZ;j++){
+    const x=-RX+2*RX*(i+0.5)/NX, z=-RZ+2*RZ*(j+0.5)/NZ;
+    const top=yResTop(x,z)-6, bot=yResBot(x,z)+6, h=(top-bot)/NY;
+    for(let l=0;l<NY;l++){
+      const cy = bot + h*(l+0.5);
+      P.set(x, cy, z); S.set(2*RX/NX*0.86, h*0.8, 2*RZ/NZ*0.86);
+      M.compose(P, Q, S);
+      inst.setMatrixAt(k, M);
+      inst.setColorAt(k, cy > OWC_Y ? cAmb : cBlu);
+      k++;
+    }
+  }
+  featGrid.add(inst);
+  reg('res-grid', 'plast', featGrid, V3(-RX+30, yResTop(-RX+30,0)+16, 0), grRes);
+  featGrid.visible = false;
+}
+
+/* ---------- Картопостроитель: изолинии по кровле пласта (res-map) ---------- */
+const featMap = new THREE.Group(); grRes.add(featMap);
+{
+  const mm = new THREE.LineBasicMaterial({ color:COL_OIL, transparent:true, opacity:0.75 });
+  const N = 120;
+  for(const L of [-530, -512, -494, -476, -460]){
+    const pts = [];
+    for(let k2=0;k2<=N;k2++){
+      const a = k2/N*Math.PI*2, cx = Math.cos(a), cz = Math.sin(a);
+      const r = ringRadius(cx, cz, L);
+      pts.push(V3(cx*r, yResTop(cx*r, cz*r)+3, cz*r));
+    }
+    featMap.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mm));
+  }
+  reg('res-map', 'plast', featMap, V3(0, yResTop(0,0)+18, -120), grRes);
+  featMap.visible = false;
+}
+
+/* ---------- Сейсмический профиль-срез ---------- */
+const featSeis = new THREE.Group(); grOver.add(featSeis);
+{
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#0B1622'; c.fillRect(0,0,1024,512);
+  for(let k=0;k<44;k++){
+    const y0 = 20 + k*11;
+    const bright = (k%6===0);
+    c.strokeStyle = bright ? 'rgba(190,215,240,0.8)' : 'rgba(120,150,185,0.35)';
+    c.lineWidth = bright ? 1.6 : 1;
+    c.beginPath();
+    for(let px=0;px<=1024;px+=8){
+      const xw = px/1024*2-1;
+      let y = y0 - 52*Math.exp(-xw*xw*3.2)*(0.3+k/44) + 3.5*Math.sin(px*0.05+k*1.7);
+      if(px > 660) y += 26 * (0.3+k/44);   // разрыв отражений на сбросе
+      (px===0) ? c.moveTo(px,y) : c.lineTo(px,y);
+    }
+    c.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  const seis = new THREE.Mesh(new THREE.PlaneGeometry(1360, 840),
+    new THREE.MeshBasicMaterial({ map:tex, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false }));
+  seis.position.set(0, -460, -40);
+  featSeis.add(seis);
+  reg('res-seismic', 'plast', featSeis, V3(-620, -140, -40), grOver);
+  featSeis.visible = false;
+}
+
+/* ================================================================
+   3. СКВАЖИНЫ: 8 стволов (ШГН, УЭВН, горизонтальная, ГРП, ППД, бурение, ПРС)
+   ================================================================ */
+const barGeoCache = new THREE.CylinderGeometry(1,1,1,6);
+function barBetween(p1, p2, r, mat){
+  const dir = p2.clone().sub(p1), len = dir.length();
+  const m = new THREE.Mesh(barGeoCache, mat);
+  m.scale.set(r, len, r);
+  m.position.copy(p1).addScaledVector(dir, 0.5);
+  m.quaternion.setFromUnitVectors(V3(0,1,0), dir.clone().normalize());
+  return m;
+}
+function instancedBars(list, mat){
+  const inst = new THREE.InstancedMesh(barGeoCache, mat, list.length);
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3();
+  list.forEach((b,i)=>{
+    const dir = b[1].clone().sub(b[0]), len = dir.length();
+    P.copy(b[0]).addScaledVector(dir, 0.5);
+    Q.setFromUnitVectors(V3(0,1,0), dir.clone().normalize());
+    S.set(b[2], len, b[2]);
+    M.compose(P,Q,S);
+    inst.setMatrixAt(i, M);
+  });
+  return inst;
+}
+
+const matSteel  = ()=> new THREE.MeshStandardMaterial({ color:'#8C97A8', metalness:0.7, roughness:0.35, transparent:true, opacity:1 });
+const matSteelD = ()=> new THREE.MeshStandardMaterial({ color:'#5F6B7E', metalness:0.6, roughness:0.45, transparent:true, opacity:1 });
+const matBlock  = ()=> new THREE.MeshStandardMaterial({ color:'#5C6B80', metalness:0.4, roughness:0.6, transparent:true, opacity:1 });
+const matUnit   = ()=> new THREE.MeshStandardMaterial({ color:'#7E8CA0', metalness:0.7, roughness:0.35, transparent:true, opacity:1 });
+
+const WELLS = [
+  { id:'w-prod-1',  kind:'skn',   x:180,  z:-120, toe:-640, drift:40 },
+  { id:'w-prod-2',  kind:'esp',   x:420,  z:160,  toe:-630, drift:-46 },
+  { id:'w-prod-3',  kind:'horiz', x:60,   z:300,  toe:-590, drift:0 },
+  { id:'w-prod-4',  kind:'frac',  x:300,  z:-340, toe:-635, drift:-40 },
+  { id:'w-inj-1',   kind:'inj',   x:-280, z:80,   toe:-655, drift:36 },
+  { id:'w-inj-2',   kind:'inj',   x:-120, z:-320, toe:-660, drift:-30 },
+  { id:'w-drill',   kind:'drill', x:-520, z:-140, toe:-320, drift:18 },
+  { id:'w-workover',kind:'wo',    x:520,  z:-220, toe:-610, drift:30 }
+];
+
+const perfMid = {};
+let pumpjack = null, drillRig = null;
+
+for(const w of WELLS){
+  const gw = new THREE.Group(); grWells.add(gw);
+
+  let cps;
+  if(w.kind === 'horiz'){
+    cps = [ V3(w.x,0,w.z), V3(w.x,-260,w.z), V3(w.x+15,-470,w.z-70), V3(w.x+35,-575,w.z-160),
+            V3(w.x+50,-590,w.z-280), V3(w.x+60,-592,w.z-460) ];
+  } else {
+    cps = [ V3(w.x,0,w.z),
+            V3(w.x+w.drift*0.25, w.toe*0.35, w.z+w.drift*0.18),
+            V3(w.x+w.drift*0.7,  w.toe*0.75, w.z+w.drift*0.5),
+            V3(w.x+w.drift,      w.toe,      w.z+w.drift*0.75) ];
+  }
+  const curve = new THREE.CatmullRomCurve3(cps);
+
+  // Цементное кольцо → обсадная → НКТ
+  const cem = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 11, 8),
+    new THREE.MeshStandardMaterial({ color:'#C9C2B2', roughness:0.8, transparent:true, opacity:0.18, depthWrite:false }));
+  gw.add(cem);
+  reg('w-cement', 'skv', cem);
+  const casing = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 8.5, 8),
+    new THREE.MeshStandardMaterial({ color:'#9AA7B8', metalness:0.7, roughness:0.35, transparent:true, opacity:0.35, depthWrite:false }));
+  gw.add(casing);
+  const tubing = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 4.2, 7),
+    new THREE.MeshStandardMaterial({ color:'#C8D2E0', metalness:0.7, roughness:0.3, transparent:true, opacity:1 }));
+  gw.add(tubing);
+  reg(w.id, 'skv', casing, V3(w.x, 40, w.z), gw);
+  reg(w.id, 'skv', tubing);
+  reg(w.id, 'skv', cem);
+
+  const cpts = curve.getPoints(260);
+  const atY = yT => { let best=cpts[0], bd=1e9; for(const p of cpts){ const d=Math.abs(p.y-yT); if(d<bd){bd=d;best=p;} } return best.clone(); };
+
+  // Кабель УЭВН вдоль колонны
+  if(w.kind === 'esp'){
+    const cc = cps.map(p => p.clone().add(V3(10,0,4)));
+    const cable = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cc), 60, 1.2, 6),
+      new THREE.MeshStandardMaterial({ color:'#2A2E38', roughness:0.7, transparent:true, opacity:1 }));
+    gw.add(cable);
+    reg(w.id, 'skv', cable);
+  }
+
+  // АСПО и соли на НКТ
+  if(['skn','esp','frac'].includes(w.kind)){
+    const gd = new THREE.Group();
+    const dm = new THREE.MeshStandardMaterial({ color:'#4A3B26', roughness:0.95, transparent:true, opacity:1 });
+    for(const dy of [-160, -280, -400]){
+      const p = atY(dy);
+      const lump = new THREE.Mesh(new THREE.SphereGeometry(7.5, 10, 8), dm);
+      lump.scale.set(1, 1.8, 1);
+      lump.position.copy(p);
+      gd.add(lump);
+    }
+    gw.add(gd);
+    reg('tub-'+w.id, 'skv', gd, atY(-280), gw);
+    reg('tub-'+w.id, 'skv', tubing);
+  }
+
+  // Перфорация / трещина ГРП
+  if(w.kind !== 'drill'){
+    const gp = new THREE.Group();
+    const pm = new THREE.MeshStandardMaterial({ color:'#E0B265', emissive:new THREE.Color('#B8741E'), emissiveIntensity:0.3, metalness:0.3, roughness:0.5, transparent:true, opacity:1 });
+    if(w.kind === 'horiz'){
+      for(let s=0;s<6;s++){
+        const c = cpts[Math.round(cpts.length*(0.72+0.05*s))];
+        for(let q=0;q<4;q++){
+          const a = q/4*Math.PI*2 + s;
+          gp.add(barBetween(c, c.clone().add(V3(Math.cos(a)*24, (Math.random()-0.5)*8, Math.sin(a)*10)), 1.2, pm));
+        }
+      }
+      perfMid[w.id] = cpts[Math.round(cpts.length*0.82)].clone();
+    } else {
+      const px = w.x+w.drift*0.85, pz = w.z+w.drift*0.6;
+      const topPay = yResTop(px, pz) - 12;
+      for(const dy of [topPay, topPay-28, topPay-56]){
+        const c = atY(dy);
+        for(let q=0;q<6;q++){
+          const a = q/6*Math.PI*2 + dy;
+          gp.add(barBetween(c, c.clone().add(V3(Math.cos(a)*26, (Math.random()-0.5)*7, Math.sin(a)*26)), 1.2, pm));
+        }
+      }
+      perfMid[w.id] = atY(topPay-28);
+    }
+    if(w.kind === 'frac'){
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(95, 95, 3, 28),
+        new THREE.MeshStandardMaterial({ color:'#E8A94A', emissive:new THREE.Color('#C07B20'), emissiveIntensity:0.5,
+          transparent:true, opacity:0.55, depthWrite:false, side:THREE.DoubleSide }));
+      disc.position.copy(perfMid[w.id]);
+      disc.rotation.z = Math.PI/2;
+      disc.rotation.y = 0.5;
+      gp.add(disc);
+    }
+    gw.add(gp);
+    reg('perf-'+w.id, 'plast', gp, perfMid[w.id], gw);
+  }
+
+  // ГНО (ШГН / УЭВН)
+  if(w.kind==='skn' || w.kind==='esp'){
+    const c = atY(-470);
+    const esp = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 60, 12),
+      new THREE.MeshStandardMaterial({ color:COL_DATA, emissive:new THREE.Color('#1E8A80'), emissiveIntensity:0.3, metalness:0.6, roughness:0.35, transparent:true, opacity:1 }));
+    esp.position.copy(c);
+    gw.add(esp);
+    reg('esp-'+w.id, 'dob', esp, c, gw);
+  }
+
+  // Стрелки закачки (ППД): конусы бегут вниз
+  if(w.kind === 'inj'){
+    const ga = new THREE.Group();
+    const am = new THREE.MeshBasicMaterial({ color:COL_WATER, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
+    const cones = [];
+    for(let q=0;q<3;q++){
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(6, 16, 8), am);
+      cone.rotation.x = Math.PI;
+      ga.add(cone); cones.push(cone);
+    }
+    gw.add(ga);
+    reg(w.id, 'skv', ga);
+    animators.push({ fn:(t)=>{
+      cones.forEach((c,q)=>{
+        const yy = -60 - ((t*90 + q*160) % 480);
+        c.position.copy(atY(yy));
+      });
+    }});
+  }
+
+  /* ---------- Устья ---------- */
+  const gy = surfY(w.x, w.z);
+  if(w.kind === 'skn'){
+    // Станок-качалка, цикл 8 с
+    const gj = new THREE.Group(); gj.position.set(w.x, gy, w.z);
+    const ms = matSteel();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(56, 4, 20), matSteelD()); base.position.y=2; gj.add(base);
+    gj.add(barBetween(V3(-7,3,-8), V3(3,43,0), 2.2, ms));
+    gj.add(barBetween(V3(-7,3, 8), V3(3,43,0), 2.2, ms));
+    gj.add(barBetween(V3(13,3,-8), V3(3,43,0), 2.2, ms));
+    gj.add(barBetween(V3(13,3, 8), V3(3,43,0), 2.2, ms));
+    const beam = new THREE.Group(); beam.position.set(3,43,0);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(66,4.4,5), ms); beam.add(bar);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(7,17,10), ms); head.position.set(-33,-4,0); beam.add(head);
+    gj.add(beam);
+    const crank = new THREE.Group(); crank.position.set(24,13,0);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(3.4,23,4), matSteelD()); arm.position.y=8; crank.add(arm);
+    const cw = new THREE.Mesh(new THREE.CylinderGeometry(7.5,7.5,5,14), matSteelD()); cw.rotation.x=Math.PI/2; cw.position.y=16.5; crank.add(cw);
+    gj.add(crank);
+    gj.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+    gj.scale.setScalar(1.4);
+    grSurf.add(gj);
+    reg(w.id, 'skv', gj);
+    pumpjack = { beam, crank };
+    animators.push({ fn:(t)=>{
+      if(REDUCED) return;
+      pumpjack.beam.rotation.z = Math.sin(t*Math.PI*2/8)*0.17;
+      pumpjack.crank.rotation.z = t*Math.PI*2/8;
+    }});
+  }
+  else if(w.kind === 'drill'){
+    // Буровая вышка: талевый блок ходит, ротор крутится, долото на забое
+    const rigG = new THREE.Group(); rigG.position.set(w.x, gy, w.z);
+    const ms = matSteel();
+    const H=130, b0=24, b1=6;
+    const lerp=(a,b,t)=>a+(b-a)*t;
+    const corner=(sx,sz,t)=>V3(lerp(b0*sx,b1*sx,t), H*t, lerp(b0*sz,b1*sz,t));
+    const S=[[1,1],[1,-1],[-1,-1],[-1,1]];
+    for(const [sx,sz] of S) rigG.add(barBetween(corner(sx,sz,0), corner(sx,sz,1), 1.6, ms));
+    const LV=7;
+    for(let l=1;l<=LV;l++){
+      const t=l/LV;
+      for(let k2=0;k2<4;k2++){
+        const a=S[k2], b=S[(k2+1)%4];
+        rigG.add(barBetween(corner(a[0],a[1],t), corner(b[0],b[1],t), 1.0, ms));
+        rigG.add(barBetween(corner(a[0],a[1],(l-1)/LV), corner(b[0],b[1],t), 0.8, matSteelD()));
+      }
+    }
+    const crown = new THREE.Mesh(new THREE.BoxGeometry(16,5,16), matSteelD()); crown.position.y=H+2.5; rigG.add(crown);
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(62,5,52), matSteelD()); floor.position.y=6; rigG.add(floor);
+    const block = new THREE.Mesh(new THREE.BoxGeometry(8,14,8), matUnit()); block.position.y=80; rigG.add(block);
+    const rotor = new THREE.Mesh(new THREE.CylinderGeometry(9,9,3,16), matUnit()); rotor.position.y=9.5; rigG.add(rotor);
+    rigG.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+    grSurf.add(rigG);
+    reg(w.id, 'skv', rigG);
+    const bit = new THREE.Mesh(new THREE.ConeGeometry(10, 20, 10),
+      new THREE.MeshStandardMaterial({ color:'#B8C4D4', metalness:0.8, roughness:0.3, emissive:new THREE.Color('#4A6EA8'), emissiveIntensity:0.35, transparent:true, opacity:1 }));
+    bit.rotation.x = Math.PI;
+    bit.position.copy(atY(w.toe));
+    gw.add(bit);
+    reg(w.id, 'skv', bit);
+    drillRig = { block, rotor };
+    animators.push({ fn:(t)=>{
+      if(REDUCED) return;
+      drillRig.block.position.y = 78 - 30*(0.5+0.5*Math.sin(t*Math.PI*2/11));
+      drillRig.rotor.rotation.y = t*2.2;
+    }});
+  }
+  else if(w.kind === 'wo'){
+    // Подъёмник ПРС: шасси, наклонная мачта, НКТ рядом, датчик ДЭЛ
+    const gwo = new THREE.Group(); gwo.position.set(w.x, gy, w.z);
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(40,7,14), matSteelD()); chassis.position.set(20,5,0); gwo.add(chassis);
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(11,9,13), matUnit()); cab.position.set(38,12,0); gwo.add(cab);
+    const ms = matSteel();
+    const mastTop = V3(-6, 74, 0);
+    gwo.add(barBetween(V3(8,8,-5), mastTop.clone().add(V3(0,0,-2)), 1.6, ms));
+    gwo.add(barBetween(V3(8,8, 5), mastTop.clone().add(V3(0,0, 2)), 1.6, ms));
+    for(let l=1;l<5;l++){
+      const t=l/5;
+      const p1=V3(8+(mastTop.x-8)*t, 8+(mastTop.y-8)*t, -5+3*t);
+      const p2=V3(8+(mastTop.x-8)*t, 8+(mastTop.y-8)*t,  5-3*t);
+      gwo.add(barBetween(p1,p2,0.9,ms));
+    }
+    gwo.add(barBetween(mastTop, V3(30,4,-18), 0.6, matSteelD()));
+    gwo.add(barBetween(mastTop, V3(30,4, 18), 0.6, matSteelD()));
+    // Датчик ДЭЛ на мачте — маленький блок с индикатором
+    const del = new THREE.Mesh(new THREE.BoxGeometry(3.4,4.6,3), matUnit()); del.position.set(4,26,-6); gwo.add(del);
+    const led = new THREE.Mesh(new THREE.SphereGeometry(1.1,6,5),
+      new THREE.MeshBasicMaterial({ color:COL_DATA, transparent:true, opacity:1 }));
+    led.position.set(4,29.4,-6); gwo.add(led);
+    const rowList = [];
+    for(let q=0;q<9;q++) rowList.push([ V3(-4+q*4, 2.2, 22), V3(-4+q*4+34, 2.2, 34), 1.5 ]);
+    gwo.add(instancedBars(rowList, matSteel()));
+    gwo.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+    gwo.scale.setScalar(1.35);
+    grSurf.add(gwo);
+    reg(w.id, 'skv', gwo);
+  }
+  else {
+    // Арматура устья (добывающие УЭВН/ГРП/гориз., нагнетательные)
+    const tree = new THREE.Group(); tree.position.set(w.x, gy, w.z);
+    const ms = matSteel();
+    const stack = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 5, 26, 10), ms); stack.position.y=13; tree.add(stack);
+    const cross = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 22, 8), ms); cross.rotation.z=Math.PI/2; cross.position.y=18; tree.add(cross);
+    for(const dy of [10, 18, 24]){
+      const v = new THREE.Mesh(new THREE.CylinderGeometry(5.6, 5.6, 3, 10), matSteelD()); v.position.y=dy; tree.add(v);
+    }
+    tree.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+    tree.scale.setScalar(1.6);
+    grSurf.add(tree);
+    reg(w.id, 'skv', tree);
+  }
+}
+
+/* ---------- Зоны дренирования (res-drainage) ---------- */
+{
+  const gd = new THREE.Group();
+  const dm = new THREE.MeshBasicMaterial({ color:COL_OIL, transparent:true, opacity:0.1, depthWrite:false });
+  for(const id of ['w-prod-1','w-prod-2','w-prod-4']){
+    if(!perfMid[id]) continue;
+    const s = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), dm);
+    s.scale.set(130, 52, 130);
+    s.position.copy(perfMid[id]);
+    gd.add(s);
+  }
+  grRes.add(gd);
+  reg('res-drainage', 'plast', gd, perfMid['w-prod-1'] ? perfMid['w-prod-1'].clone().add(V3(0,60,0)) : V3(0,-500,0), grRes);
+}
+
+/* ---------- Конус обводнения под Д-1 (res-cone) ---------- */
+{
+  const prof = [ new THREE.Vector2(6, 92), new THREE.Vector2(20, 70), new THREE.Vector2(52, 42),
+                 new THREE.Vector2(100, 16), new THREE.Vector2(150, 0) ];
+  const cone = new THREE.Mesh(new THREE.LatheGeometry(prof, 26),
+    new THREE.MeshBasicMaterial({ color:COL_WATER, transparent:true, opacity:0.22, side:THREE.DoubleSide, depthWrite:false }));
+  const p = perfMid['w-prod-1'] || V3(200,-560,-90);
+  cone.position.set(p.x, OWC_Y-10, p.z);
+  grRes.add(cone);
+  reg('res-cone', 'plast', cone, V3(p.x, OWC_Y+40, p.z), grRes);
+}
+
+/* ---------- Фронт заводнения (res-flood): фронт + линии тока ---------- */
+const featFlood = new THREE.Group(); grRes.add(featFlood);
+{
+  const fronts = [];
+  for(const id of ['w-inj-1','w-inj-2']){
+    if(!perfMid[id]) continue;
+    const fm = new THREE.MeshBasicMaterial({ color:COL_WATER, transparent:true, opacity:0.25, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide });
+    const sh = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 14), fm);
+    sh.position.copy(perfMid[id]);
+    featFlood.add(sh);
+    fronts.push({ mesh:sh, mat:fm });
+  }
+  const mkTex = (hex)=>{
+    const cv=document.createElement('canvas'); cv.width=128; cv.height=4;
+    const c=cv.getContext('2d'); c.clearRect(0,0,128,4);
+    const g=c.createLinearGradient(0,0,42,0);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(0.7,hex); g.addColorStop(1,'#FFFFFF');
+    c.fillStyle=g; c.fillRect(0,0,42,4);
+    const t=new THREE.CanvasTexture(cv);
+    t.wrapS=THREE.RepeatWrapping; t.repeat.set(6,1);
+    return t;
+  };
+  window.__mkFlowTex = mkTex;
+  const flMats = [];
+  for(const [a,b] of [['w-inj-1','w-prod-1'],['w-inj-1','w-prod-2'],['w-inj-2','w-prod-1'],['w-inj-2','w-prod-4']]){
+    if(!perfMid[a] || !perfMid[b]) continue;
+    const mid = perfMid[a].clone().lerp(perfMid[b],0.5); mid.y -= 16;
+    const mat = new THREE.MeshBasicMaterial({ map:mkTex(COL_WATER), transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
+    flMats.push(mat);
+    featFlood.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([perfMid[a],mid,perfMid[b]]), 48, 2.6, 6), mat));
+  }
+  reg('res-flood', 'plast', featFlood, perfMid['w-inj-1'] ? perfMid['w-inj-1'].clone().add(V3(60,20,0)) : V3(-200,-560,0), grRes);
+  featFlood.visible = false;
+  animators.push({ fn:(t,dt)=>{
+    const k = (t % 20)/20;
+    for(const f of fronts){
+      const r = 24 + 300*k;
+      f.mesh.scale.set(r, r*0.32, r);
+      f.mat.opacity = 0.3*(1-k) + 0.03;
+    }
+    for(const m of flMats) m.map.offset.x -= dt*0.35;
+  }});
+}
+
+/* ================================================================
+   4. ПОВЕРХНОСТЬ: объектный состав пилота Молдабек Восточный
+   ================================================================ */
+
+/* ---------- Рельеф с солончаковыми пятнами ---------- */
+{
+  const cv = document.createElement('canvas'); cv.width=cv.height=512;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#E4E4E4'; c.fillRect(0,0,512,512);
+  for(let i=0;i<38;i++){
+    const x=Math.random()*512, y=Math.random()*512, r=14+Math.random()*44;
+    const g=c.createRadialGradient(x,y,2,x,y,r);
+    const salt = Math.random()<0.5;
+    g.addColorStop(0, salt ? 'rgba(255,255,255,0.5)' : 'rgba(160,160,160,0.4)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=g; c.beginPath(); c.arc(x,y,r,0,7); c.fill();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  const g = new THREE.PlaneGeometry(2*HW, 2*HD, 84, 56);
+  g.rotateX(-Math.PI/2);
+  const p = g.attributes.position;
+  for(let i=0;i<p.count;i++) p.setY(i, surfY(p.getX(i), p.getZ(i)));
+  g.computeVertexNormals();
+  const terr = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+    color:'#33465A', map:tex, roughness:0.95, transparent:true, opacity:0.34, depthWrite:false, side:THREE.DoubleSide }));
+  terr.receiveShadow = !LOW;
+  grSurf.add(terr);
+  reg('s-terrain', 'dob', terr);
+}
+
+/* ---------- Степная растительность (инстансы) ---------- */
+{
+  const N = LOW ? 50 : 100;
+  const bush = new THREE.InstancedMesh(new THREE.ConeGeometry(1,1,6),
+    new THREE.MeshStandardMaterial({ color:'#4A5540', roughness:1, transparent:true, opacity:0.9 }), N);
+  const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), S=new THREE.Vector3(), P=new THREE.Vector3();
+  let placed = 0, guard = 0;
+  while(placed < N && guard++ < 4000){
+    const x = (Math.random()*2-1)*(HW-40), z = (Math.random()*2-1)*(HD-40);
+    let near = false;
+    for(const pd of PADS){ if((x-pd[0])**2+(z-pd[1])**2 < 90*90){ near=true; break; } }
+    if(near) continue;
+    const s = 2+Math.random()*3.4;
+    P.set(x, surfY(x,z)+s/2, z); S.set(s*0.8, s, s*0.8);
+    M.compose(P,Q,S);
+    bush.setMatrixAt(placed++, M);
+  }
+  bush.count = placed;
+  grSurf.add(bush);
+  reg('s-terrain', 'dob', bush);
+}
+
+/* ---------- Утилиты площадок ---------- */
+function padBase(x, z, w, d){
+  const g = new THREE.Group(); g.position.set(x, surfY(x,z), z);
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(w, 2, d),
+    new THREE.MeshStandardMaterial({ color:'#2A3646', roughness:1, transparent:true, opacity:0.95 }));
+  plate.position.y = 1; g.add(plate);
+  return g;
+}
+function berm(g, w, d, h=4.5, t=7){
+  const bm = new THREE.MeshStandardMaterial({ color:'#3B4456', roughness:1, transparent:true, opacity:1 });
+  for(const [ww,dd,px,pz] of [[w,t,0,-d/2],[w,t,0,d/2],[t,d,-w/2,0],[t,d,w/2,0]]){
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(ww,h,dd), bm);
+    wall.position.set(px, h/2, pz); g.add(wall);
+  }
+}
+function dummyHead(g, dx, dz){
+  const ms = matSteel();
+  const st = new THREE.Mesh(new THREE.CylinderGeometry(3.4,3.8,18,8), ms); st.position.set(dx,11,dz); g.add(st);
+  const cr = new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.2,14,8), ms); cr.rotation.z=Math.PI/2; cr.position.set(dx,13,dz); g.add(cr);
+}
+
+/* ---------- Кустовые площадки нефтяного фонда ---------- */
+{
+  const g1 = padBase(180,-120, 150, 100); berm(g1, 150, 100);
+  dummyHead(g1, -45, 24); dummyHead(g1, 45, 26);
+  g1.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+  g1.scale.setScalar(1.3);
+  grSurf.add(g1);
+  reg('s-pad-1', 'dob', g1, V3(180, 26, -120), grSurf);
+  const g2 = padBase(420,160, 130, 92); berm(g2, 130, 92);
+  dummyHead(g2, -40, -22);
+  g2.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+  g2.scale.setScalar(1.3);
+  grSurf.add(g2);
+  reg('s-pad-2', 'dob', g2, V3(420, 26, 160), grSurf);
+}
+
+/* ---------- 5 КП: ветка кустовых площадок (клоны одного эталона) ---------- */
+const KP_POS = [ [-650,170],[-560,-50],[-430,-250],[-240,-390],[-80,-100] ];
+{
+  const g = new THREE.Group();
+  // эталонный куст: плита, обваловка, 2 устья, блок замера
+  const proto = new THREE.Group();
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(96, 2, 66),
+    new THREE.MeshStandardMaterial({ color:'#2A3646', roughness:1, transparent:true, opacity:0.95 }));
+  plate.position.y = 1; proto.add(plate);
+  berm(proto, 96, 66, 4, 6);
+  dummyHead(proto, -24, 8); dummyHead(proto, 18, -10);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(20,11,14), matBlock()); box.position.set(30,7.5,18); proto.add(box);
+  proto.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+  for(const [x,z] of KP_POS){
+    const kp = proto.clone();
+    kp.position.set(x, surfY(x,z), z);
+    kp.scale.setScalar(1.5);
+    g.add(kp);
+  }
+  grSurf.add(g);
+  reg('s-kp', 'dob', g, V3(KP_POS[2][0], 30, KP_POS[2][1]), grSurf);
+}
+
+/* ---------- МФНС ---------- */
+{
+  const g = padBase(100,-20, 70, 46); berm(g, 70, 46, 3.5, 5);
+  const hall = new THREE.Mesh(new THREE.BoxGeometry(46,16,24), matBlock()); hall.position.y=10; g.add(hall);
+  for(let q=0;q<3;q++){
+    const pump = new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,14,10), matUnit());
+    pump.rotation.z=Math.PI/2; pump.position.set(-13+q*13, 6, 20); g.add(pump);
+  }
+  const man = new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.4,48,8), matUnit());
+  man.rotation.z=Math.PI/2; man.position.set(0, 4, 27); g.add(man);
+  g.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+  g.scale.setScalar(1.5);
+  grSurf.add(g);
+  reg('s-mfns', 'dob', g, V3(100, 42, -20), grSurf);
+}
+
+/* ---------- СП «В-Молдабек»: сепараторы на опорах + узел замера ---------- */
+{
+  const g = padBase(320,-40, 96, 64); berm(g, 96, 64, 3.5, 5);
+  for(const dz of [-14, 4]){
+    const sep = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 46, 14), matUnit());
+    sep.rotation.z = Math.PI/2; sep.position.set(-6, 15, dz);
+    g.add(sep);
+    for(const dx of [-18, 12]){
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(3, 9, 10), matSteelD());
+      leg.position.set(-6+dx, 5, dz); g.add(leg);
+    }
+  }
+  const meter = new THREE.Mesh(new THREE.BoxGeometry(18,10,14), matBlock()); meter.position.set(30,7,20); g.add(meter);
+  const loop = new THREE.Mesh(new THREE.TorusGeometry(6,1.3,8,20), matUnit()); loop.rotation.x=Math.PI/2; loop.position.set(30,13,20); g.add(loop);
+  g.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+  g.scale.setScalar(1.5);
+  grSurf.add(g);
+  reg('s-sp', 'dob', g, V3(320, 48, -40), grSurf);
+}
+
+/* ---------- ЦППН «Кенбай»: блоки, колонна, теплообменники, резервуарный парк ---------- */
+{
+  const g = padBase(620,-60, 220, 190);
+  // технологическая зона
+  const main = new THREE.Mesh(new THREE.BoxGeometry(56,24,34), matBlock()); main.position.set(-58,14,-52); g.add(main);
+  for(const dz of [-63, -52, -41]){
+    const hx = new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,34,12), matUnit());
+    hx.rotation.z=Math.PI/2; hx.position.set(-66,28,dz); g.add(hx);
+  }
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(6,6,56,12), matUnit()); col.position.set(-18,30,-60); g.add(col);
+  const aux = new THREE.Mesh(new THREE.BoxGeometry(28,14,20), matBlock()); aux.position.set(-16,9,-14); g.add(aux);
+  // резервуарный парк с обваловкой
+  const tm = new THREE.MeshStandardMaterial({ color:'#93A0B2', metalness:0.6, roughness:0.4, transparent:true, opacity:1 });
+  const spots = [[28,18],[28,66],[76,18],[76,66]];
+  spots.forEach(([dx,dz], i)=>{
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(21,21,38,22), tm.clone());
+    t.position.set(dx,19,dz); t.castShadow=!LOW; g.add(t);
+    if(i === 3){
+      const fr = new THREE.Mesh(new THREE.CylinderGeometry(19.6,19.6,1.6,22), matSteelD());
+      fr.position.set(dx, 31, dz); g.add(fr);
+    } else {
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(21.6, 6, 22), tm.clone());
+      roof.position.set(dx, 41, dz); g.add(roof);
+    }
+    const hp = [];
+    for(let q=0;q<=20;q++){
+      const a = q/20*Math.PI*1.5;
+      hp.push(V3(dx+Math.cos(a)*22.4, 2+q/20*36, dz+Math.sin(a)*22.4));
+    }
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(hp), 40, 0.8, 5), matSteelD()));
+  });
+  const bm = new THREE.MeshStandardMaterial({ color:'#3B4456', roughness:1, transparent:true, opacity:1 });
+  for(const [ww,dd,px,pz] of [[120,6,52,-6],[120,6,52,90],[6,102,-8,42],[6,102,112,42]]){
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(ww,4.5,dd), bm);
+    wall.position.set(px, 2.25, pz); g.add(wall);
+  }
+  g.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+  g.scale.setScalar(1.3);
+  grSurf.add(g);
+  reg('s-cppn', 'dob', g, V3(620, 88, -60), grSurf);
+}
+
+/* ---------- Факельная установка ЦППН: пламя + дым ---------- */
+let flareFlame = null;
+const smokePuffs = [];
+{
+  const g = new THREE.Group(); g.position.set(700, surfY(700,-210), -210);
+  const stk = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3.4, 150, 10), matUnit());
+  stk.position.y = 75; stk.castShadow = !LOW; g.add(stk);
+  const glist = [];
+  for(const a of [0, 2.1, 4.2]) glist.push([ V3(Math.cos(a)*2.5, 148, Math.sin(a)*2.5), V3(Math.cos(a)*26, 2, Math.sin(a)*26), 0.5 ]);
+  g.add(instancedBars(glist, matSteelD()));
+  flareFlame = new THREE.Mesh(new THREE.ConeGeometry(6.5, 26, 10),
+    new THREE.MeshBasicMaterial({ color:'#FFB25E', transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false }));
+  flareFlame.position.y = 162;
+  g.add(flareFlame);
+  const sm = new THREE.MeshBasicMaterial({ color:'#5A6472', transparent:true, opacity:0.16, depthWrite:false });
+  for(let q=0;q<8;q++){
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(6, 10, 8), sm.clone());
+    g.add(puff);
+    smokePuffs.push({ mesh:puff, off:q/8 });
+  }
+  grSurf.add(g);
+  reg('s-flare', 'dob', g, V3(700, 160, -210), grSurf);
+  animators.push({ fn:(t)=>{
+    if(!REDUCED){
+      flareFlame.scale.set(1+0.12*Math.sin(t*11), 1+0.2*Math.sin(t*13)+0.1*Math.sin(t*29), 1+0.12*Math.cos(t*9));
+      flareFlame.material.opacity = 0.75+0.2*Math.sin(t*17);
+    }
+    for(const p of smokePuffs){
+      const k = ((t*0.06 + p.off) % 1);
+      p.mesh.position.set(6 + k*80, 168 + k*90, -2 + k*26);
+      const s = 5 + k*26;
+      p.mesh.scale.set(s/6, s/6, s/6);
+      p.mesh.material.opacity = 0.18*(1-k);
+    }
+  }});
+}
+
+/* ---------- БРХ: ёмкости реагентов + насосы-дозаторы УДР ---------- */
+{
+  const g = padBase(240,120, 54, 36); berm(g, 54, 36, 3, 5);
+  for(const dx of [-16, -4, 8]){
+    const tk = new THREE.Mesh(new THREE.CylinderGeometry(4.4,4.4,16,10), matUnit());
+    tk.position.set(dx,10,-6); g.add(tk);
+  }
+  const udr = new THREE.Mesh(new THREE.BoxGeometry(16,9,10), matBlock()); udr.position.set(18,6.5,8); g.add(udr);
+  g.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+  g.scale.setScalar(1.5);
+  grSurf.add(g);
+  reg('s-brh', 'dob', g, V3(240, 38, 120), grSurf);
+}
+
+/* ---------- КНС: ряд ЦНС + резервный агрегат ---------- */
+{
+  const g = padBase(-360,220, 78, 46); berm(g, 78, 46, 3.5, 5);
+  const hall = new THREE.Mesh(new THREE.BoxGeometry(54,17,26), matBlock()); hall.position.y=10.5; g.add(hall);
+  for(let q=0;q<4;q++){
+    const pump = new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,15,10), matUnit());
+    pump.rotation.z=Math.PI/2; pump.position.set(-19+q*13, 6, 23);
+    if(q===3) pump.material = matSteelD();   // резервный агрегат — приглушённый
+    g.add(pump);
+  }
+  const man = new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.4,54,8), matUnit());
+  man.rotation.z=Math.PI/2; man.position.set(0, 4, 31); g.add(man);
+  g.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+  g.scale.setScalar(1.5);
+  grSurf.add(g);
+  reg('s-kns', 'dob', g, V3(-360, 42, 220), grSurf);
+}
+
+/* ---------- ПС: подстанция с трансформаторами и ячейками ---------- */
+{
+  const g = padBase(-140,320, 62, 46);
+  for(const dx of [-15, 9]){
+    const tr = new THREE.Mesh(new THREE.BoxGeometry(14,12,10), matUnit()); tr.position.set(dx,8,4); g.add(tr);
+    const fins=[]; for(let q=0;q<4;q++) fins.push([ V3(dx-6+q*4, 3, 10), V3(dx-6+q*4, 13, 10), 0.7 ]);
+    g.add(instancedBars(fins, matSteelD()));
+  }
+  const cells = new THREE.Mesh(new THREE.BoxGeometry(24,9,10), matBlock()); cells.position.set(2,6,-14); g.add(cells);
+  const portal=[]; portal.push([V3(-25,2,-18),V3(-25,22,-18),1.1],[V3(25,2,-18),V3(25,22,-18),1.1],[V3(-25,22,-18),V3(25,22,-18),0.9]);
+  g.add(instancedBars(portal, matSteel()));
+  g.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+  g.scale.setScalar(1.5);
+  grSurf.add(g);
+  reg('s-ps', 'dob', g, V3(-140, 44, 320), grSurf);
+}
+
+/* ---------- ВЛ: ветка от ПС к 5 КП, опоры инстансами, провисающие провода ---------- */
+{
+  const g = new THREE.Group();
+  const towers = [ [-140,320],[-300,260],[-460,220],[-650,170],[-590,60],[-560,-50],
+                   [-500,-150],[-430,-250],[-330,-320],[-240,-390],[-160,-250],[-80,-100] ];
+  const armY = 56, armW = 13;
+  const bars = [];
+  for(const [x,z] of towers){
+    const gy = surfY(x,z);
+    const A=(dx,dy,dz)=>V3(x+dx, gy+dy, z+dz);
+    bars.push([A(-5,0,-5),A(-1.4,armY+7,-1.4),1.1],[A(5,0,-5),A(1.4,armY+7,-1.4),1.1],
+              [A(-5,0,5),A(-1.4,armY+7,1.4),1.1],[A(5,0,5),A(1.4,armY+7,1.4),1.1]);
+    for(const h of [18, 36, 52]){
+      const k = 5 - 3.6*h/(armY+7);
+      bars.push([A(-k,h,-k),A(k,h,-k),0.7],[A(-k,h,k),A(k,h,k),0.7],[A(-k,h,-k),A(-k,h,k),0.7],[A(k,h,-k),A(k,h,k),0.7]);
+    }
+    bars.push([A(-armW,armY,0),A(armW,armY,0),1.0]);
+  }
+  g.add(instancedBars(bars, matSteel()));
+  const wm = new THREE.LineBasicMaterial({ color:'#7A8CA6', transparent:true, opacity:0.8 });
+  const tip = (i,s)=>{ const [x,z]=towers[i]; return V3(x+s*armW, surfY(x,z)+armY, z); };
+  function wire(a,b){
+    const mid=a.clone().lerp(b,0.5); mid.y-=14;
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(new THREE.CatmullRomCurve3([a,mid,b]).getPoints(24)), wm));
+  }
+  for(let i=0;i<towers.length-1;i++){ wire(tip(i,-1),tip(i+1,-1)); wire(tip(i,1),tip(i+1,1)); }
+  // отводы: на КНС и на кусты нефтяного фонда
+  wire(tip(2,-1),  V3(-360, surfY(-360,220)+19, 220));
+  wire(tip(11,1),  V3(180,  surfY(180,-120)+45, -120));
+  wire(tip(11,-1), V3(60,   surfY(60,300)+24, 300));
+  grSurf.add(g);
+  reg('s-vl', 'dob', g, V3(-430, 70, -250), grSurf);
+}
+
+/* ---------- Мачта связи ---------- */
+{
+  const g = new THREE.Group(); g.position.set(120, surfY(120,-450), -450);
+  const bars = [];
+  const H=86;
+  bars.push([V3(-4,0,-4),V3(0,H,0),1.0],[V3(4,0,-4),V3(0,H,0),1.0],[V3(0,0,5),V3(0,H,0),1.0]);
+  for(const h of [22, 44, 66]){
+    const k = 4-3.4*h/H;
+    bars.push([V3(-k,h,-k),V3(k,h,-k),0.5],[V3(k,h,-k),V3(0,h,k),0.5],[V3(0,h,k),V3(-k,h,-k),0.5]);
+  }
+  g.add(instancedBars(bars, matSteel()));
+  for(const dy of [72, 80]){
+    const ant = new THREE.Mesh(new THREE.BoxGeometry(1.6, 9, 3.4), matSteelD());
+    ant.position.set(3.4, dy, 0); g.add(ant);
+  }
+  grSurf.add(g);
+  reg('s-tower', 'dob', g, V3(120, 92, -450), grSurf);
+}
+
+/* ---------- ЦИО: блок-бокс с видеостеной + импульсы телеметрии ---------- */
+const featTele = new THREE.Group(); grSurf.add(featTele);
+{
+  const g = padBase(200,-440, 56, 34);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(40,14,22), matBlock()); box.position.y=9; g.add(box);
+  // видеостена — светящаяся широкая панель на фасаде
+  const wallMat = new THREE.MeshBasicMaterial({ color:COL_DATA, transparent:true, opacity:0.85 });
+  const vwall = new THREE.Mesh(new THREE.PlaneGeometry(30, 8), wallMat);
+  vwall.position.set(0, 10, 11.2); g.add(vwall);
+  const winMat = new THREE.MeshBasicMaterial({ color:'#F0D9A0', transparent:true, opacity:0.9 });
+  for(let q=0;q<3;q++){
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 3.2), winMat);
+    win.position.set(-12+q*12, 10, -11.2); win.rotation.y = Math.PI; g.add(win);
+  }
+  g.traverse(n=>{ if(n.isMesh && n.material!==wallMat && n.material!==winMat) n.castShadow=!LOW; });
+  g.scale.setScalar(1.5);
+  grSurf.add(g);
+  reg('s-cio', 'dob', g, V3(200, 36, -440), grSurf);
+  reg('s-cio', 'dob', featTele);
+  // Импульсы: от объектов к ЦИО
+  const top = V3(200, surfY(200,-440)+18, -440);
+  const srcs = [ V3(180,20,-120), V3(-560,20,-50), V3(-240,20,-390), V3(100,24,-20),
+                 V3(320,26,-40), V3(620,40,-60), V3(-360,20,220) ];
+  const pm = new THREE.MeshBasicMaterial({ color:COL_DATA, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
+  const pulses = srcs.map((s,i)=>{
+    const m = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 6), pm);
+    featTele.add(m);
+    return { m, s, off:i*0.14 };
+  });
+  animators.push({ fn:(t)=>{
+    for(const p of pulses){
+      const k = (t*0.22 + p.off) % 1;
+      p.m.position.lerpVectors(p.s, top, k);
+      p.m.material.opacity = 0.9*(1 - Math.abs(k-0.5)*1.2);
+    }
+  }});
+}
+
+/* ---------- Ограждение ЦППН + КПП (инстансы) ---------- */
+{
+  const g = new THREE.Group();
+  const x0=505, x1=770, z0=-300, z1=70;
+  const posts = [], rails = [];
+  const step = 26;
+  function fenceRun(ax,az,bx,bz){
+    const len = Math.hypot(bx-ax, bz-az), n = Math.round(len/step);
+    for(let q=0;q<=n;q++){
+      const x=ax+(bx-ax)*q/n, z=az+(bz-az)*q/n;
+      if(Math.abs(x-x0)<1 && z>-90 && z<-30) continue;   // ворота КПП
+      const gy=surfY(x,z);
+      posts.push([V3(x,gy,z),V3(x,gy+7,z),0.5]);
+    }
+    for(const h of [3, 6.4]){
+      rails.push([V3(ax,surfY(ax,az)+h,az),V3(bx,surfY(bx,bz)+h,bz),0.3]);
+    }
+  }
+  fenceRun(x0,z0,x1,z0); fenceRun(x1,z0,x1,z1); fenceRun(x1,z1,x0,z1);
+  fenceRun(x0,z1,x0,-30); fenceRun(x0,-90,x0,z0);
+  g.add(instancedBars(posts.concat(rails), matSteelD()));
+  const kpp = new THREE.Mesh(new THREE.BoxGeometry(10,8,8), matBlock());
+  kpp.position.set(x0-8, surfY(x0-8,-60)+4, -60); g.add(kpp);
+  grSurf.add(g);
+  reg('s-fence', 'dob', g, V3(x0, 12, -60), grSurf);
+}
+
+/* ---------- Дороги: кольцевой проезд + подъезды ---------- */
+function ribbonPts(samples, width, mat){
+  const pos=[], idx=[];
+  for(let i=0;i<samples.length;i++){
+    const p=samples[i];
+    const q=samples[Math.min(i+1, samples.length-1)];
+    const dir=V3(q.x-p.x,0,q.z-p.z);
+    if(dir.lengthSq()<1e-6) dir.set(1,0,0);
+    dir.normalize();
+    const px=-dir.z*width/2, pz=dir.x*width/2;
+    pos.push(p.x-px, p.y, p.z-pz, p.x+px, p.y, p.z+pz);
+  }
+  for(let i=0;i<samples.length-1;i++){
+    const a=i*2;
+    idx.push(a,a+1,a+2, a+1,a+3,a+2);
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setIndex(idx); g.computeVertexNormals();
+  return new THREE.Mesh(g, mat);
+}
+const roadLoop = new THREE.CatmullRomCurve3(
+  [ [-540,-40],[-360,-280],[-40,-400],[280,-330],[430,-240],[420,60],[300,240],[-40,300],[-380,240] ]
+    .map(([x,z])=>V3(x, 0, z)), true);
+{
+  const gr = new THREE.Group();
+  const rm = new THREE.MeshStandardMaterial({ color:'#232D3C', roughness:1, transparent:true, opacity:0.9 });
+  const loopSamples = roadLoop.getPoints(140).map(p=>V3(p.x, surfY(p.x,p.z)+0.8, p.z));
+  loopSamples.push(loopSamples[0]);
+  gr.add(ribbonPts(loopSamples, 14, rm));
+  const spurs = [ [[-540,-40],[-520,-140]], [[-540,-40],[-560,-50]], [[-380,240],[-360,220]], [[-380,240],[-650,170]],
+                  [[-40,300],[-140,320]], [[-40,300],[60,300]], [[280,-330],[300,-340]], [[280,-330],[-240,-390]],
+                  [[430,-240],[520,-220]], [[430,-240],[505,-60]], [[420,60],[320,-40]], [[420,60],[240,120]],
+                  [[300,240],[420,160]], [[-40,-400],[120,-450]], [[-40,-400],[200,-440]],
+                  [[280,-330],[180,-120]], [[-360,-280],[-430,-250]], [[-40,-400],[-80,-100]], [[420,60],[100,-20]] ];
+  for(const [a,b] of spurs){
+    const n=8, sm=[];
+    for(let q=0;q<=n;q++){
+      const x=a[0]+(b[0]-a[0])*q/n, z=a[1]+(b[1]-a[1])*q/n;
+      sm.push(V3(x, surfY(x,z)+0.8, z));
+    }
+    gr.add(ribbonPts(sm, 10, rm));
+  }
+  grSurf.add(gr);
+  reg('s-roads', 'dob', gr, V3(-40, 8, -400), grSurf);
+}
+
+/* ---------- Транспорт: автоцистерна и вахтовка по кольцу ---------- */
+{
+  const g = new THREE.Group(); grSurf.add(g);
+  function truck(kind){
+    const t = new THREE.Group();
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(7,7,8), matUnit()); cab.position.set(9,5.5,0); t.add(cab);
+    if(kind==='cistern'){
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(4.4,4.4,17,12), matSteel());
+      tank.rotation.z=Math.PI/2; tank.position.set(-4,6.4,0); t.add(tank);
+    } else {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(16,8,8), matBlock()); box.position.set(-4,6,0); t.add(box);
+    }
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(26,2,7), matSteelD()); chassis.position.y=2; t.add(chassis);
+    t.traverse(n=>{ if(n.isMesh) n.castShadow=!LOW; });
+    g.add(t);
+    return t;
+  }
+  const cistern = truck('cistern'), crew = truck('crew');
+  reg('s-vehicles', 'dob', g, null, grSurf);
+  const drive = (obj, t, off)=>{
+    const k = ((t/64 + off) % 1 + 1) % 1;
+    const p = roadLoop.getPointAt(k), q = roadLoop.getPointAt((k+0.004)%1);
+    obj.position.set(p.x, surfY(p.x,p.z)+2, p.z);
+    obj.lookAt(q.x, obj.position.y, q.z);
+    obj.rotateY(-Math.PI/2);
+  };
+  animators.push({ fn:(t)=>{ drive(cistern,t,0); drive(crew,t,0.45); }});
+}
+
+/* ---------- Трубопроводы: нефть (нефтесбор + напорный), вода ППД, реагент ---------- */
+const flowPipeMats = [];
+{
+  const g = new THREE.Group();
+  const mkTex = window.__mkFlowTex;
+  const pipeMats = {
+    oil:   new THREE.MeshStandardMaterial({ color:'#7A7466', metalness:0.7, roughness:0.35, transparent:true, opacity:1 }),
+    water: new THREE.MeshStandardMaterial({ color:'#5A7490', metalness:0.7, roughness:0.35, transparent:true, opacity:1 }),
+    chem:  new THREE.MeshStandardMaterial({ color:'#6E8280', metalness:0.7, roughness:0.35, transparent:true, opacity:1 })
+  };
+  const flowSpec = { oil:{c:COL_OIL, v:0.5}, water:{c:COL_WATER, v:0.32}, chem:{c:COL_CHEM, v:0.75} };
+  const postMat = matSteelD();
+
+  // extraIds — дополнительные id для регистрации сегмента (нефтесбор, ППД, напорный)
+  function pipe(waypoints, sys, opts={}){
+    const { trench=false, r=2.4, extraIds=[] } = opts;
+    const pts = waypoints.map(([x,z]) => V3(x, surfY(x,z) + (trench ? 1.2 : 5), z));
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const seg = Math.max(18, Math.round(curve.getLength()/20));
+    const shell = new THREE.Mesh(new THREE.TubeGeometry(curve, seg, r, 8), pipeMats[sys]);
+    g.add(shell);
+    const spec = flowSpec[sys];
+    const tex = mkTex(spec.c);
+    tex.repeat.set(Math.max(3, Math.round(curve.getLength()/95)), 1);
+    const fm = new THREE.MeshBasicMaterial({ map:tex, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false });
+    flowPipeMats.push({ mat:fm, speed:spec.v });
+    const flow = new THREE.Mesh(new THREE.TubeGeometry(curve, seg, r*0.55, 6), fm);
+    g.add(flow);
+    for(const id of extraIds){ reg(id, 'dob', shell); reg(id, 'dob', flow); }
+    if(!trench){
+      const L = curve.getLength(), n = Math.floor(L/70);
+      for(let i=1;i<n;i++){
+        const p = curve.getPointAt(i/n), gy = surfY(p.x,p.z);
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,Math.max(p.y-gy,1),6), postMat);
+        post.position.set(p.x,(p.y+gy)/2,p.z);
+        g.add(post);
+        for(const id of opts.extraIds || []) reg(id, 'dob', post);
+      }
+    }
+  }
+  // НЕФТЬ: ветка нефтесбора из 5 КП (магистраль КП1→…→КП5→МФНС)
+  pipe([...KP_POS, [100,-20]], 'oil', { extraIds:['s-neftesbor'] });
+  // кусты нефтяного фонда и одиночные устья → МФНС
+  pipe([[180,-120],[140,-70],[100,-20]], 'oil');
+  pipe([[420,160],[260,60],[100,-20]], 'oil');
+  pipe([[60,300],[80,140],[100,-20]], 'oil', { trench:true });
+  pipe([[300,-340],[200,-180],[100,-20]], 'oil', { trench:true });
+  pipe([[520,-220],[300,-130],[100,-20]], 'oil');
+  // МФНС → СП
+  pipe([[100,-20],[210,-30],[320,-40]], 'oil');
+  // НАПОРНЫЙ нефтепровод: СП → ЦППН «Кенбай»
+  pipe([[320,-40],[460,-50],[562,-56]], 'oil', { r:3.2, extraIds:['s-napor'] });
+  // ВОДА ППД: КНС → нагнетательные устья
+  pipe([[-360,220],[-320,150],[-280,80]], 'water', { extraIds:['s-ppd-line'] });
+  pipe([[-360,220],[-260,-40],[-180,-200],[-120,-320]], 'water', { extraIds:['s-ppd-line'] });
+  // РЕАГЕНТ: БРХ → точки подачи (куст 1, КП-5, СП)
+  pipe([[240,120],[210,0],[180,-120]], 'chem', { r:1.5 });
+  pipe([[240,120],[80,20],[-80,-100]], 'chem', { r:1.5, trench:true });
+  pipe([[240,120],[280,40],[320,-40]], 'chem', { r:1.5 });
+  grSurf.add(g);
+  reg('s-pipes', 'dob', g, V3(400, 20, -46), grSurf);
+}
+
+/* ================================================================
+   5. МАТЕРИАЛЫ И СОСТОЯНИЯ ПОДСВЕТКИ
+   ================================================================ */
+const allMeshes = [];
+{
+  const seen = new Set();
+  for(const e of REG.values()) for(const m of e.meshes){
+    if(seen.has(m)) continue;
+    seen.add(m);
+    const mat = m.material;
+    m.userData.base = {
+      color: mat.color ? mat.color.clone() : null,
+      emissive: mat.emissive ? mat.emissive.clone() : null,
+      eInt: mat.emissiveIntensity !== undefined ? mat.emissiveIntensity : 0,
+      opacity: mat.opacity,
+      depthWrite: mat.depthWrite
+    };
+    m.userData.tgt = { opacity: mat.opacity, eInt: m.userData.base.eInt, desat: 0, pulse: false };
+    allMeshes.push(m);
+  }
+}
+
+const FEATURES = {
+  grid:  { group:featGrid,  on:false, ids:['res-grid'] },
+  map:   { group:featMap,   on:false, ids:['res-map'] },
+  seis:  { group:featSeis,  on:false, ids:['res-seismic'] },
+  flood: { group:featFlood, on:false, ids:['res-flood'] }
+};
+
+const state = {
+  twin:null, procIdx:null, hoverIdx:null, focus:new Set(), linkedIds:null,
+  sysFilter:null, sysLayer:false, hideVendor:false, names:true,
+  showSysIds:null, procSys:null,
+  exploded:false, flow:true, tele:true, clip:false,
+  show:false, step:0, auto:false, lastStep:0
+};
+
+function applyState(){
+  let focus = null;
+  const twin = state.twin;
+  const idxActive = state.hoverIdx !== null ? state.hoverIdx : state.procIdx;
+  if(twin !== null && idxActive !== null) focus = expand(TWINS[twin].procs[idxActive].f);
+  else if(state.linkedIds) focus = state.linkedIds;
+  else if(state.sysFilter) focus = SYS_COVER[state.sysFilter];
+  state.focus = focus || new Set();
+
+  for(const f of Object.values(FEATURES)){
+    f.group.visible = f.on || f.ids.some(id => state.focus.has(id));
+  }
+  featTele.visible = state.tele;
+
+  const accent = state.sysFilter && !(twin && idxActive!==null) && !state.linkedIds
+    ? SYS_COLORS[state.sysFilter] : null;
+
+  for(const m of allMeshes){
+    const ids = m.userData.ids || [], mTwin = m.userData.twin;
+    const b = m.userData.base, t = m.userData.tgt;
+    const inFocus = focus && ids.some(id => focus.has(id));
+    if(focus){
+      if(inFocus){ t.opacity=Math.max(b.opacity,0.92); t.eInt=1; t.desat=0; t.pulse=true; }
+      else if(twin && mTwin===twin && !accent){ t.opacity=b.opacity*0.45; t.eInt=0; t.desat=0.35; t.pulse=false; }
+      else { t.opacity=Math.min(b.opacity,0.12); t.eInt=0; t.desat=0.85; t.pulse=false; }
+    } else if(twin){
+      if(mTwin===twin){ t.opacity=b.opacity; t.eInt=b.eInt; t.desat=0; t.pulse=false; }
+      else { t.opacity=Math.min(b.opacity,0.12); t.eInt=0; t.desat=0.85; t.pulse=false; }
+    } else { t.opacity=b.opacity; t.eInt=b.eInt; t.desat=0; t.pulse=false; }
+    t.pulseColor = accent;
+  }
+  if(outlinePass){
+    const sel = [];
+    if(focus) for(const id of focus){
+      const e = REG.get(id);
+      if(e) for(const m of e.meshes) if(m.isMesh) sel.push(m);
+    }
+    outlinePass.selectedObjects = sel;
+    outlinePass.visibleEdgeColor.set(accent || (twin ? TWIN_COLORS[twin] : '#F0AE4A'));
+  }
+  updateLabels();
+  updateNodeLabels();
+  updateSysLabels();
+}
+
+function ensureLabel(id){
+  const e = REG.get(id);
+  if(!e || !e.anchor || e.labelObj) return;
+  const div = document.createElement('div');
+  div.className = 'obj-label';
+  div.style.borderLeftColor = TWIN_COLORS[e.twin] || '#F0AE4A';
+  div.textContent = (LABELS[id] || id).toUpperCase();
+  const lo = new CSS2DObject(div);
+  lo.position.copy(e.anchor);
+  lo.visible = false;
+  (e.labelParent || scene).add(lo);
+  e.labelObj = lo;
+}
+function updateLabels(){
+  for(const [id, e] of REG){
+    const show = state.focus.has(id);
+    if(show) ensureLabel(id);
+    if(e.labelObj) e.labelObj.visible = show;
+  }
+}
+
+/* ---------- Постоянные подписи ключевых узлов ---------- */
+const NODE_LABEL_IDS = ['s-kp','s-mfns','s-sp','s-cppn','s-flare','s-brh','s-kns','s-ps','s-cio','s-pad-1','s-pad-2','s-tower'];
+const nodeLabels = [];
+for(const id of NODE_LABEL_IDS){
+  const e = REG.get(id);
+  if(!e || !e.anchor) continue;
+  const div = document.createElement('div');
+  div.className = 'obj-label small persist';
+  div.style.borderLeftColor = TWIN_COLORS[e.twin] || '#35D0C2';
+  div.textContent = (LABELS[id] || id).toUpperCase();
+  const lo = new CSS2DObject(div);
+  lo.position.copy(e.anchor);
+  (e.labelParent || scene).add(lo);
+  nodeLabels.push({ id, lo });
+}
+function updateNodeLabels(){
+  for(const n of nodeLabels) n.lo.visible = state.names && !state.focus.has(n.id);
+}
+
+/* ---------- Плашки системного слоя над объектами ---------- */
+// only — ограничить модулями конкретного процесса (кадр показа)
+function sysLabelHTML(id, only){
+  let mods = OBJ_MODULES.get(id) || [];
+  if(only) mods = mods.filter(a => only.some(b => b.s===a.s && b.m===a.m));
+  return mods.slice(0, 3).map(sm=>{
+    const v = modText(sm, state.hideVendor);
+    return `<b style="color:${SYS_COLORS[sm.s]}">${v.tag}</b> ${v.m}`;
+  }).join('<br>');
+}
+function ensureSysLabel(id){
+  const e = REG.get(id);
+  if(!e || !e.anchor || e.sysObj || !OBJ_MODULES.has(id)) return;
+  const div = document.createElement('div');
+  div.className = 'sys-label';
+  const first = OBJ_MODULES.get(id)[0];
+  div.style.borderTopColor = SYS_COLORS[first.s];
+  div.innerHTML = sysLabelHTML(id);
+  const lo = new CSS2DObject(div);
+  lo.position.copy(e.anchor).add(V3(0, 26, 0));
+  lo.visible = false;
+  (e.labelParent || scene).add(lo);
+  e.sysObj = lo;
+}
+// Не плодим плашки на каждый луч перфорации и каждую НКТ — только ключевые id
+const SYS_LABEL_IDS = [ 'res-grid','res-map','res-seismic','res-oil','res-flood',
+  'w-prod-1','w-prod-2','w-prod-3','w-prod-4','w-inj-1','w-drill','w-workover',
+  's-kp','s-mfns','s-sp','s-napor','s-cppn','s-brh','s-kns','s-vl','s-ps','s-cio','s-pad-1' ];
+function updateSysLabels(){
+  const inProc = state.show && state.showSysIds;
+  const ids = new Set(SYS_LABEL_IDS);
+  if(inProc) for(const id of state.showSysIds) ids.add(id);
+  for(const [id, e] of REG){
+    if(!e.sysObj && !ids.has(id)) continue;
+    let show = false;
+    if(inProc){
+      show = state.showSysIds.has(id) && OBJ_MODULES.has(id) && !!e.anchor;
+      if(show){
+        ensureSysLabel(id);
+        if(e.sysObj) e.sysObj.element.innerHTML = sysLabelHTML(id, state.procSys);
+      }
+    } else if(state.sysLayer && SYS_LABEL_IDS.includes(id)){
+      show = true;
+      if(state.sysFilter) show = (OBJ_MODULES.get(id) || []).some(sm => sm.s === state.sysFilter);
+      if(show){
+        ensureSysLabel(id);
+        if(e.sysObj) e.sysObj.element.innerHTML = sysLabelHTML(id);
+      }
+    }
+    if(e.sysObj) e.sysObj.visible = show;
+  }
+}
+function refreshSysLabelTexts(){
+  for(const id of SYS_LABEL_IDS){
+    const e = REG.get(id);
+    if(e && e.sysObj) e.sysObj.element.innerHTML = sysLabelHTML(id);
+  }
+}
+
+/* ================================================================
+   6. КАМЕРА: 13 именованных ракурсов, tween 1.4 с
+   ================================================================ */
+const CAMS = {
+  overview:  { p:[1150, 760, 1250],  t:[0, -220, 0] },
+  section:   { p:[1180, -40, 1360],  t:[0, -450, 0] },
+  reservoir: { p:[620, -680, 780],   t:[0, -470, 0] },
+  flood:     { p:[-860, -420, 460],  t:[0, -560, -60] },
+  top:       { p:[10, 1560, 30],     t:[0, -200, 0] },
+  wellbore:  { p:[560, 180, 260],    t:[210, -360, -100] },
+  rig:       { p:[-790, 90, 170],    t:[-520, 80, -140] },
+  workover:  { p:[760, 140, 0],      t:[520, 30, -220] },
+  surface:   { p:[880, 520, 960],    t:[60, 0, -40] },
+  pipes:     { p:[30, 150, 190],     t:[440, 16, -50] },
+  plant:     { p:[1010, 330, 520],   t:[630, 50, -80] },
+  power:     { p:[60, 170, 760],     t:[-280, 100, 200] },
+  chain:     { p:[1090, 380, 900],   t:[200, -280, -40] }
+};
+const TWIN_CAM = { plast:'section', skv:'wellbore', dob:'surface' };
+
+let camTween = null;
+function flyTo(name, dur=1400){
+  const v = CAMS[name] || CAMS.overview;
+  if(REDUCED){ camera.position.set(...v.p); controls.target.set(...v.t); return; }
+  camTween = { start:performance.now(), dur,
+    p0:camera.position.clone(), t0:controls.target.clone(), p1:V3(...v.p), t1:V3(...v.t) };
+}
+const easeInOutCubic = k => k<.5 ? 4*k*k*k : 1-Math.pow(-2*k+2,3)/2;
+renderer.domElement.addEventListener('pointerdown', ()=>{
+  camTween = null;
+  if(state.show && state.auto){ state.auto = false; setHint('Автопоказ на паузе · A — продолжить'); }
+});
+
+/* ================================================================
+   7. ИНТЕРФЕЙС СВОБОДНОГО РЕЖИМА
+   ================================================================ */
+const elPanel=document.getElementById('panel'), elPName=document.getElementById('p-name'),
+      elPScope=document.getElementById('p-scope'), elPlist=document.getElementById('plist'),
+      elHint=document.getElementById('hint'), elTwins=document.getElementById('twins');
+function setHint(s){ elHint.textContent = s; }
+
+for(const key of ['plast','skv','dob']){
+  const tw = TWINS[key];
+  const b = document.createElement('button');
+  b.className='twbtn'; b.id='tw-'+key;
+  b.style.setProperty('--tc', tw.color);
+  b.innerHTML = `<span class="dot" style="background:${tw.color}"></span><span>${tw.name}</span><span class="cnt">${tw.procs.length}</span>`;
+  b.addEventListener('click', ()=> selectTwin(state.twin===key ? null : key));
+  elTwins.appendChild(b);
+}
+
+function selectTwin(key){
+  state.twin=key; state.procIdx=null; state.hoverIdx=null; state.linkedIds=null;
+  document.querySelectorAll('.twbtn').forEach(b=>b.classList.toggle('active', b.id==='tw-'+key));
+  if(key){
+    buildPanel(key);
+    elPanel.classList.add('open');
+    flyTo(TWIN_CAM[key]);
+    setHint(`Контур: ${TWINS[key].name} · наведите на процесс`);
+  } else {
+    elPanel.classList.remove('open');
+    flyTo('overview');
+    setHint('Вращение — мышь · выберите контур или запустите показ');
+  }
+  applyState();
+}
+
+function badgesHTML(p){
+  return `<div class="badges">` + p.sys.map(sm=>{
+    const v = modText(sm, state.hideVendor);
+    return `<span class="badge" style="--bc:${SYS_COLORS[sm.s]}">${v.tag} · ${v.m}</span>`;
+  }).join('') + `</div>`;
+}
+
+function buildPanel(key, linkedSet){
+  const tw = TWINS[key];
+  elPName.textContent = tw.name;
+  elPName.style.color = tw.color;
+  elPScope.textContent = tw.scope;
+  elPlist.innerHTML = '';
+  tw.procs.forEach((p,i)=>{
+    const b = document.createElement('button');
+    b.className='proc'; b.style.setProperty('--tc', tw.color);
+    if(state.procIdx===i) b.classList.add('sel');
+    if(linkedSet && [...expand(p.f)].some(id=>linkedSet.has(id))) b.classList.add('linked');
+    if(state.sysFilter && !p.sys.some(sm=>sm.s===state.sysFilter)) b.classList.add('dim');
+    b.innerHTML = `<span class="n">${String(i+1).padStart(2,'0')}</span><div class="t">${p.t}</div><div class="d">${p.d}</div>` + badgesHTML(p);
+    b.addEventListener('mouseenter', ()=>{ state.hoverIdx=i; applyState(); });
+    b.addEventListener('mouseleave', ()=>{ state.hoverIdx=null; applyState(); });
+    b.addEventListener('focus', ()=>{ state.hoverIdx=i; applyState(); });
+    b.addEventListener('blur',  ()=>{ state.hoverIdx=null; applyState(); });
+    b.addEventListener('click', ()=>{
+      state.procIdx = (state.procIdx===i) ? null : i;
+      state.linkedIds = null;
+      elPlist.querySelectorAll('.proc').forEach((x,k)=>x.classList.toggle('sel', k===state.procIdx));
+      if(state.procIdx!==null){ flyTo(p.cam); setHint(`${tw.name} · ${p.t}`); }
+      else setHint(`Контур: ${tw.name}`);
+      applyState();
+    });
+    elPlist.appendChild(b);
+  });
+}
+
+/* ---------- Фильтр по источнику систем + скрытие вендора ---------- */
+const $ = id => document.getElementById(id);
+function setSysFilter(src){
+  state.sysFilter = (state.sysFilter === src) ? null : src;
+  state.procIdx = null; state.hoverIdx = null; state.linkedIds = null;
+  for(const k of ['ABAI','NEDRA','EXIST']) $('sf-'+k).classList.toggle('on', state.sysFilter===k);
+  if(state.twin) buildPanel(state.twin);
+  setHint(state.sysFilter
+    ? `Фильтр: ${state.sysFilter==='NEDRA' && state.hideVendor ? 'ВЕНДОР' : state.sysFilter} · ${SYS_NAMES[state.sysFilter]}`
+    : 'Фильтр систем снят');
+  refreshLegend();
+  applyState();
+}
+function coveredCount(src){
+  return ['plast','skv','dob'].reduce((a,k2)=>a+TWINS[k2].procs.filter(p=>p.sys.some(sm=>sm.s===src)).length, 0);
+}
+const elLegend = $('legend');
+function refreshLegend(){
+  if(state.sysFilter && !state.show){
+    const src = state.sysFilter;
+    const tag = (src==='NEDRA' && state.hideVendor) ? 'ВЕНДОР' : src;
+    $('legend-h').textContent = `${tag} · закрывает ${coveredCount(src)} из 20 процессов`;
+    $('legend-h').style.color = SYS_COLORS[src];
+    $('legend-b').innerHTML = legendHTML(src, state.hideVendor);
+    elLegend.classList.add('vis');
+  } else elLegend.classList.remove('vis');
+}
+for(const k of ['ABAI','NEDRA','EXIST']) $('sf-'+k).addEventListener('click', ()=>setSysFilter(k));
+$('tg-names').addEventListener('click', ()=>{
+  state.names = !state.names;
+  $('tg-names').classList.toggle('on', state.names);
+  updateNodeLabels();
+});
+$('btn-vend').addEventListener('click', ()=>{
+  state.hideVendor = !state.hideVendor;
+  $('btn-vend').classList.toggle('on', state.hideVendor);
+  $('btn-vend').textContent = state.hideVendor ? 'Показать названия вендора' : 'Скрыть названия вендора';
+  if(state.twin) buildPanel(state.twin, state.linkedIds);
+  refreshSysLabelTexts();
+  refreshLegend();
+  if(state.show) setStep(state.step);
+});
+
+/* ---------- Тумблеры ---------- */
+$('tg-explode').addEventListener('click', ()=>{
+  state.exploded = !state.exploded;
+  $('tg-explode').classList.toggle('on', state.exploded);
+  setHint(state.exploded ? 'Слои разнесены · видна стратиграфия' : 'Слои собраны');
+});
+const clipPlane = new THREE.Plane(V3(-1,0,0), 700);
+function setClipEnabled(on){
+  for(const m of allMeshes){
+    m.material.clippingPlanes = on ? [clipPlane] : null;
+    m.material.needsUpdate = true;
+  }
+}
+$('tg-clip').addEventListener('click', ()=>{
+  state.clip = !state.clip;
+  $('tg-clip').classList.toggle('on', state.clip);
+  $('clipwrap').classList.toggle('vis', state.clip);
+  setClipEnabled(state.clip);
+  setHint(state.clip ? 'Разрез: двигайте ползунок' : 'Разрез выключен');
+});
+$('clip').addEventListener('input', e=>{ clipPlane.constant = parseFloat(e.target.value); });
+function bindFeature(btnId, key, msg){
+  $(btnId).addEventListener('click', ()=>{
+    FEATURES[key].on = !FEATURES[key].on;
+    $(btnId).classList.toggle('on', FEATURES[key].on);
+    applyState();
+    setHint(msg + (FEATURES[key].on ? ' включена' : ' выключена'));
+  });
+}
+bindFeature('tg-grid','grid','Сетка ГГДМ');
+bindFeature('tg-map','map','Карта изолиний');
+bindFeature('tg-seis','seis','Сейсмика');
+bindFeature('tg-flood','flood','Визуализация заводнения');
+$('tg-flow').addEventListener('click', ()=>{
+  state.flow = !state.flow;
+  $('tg-flow').classList.toggle('on', state.flow);
+  for(const f of flowPipeMats) f.mat.visible = state.flow;
+});
+$('tg-tele').addEventListener('click', ()=>{
+  state.tele = !state.tele;
+  $('tg-tele').classList.toggle('on', state.tele);
+  applyState();
+});
+$('tg-sys').addEventListener('click', ()=>{
+  state.sysLayer = !state.sysLayer;
+  $('tg-sys').classList.toggle('on', state.sysLayer);
+  updateSysLabels();
+  setHint(state.sysLayer ? 'Системный слой: модули над объектами' : 'Системный слой скрыт');
+});
+$('tg-clean').addEventListener('click', ()=>{
+  document.body.classList.add('clean');
+});
+$('btn-cam').addEventListener('click', ()=>{ flyTo(state.twin ? TWIN_CAM[state.twin] : 'overview'); });
+
+/* ================================================================
+   8. ОБРАТНАЯ СВЯЗЬ: клик по объекту → процессы и модули
+   ================================================================ */
+const raycaster = new THREE.Raycaster();
+raycaster.params.Line = { threshold: 8 };
+const ptr = new THREE.Vector2();
+let downPos = null;
+renderer.domElement.addEventListener('pointerdown', e=>{ downPos=[e.clientX,e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e=>{
+  if(!downPos) return;
+  const moved = Math.hypot(e.clientX-downPos[0], e.clientY-downPos[1]);
+  downPos = null;
+  if(moved>6 || state.show) return;
+  ptr.x=(e.clientX/innerWidth)*2-1; ptr.y=-(e.clientY/innerHeight)*2+1;
+  raycaster.setFromCamera(ptr, camera);
+  const hits = raycaster.intersectObjects(allMeshes, false);
+  const hit = hits.find(h => h.object.visible && h.object.userData.ids && h.object.userData.ids.length
+                          && h.object.material.opacity > 0.2
+                          && h.object.userData.ids[0] !== 's-terrain');
+  if(!hit) return;
+  const ids = new Set(hit.object.userData.ids);
+  const twin = hit.object.userData.twin;
+  let bestTwin = twin;
+  if(state.twin && TWINS[state.twin].procs.some(p=>[...expand(p.f)].some(id=>ids.has(id)))){
+    bestTwin = state.twin;
+  } else {
+    for(const k of ['plast','skv','dob']){
+      if(TWINS[k].procs.some(p=>[...expand(p.f)].some(id=>ids.has(id)))){ bestTwin=k; break; }
+    }
+  }
+  state.twin=bestTwin; state.procIdx=null; state.hoverIdx=null; state.linkedIds=ids;
+  document.querySelectorAll('.twbtn').forEach(b=>b.classList.toggle('active', b.id==='tw-'+bestTwin));
+  buildPanel(bestTwin, ids);
+  elPanel.classList.add('open');
+  const first = hit.object.userData.ids[0];
+  setHint(`Объект: ${(LABELS[first]||first).toUpperCase()} · связанные процессы отмечены`);
+  applyState();
+});
+
+/* ================================================================
+   9. РЕЖИМ ПОКАЗА: главы, титулы, системный кадр, прогресс, автопилот
+   ================================================================ */
+const STEPS = [{k:'intro'}];
+for(const key of ['plast','skv','dob']){
+  STEPS.push({k:'title', twin:key});
+  TWINS[key].procs.forEach((p,i)=>STEPS.push({k:'proc', twin:key, idx:i}));
+}
+STEPS.push({k:'sys', src:'ABAI'});
+STEPS.push({k:'sys', src:'NEDRA'});
+STEPS.push({k:'sys', src:'EXIST'});
+STEPS.push({k:'final'});
+
+const elProg = $('prog'), progCells = [];
+{
+  let gi = 0;
+  for(const key of ['plast','skv','dob']){
+    TWINS[key].procs.forEach(()=>{
+      const c = document.createElement('div'); c.className='cell';
+      elProg.appendChild(c); progCells.push(c);
+    });
+    if(gi++ < 2){
+      const gsp = document.createElement('div'); gsp.className='cell gap';
+      elProg.appendChild(gsp);
+    }
+  }
+}
+function globalProcIndex(step){
+  let n = 0;
+  for(const key of ['plast','skv','dob']){
+    if(step.twin === key) return n + step.idx;
+    n += TWINS[key].procs.length;
+  }
+  return -1;
+}
+
+const elCap=$('cap'), elCapCh=$('cap-ch'), elCapT=$('cap-t'), elCapD=$('cap-d'), elCapSys=$('cap-sys');
+const elPlate=$('plate');
+let plateTimer = null;
+function showPlate(k, n, c, color){
+  $('plate-k').textContent = k; $('plate-n').textContent = n; $('plate-c').textContent = c;
+  elPlate.style.setProperty('--pc', color);
+  elPlate.classList.add('vis');
+  clearTimeout(plateTimer);
+  plateTimer = setTimeout(()=>elPlate.classList.remove('vis'), 2500);
+}
+
+// Представители групповых псевдонимов — чтобы не вешать плашку на каждый луч перфорации
+function repIds(f){
+  const out = new Set();
+  for(const id of f){
+    if(ALIASES[id]) ALIASES[id].slice(0, 2).forEach(x=>out.add(x));
+    else out.add(id);
+  }
+  return out;
+}
+
+function setStep(n){
+  state.step = Math.max(0, Math.min(STEPS.length-1, n));
+  state.lastStep = performance.now();
+  const st = STEPS[state.step];
+  state.procIdx=null; state.hoverIdx=null; state.linkedIds=null;
+  state.showSysIds=null; state.procSys=null;
+  if(st.k !== 'sys') state.sysFilter = null;
+  elCapSys.innerHTML = '';
+  $('cap-legend').innerHTML = '';
+
+  if(st.k === 'intro'){
+    state.twin = null;
+    flyTo('overview');
+    elCap.style.setProperty('--cc', '#F0AE4A');
+    elCapCh.textContent = 'Программа «Цифровой двойник» · пилот Молдабек Восточный · ЭМГ';
+    elCapT.textContent = 'Месторождение насквозь';
+    elCapD.textContent = 'Пласт, скважина и наземная инфраструктура — одна цепочка и три контура двойника.';
+  }
+  else if(st.k === 'title'){
+    const tw = TWINS[st.twin];
+    state.twin = st.twin;
+    flyTo(TWIN_CAM[st.twin]);
+    showPlate('Контур двойника', tw.name, tw.procs.length + ' процессов', tw.color);
+    elCap.style.setProperty('--cc', tw.color);
+    elCapCh.textContent = 'Контур двойника';
+    elCapT.textContent = tw.name;
+    elCapD.textContent = tw.scope;
+  }
+  else if(st.k === 'proc'){
+    const tw = TWINS[st.twin], p = tw.procs[st.idx];
+    state.twin = st.twin;
+    state.procIdx = st.idx;
+    state.showSysIds = repIds(p.f);
+    state.procSys = p.sys;
+    flyTo(p.cam);
+    elCap.style.setProperty('--cc', tw.color);
+    elCapCh.textContent = `${tw.name} · ${String(st.idx+1).padStart(2,'0')} / ${tw.procs.length}`;
+    elCapT.textContent = p.t;
+    elCapD.textContent = p.d;
+    elCapSys.innerHTML = p.sys.map(sm=>{
+      const v = modText(sm, state.hideVendor);
+      return `<span class="badge" style="--bc:${SYS_COLORS[sm.s]}">${v.tag} · ${v.m}</span>`;
+    }).join('');
+  }
+  else if(st.k === 'sys'){
+    state.twin = null;
+    state.sysFilter = st.src;
+    for(const k2 of ['ABAI','NEDRA','EXIST']) $('sf-'+k2).classList.toggle('on', k2===st.src);
+    flyTo('overview');
+    const tag = (st.src==='NEDRA' && state.hideVendor) ? 'ВЕНДОР' : st.src;
+    elCap.style.setProperty('--cc', SYS_COLORS[st.src]);
+    elCapCh.textContent = 'Системный слой · периметр покрытия';
+    elCapT.textContent = tag;
+    elCapD.textContent = `${SYS_NAMES[st.src]} · закрывает ${coveredCount(st.src)} из 20 процессов`;
+    $('cap-legend').innerHTML = legendHTML(st.src, state.hideVendor);
+  }
+  else {
+    state.twin = null;
+    for(const k2 of ['ABAI','NEDRA','EXIST']) $('sf-'+k2).classList.remove('on');
+    flyTo('chain');
+    elCap.style.setProperty('--cc', '#F0AE4A');
+    elCapCh.textContent = 'Итог';
+    elCapT.textContent = 'Одна модель — вся цепочка';
+    elCapD.textContent = 'Пласт, ствол, устье, нефтесбор, СП «В-Молдабек» и ЦППН «Кенбай» в едином цифровом контуре.';
+  }
+  const gp = st.k==='proc' ? globalProcIndex(st) : ((st.k==='final'||st.k==='sys') ? 19 : -1);
+  progCells.forEach((c,i)=>c.classList.toggle('done', i<=gp));
+  applyState();
+}
+
+function enterShow(){
+  state.show = true; state.auto = false;
+  document.body.classList.add('show');
+  elPanel.classList.remove('open');
+  refreshLegend();
+  setStep(0);
+}
+function exitShow(){
+  state.show = false; state.auto = false;
+  state.sysFilter = null; state.showSysIds = null; state.procSys = null;
+  for(const k2 of ['ABAI','NEDRA','EXIST']) $('sf-'+k2).classList.remove('on');
+  document.body.classList.remove('show');
+  elPlate.classList.remove('vis');
+  refreshLegend();
+  selectTwin(null);
+}
+$('btn-show').addEventListener('click', enterShow);
+
+/* ---------- Клавиатура: кликер, полный экран, чистый режим ---------- */
+addEventListener('keydown', e=>{
+  if(e.key==='F' || e.key==='f' || e.key==='А' || e.key==='а'){
+    if(document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+    return;
+  }
+  if(document.body.classList.contains('clean') && e.key === 'Escape'){
+    document.body.classList.remove('clean');
+    return;
+  }
+  if(state.show){
+    if(e.key==='ArrowRight' || e.key===' ' || e.key==='PageDown'){ e.preventDefault(); setStep(state.step+1); }
+    else if(e.key==='ArrowLeft' || e.key==='PageUp'){ e.preventDefault(); setStep(state.step-1); }
+    else if(e.key==='a' || e.key==='A' || e.key==='ф' || e.key==='Ф'){ state.auto=!state.auto; state.lastStep=performance.now(); }
+    else if(e.key==='Escape'){ exitShow(); }
+  } else {
+    if(e.key==='Escape'){
+      if(state.sysFilter) setSysFilter(state.sysFilter);
+      else selectTwin(null);
+    }
+  }
+});
+
+/* ================================================================
+   10. АНИМАЦИОННЫЙ ЦИКЛ
+   ================================================================ */
+const clock = new THREE.Clock();
+
+// Автонастройка качества: замер FPS первых секунд, при просадке — упрощаем рендер
+let perfFrames = 0, perfAccum = 0, perfDone = LOW;
+function degradeQuality(){
+  composer = null; outlinePass = null;
+  key.castShadow = false;
+  renderer.shadowMap.enabled = false;
+  renderer.setPixelRatio(1);
+  setHint('Режим производительности: упрощённый рендер');
+}
+function perfSample(dt){
+  if(perfDone) return;
+  perfFrames++; perfAccum += dt;
+  if(perfFrames >= 150){
+    perfDone = true;
+    const fps = perfFrames / perfAccum;
+    if(fps < 40) degradeQuality();
+  }
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  perfSample(dt);
+  const t = clock.elapsedTime;
+  const k = 1 - Math.exp(-dt*7);
+
+  if(camTween){
+    const kk = Math.min(1, (performance.now()-camTween.start)/camTween.dur);
+    const e = easeInOutCubic(kk);
+    camera.position.lerpVectors(camTween.p0, camTween.p1, e);
+    controls.target.lerpVectors(camTween.t0, camTween.t1, e);
+    if(kk>=1) camTween = null;
+  }
+  if(state.show && state.auto && !REDUCED){
+    if(!camTween){
+      const off = camera.position.clone().sub(controls.target);
+      off.applyAxisAngle(V3(0,1,0), dt*0.05);
+      camera.position.copy(controls.target).add(off);
+    }
+    if(performance.now() - state.lastStep > 7000){
+      if(state.step < STEPS.length-1) setStep(state.step+1);
+      else state.auto = false;
+    }
+  }
+  controls.update();
+
+  // Плавные переходы материалов (подсветка/гашение/пульс)
+  for(const m of allMeshes){
+    const b = m.userData.base, tg = m.userData.tgt, mat = m.material;
+    mat.opacity += (tg.opacity - mat.opacity)*k;
+    if(mat.emissive && b.emissive !== null){
+      if(tg.pulse){
+        mat.emissive.lerp(new THREE.Color(tg.pulseColor || TWIN_COLORS[m.userData.twin] || '#F0AE4A'), k);
+        const eT = REDUCED ? 0.85 : 0.55 + 0.45*Math.sin(t*Math.PI*2/1.5);
+        mat.emissiveIntensity += (eT - mat.emissiveIntensity)*k;
+      } else {
+        mat.emissive.lerp(b.emissive, k);
+        mat.emissiveIntensity += ((tg.eInt===0 ? 0 : b.eInt) - mat.emissiveIntensity)*k;
+      }
+    }
+    if(mat.color && b.color){
+      const want = b.color.clone().lerp(GHOST, tg.desat);
+      mat.color.lerp(want, k);
+    }
+    mat.depthWrite = b.depthWrite && mat.opacity > 0.45;
+  }
+
+  // «Разнести слои»
+  for(const name in gStrata){
+    const g = gStrata[name];
+    const target = state.exploded ? g.userData.explodeOffset : 0;
+    g.position.y += (target - g.position.y) * (REDUCED ? 1 : Math.min(1, dt/1.2*3));
+  }
+
+  // Потоки: нефть / вода ППД / реагент — разные скорости
+  if(state.flow) for(const f of flowPipeMats) f.mat.map.offset.x -= dt*f.speed;
+
+  // Аниматоры: качалка, буровая, факел, транспорт, телеметрия, фронт, закачка
+  for(const a of animators) a.fn(t, dt);
+
+  // Дрейф дымки
+  scene.fog.density = 0.00034 + 0.00006*Math.sin(t*0.13);
+
+  if(composer) composer.render(); else renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+}
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  labelRenderer.setSize(innerWidth, innerHeight);
+  if(composer) composer.setSize(innerWidth, innerHeight);
+});
+
+/* ================================================================
+   11. ЗАГРУЗКА
+   ================================================================ */
+const loadSteps = ['Структура недр','Разлом и залежь','Восемь стволов','Нефтесбор и ЦППН','Системный слой','Первый кадр'];
+let stepI = 0;
+function tickLoad(){
+  const bar=$('bar'), msg=$('loadmsg');
+  if(stepI < loadSteps.length){
+    msg.textContent = loadSteps[stepI] + '…';
+    bar.style.width = Math.round((stepI+1)/loadSteps.length*100)+'%';
+    stepI++;
+    requestAnimationFrame(tickLoad);
+  } else {
+    $('loader').classList.add('done');
+    applyState();
+    animate();
+  }
+}
+tickLoad();
+</script>
+</body>
+</html>

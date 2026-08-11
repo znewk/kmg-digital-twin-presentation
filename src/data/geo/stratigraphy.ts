@@ -169,6 +169,30 @@ export function dome(x: number, z: number): number {
 }
 
 /**
+ * Структурные неровности кровли.
+ *
+ * Настоящая кровля пласта не гладкий купол: она смята, у неё есть локальные
+ * поднятия и прогибы. Без них разрез выглядит математически чистым, а
+ * геологически — неправдоподобным; в референсном прототипе эту роль играл
+ * `fbm`, и разрез там читался живее именно поэтому.
+ *
+ * Ключевое отличие от прототипа: шум ОДИН И ТОТ ЖЕ для всех горизонтов. Там он
+ * брался с разными частотами на каждый слой, и слои гуляли независимо. При
+ * толщине прослоя 8–24 м независимая болтанка амплитудой в единицы метров
+ * заставила бы их пересекаться — тонкий пласт просто исчез бы, вынырнув сквозь
+ * соседний. Общий шум смещает всю пачку целиком, толщины сохраняются.
+ *
+ * Амплитуда 4 м намеренно мала относительно самого тонкого прослоя.
+ */
+export function structuralNoise(x: number, z: number): number {
+  return (
+    Math.sin(x * 0.00092 + z * 0.00131) * 2.2 +
+    Math.sin(x * 0.00217 - z * 0.00168 + 1.7) * 1.2 +
+    Math.sin(x * 0.00404 + z * 0.00355 + 4.2) * 0.6
+  );
+}
+
+/**
  * Литологическое замещение на восточном крыле (§4.3 п.5): коллектор выклинивается
  * и замещается плотными породами и глинами. Единица — коллектор есть, ноль —
  * замещён. Залежь не продолжается на восток бесконечно, и это видно в разрезе.
@@ -184,12 +208,12 @@ export function reservoirPresence(x: number): number {
  */
 export function horizonTopAbs(h: Horizon, x: number, z: number): number {
   const amp = h.suite === 'cretaceous' ? 38 : h.suite === 'jurassic' ? 26 : 14;
-  return h.topAbs + amp * dome(x, z) + throwAt(x, z, h.topAbs);
+  return h.topAbs + amp * dome(x, z) + structuralNoise(x, z) + throwAt(x, z, h.topAbs);
 }
 
 export function horizonBotAbs(h: Horizon, x: number, z: number): number {
   const amp = h.suite === 'cretaceous' ? 38 : h.suite === 'jurassic' ? 26 : 14;
-  return h.botAbs + amp * dome(x, z) + throwAt(x, z, h.botAbs);
+  return h.botAbs + amp * dome(x, z) + structuralNoise(x, z) + throwAt(x, z, h.botAbs);
 }
 
 /** То же в координатах сцены — чтобы не пересчитывать преувеличение вручную. */

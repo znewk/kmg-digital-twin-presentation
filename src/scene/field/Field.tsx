@@ -7,6 +7,7 @@ import { FloodFront, GgdmGrid, SeismicSection, WaterCone } from './features';
 import { RealTerrain, TerrainContours, useTerrainReady } from './RealTerrain';
 import { HubPads, RealNetworks } from './RealNetworks';
 import { Facilities } from './Facilities';
+import { PowerLines } from './PowerLines';
 import { BuriedNetworks, FundBores, Manholes, TrenchSection } from './Underground';
 import { Well } from './Well';
 import { WellFarm } from './WellFarm';
@@ -147,6 +148,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
         <RealNetworks />
         <HubPads />
         <Facilities />
+        <PowerLines />
         <Manholes />
         {/* Весь остальной фонд — инстансами, но живой: работающие качалки
             качаются, у каждой своя фаза. Сюжетные исключены, они уже

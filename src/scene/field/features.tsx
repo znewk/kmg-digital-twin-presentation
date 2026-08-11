@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react';
+import type { StoryWell } from '../../data/geo/storyWells';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
@@ -8,7 +9,6 @@ import {
   HD,
   HW,
   OWC_Y,
-  WELLS,
 } from './geology';
 
 /**
@@ -183,38 +183,40 @@ export function SeismicSection() {
  * Фронт заводнения: расширяющиеся от нагнетательных полусферы плюс светящиеся
  * линии тока к добывающим. Главная визуальная метафора блока 3 шага 3.
  */
-export function FloodFront() {
+export function FloodFront({ wells }: { wells: StoryWell[] }) {
   const fronts = useRef<THREE.Mesh[]>([]);
   const streams = useRef<THREE.Group>(null);
 
   const { injectors, links } = useMemo(() => {
-    const byId = new Map(WELLS.map((w) => [w.id, w]));
-    const inj = ['w-inj-1', 'w-inj-2']
-      .map((id) => byId.get(id))
-      .filter((w): w is NonNullable<typeof w> => !!w)
-      .map(perfPoint);
+    // Пары «нагнетательная → добывающая» больше не перечисляются вручную:
+    // состав фонда приходит из реестра, и захардкоженные идентификаторы после
+    // первой же смены выборки указывали бы в пустоту. Линии тока строятся к
+    // фактически ближайшим добывающим — так же, как вытеснение идёт в поле.
+    const injWells = wells.filter((w) => w.kind === 'inj');
+    const producers = wells.filter((w) =>
+      ['skn', 'esp', 'frac', 'horiz'].includes(w.kind),
+    );
 
-    const pairs: [string, string][] = [
-      ['w-inj-1', 'w-prod-1'],
-      ['w-inj-1', 'w-prod-2'],
-      ['w-inj-2', 'w-prod-1'],
-      ['w-inj-2', 'w-prod-4'],
-    ];
-    const curves = pairs
-      .map(([a, b]) => {
-        const wa = byId.get(a);
-        const wb = byId.get(b);
-        if (!wa || !wb) return null;
-        const pa = perfPoint(wa);
-        const pb = perfPoint(wb);
+    const inj = injWells.map(perfPoint);
+    const curves: THREE.CatmullRomCurve3[] = [];
+
+    for (const source of injWells) {
+      const pa = perfPoint(source);
+      const nearest = producers
+        .map((p) => ({ p, d: (p.x - source.x) ** 2 + (p.z - source.z) ** 2 }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 2);
+
+      for (const { p } of nearest) {
+        const pb = perfPoint(p);
         const mid = pa.clone().lerp(pb, 0.5);
         mid.y -= 16;
-        return new THREE.CatmullRomCurve3([pa, mid, pb]);
-      })
-      .filter((c): c is THREE.CatmullRomCurve3 => c !== null);
+        curves.push(new THREE.CatmullRomCurve3([pa, mid, pb]));
+      }
+    }
 
     return { injectors: inj, links: curves };
-  }, []);
+  }, [wells]);
 
   const flowTex = useMemo(() => links.map(() => makeFlowTexture(COL_WATER)), [links]);
 
@@ -273,7 +275,7 @@ export function FloodFront() {
 }
 
 /** Конус обводнения под добывающей Д-1 — подтягивание воды от ВНК к перфорации. */
-export function WaterCone() {
+export function WaterCone({ wells }: { wells: StoryWell[] }) {
   const geometry = useMemo(() => {
     const profile = [
       new THREE.Vector2(6, 92),
@@ -286,10 +288,12 @@ export function WaterCone() {
   }, []);
 
   const pos = useMemo(() => {
-    const w = WELLS.find((x) => x.id === 'w-prod-1');
-    const p = w ? perfPoint(w) : new THREE.Vector3(200, -560, -90);
+    // Конус обводнения растёт под добывающей с механизированной добычей —
+    // именно у неё форсированный отбор подтягивает воду снизу.
+    const w = wells.find((x) => x.kind === 'skn') ?? wells.find((x) => x.kind === 'esp');
+    const p = w ? perfPoint(w) : new THREE.Vector3(200, OWC_Y, -90);
     return new THREE.Vector3(p.x, OWC_Y - 10, p.z);
-  }, []);
+  }, [wells]);
 
   return (
     <mesh geometry={geometry} position={pos} userData={{ id: 'res-cone' }}>

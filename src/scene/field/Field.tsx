@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { perfPoint, WELLS } from './geology';
+import { perfPoint, surfY } from './geology';
 import { DrainageZones, EarthLayers, TopIsolines } from './EarthLayers';
 import { FloodFront, GgdmGrid, SeismicSection, WaterCone } from './features';
 import { RealTerrain, TerrainContours, useTerrainReady } from './RealTerrain';
-import { HubPads, RealNetworks, WellMarkers } from './RealNetworks';
+import { HubPads, RealNetworks } from './RealNetworks';
+import { Well } from './Well';
+import { WellFarm } from './WellFarm';
 import { Stratum } from './explode';
+import { useFieldData } from '../../data/geo/fieldData';
+import { selectStoryWells } from '../../data/geo/storyWells';
 import { useShow } from '../../store/useShow';
 
 /**
@@ -81,14 +85,24 @@ function FieldContents({ shadows }: { shadows: boolean }) {
   // Сэмплер рельефа ставится здесь, до рендера всего, что садится на землю.
   useTerrainReady();
 
+  const data = useFieldData();
   const features = useShow((s) => s.features);
   const root = useRef<THREE.Group>(null);
   useClipping(root);
 
+  /**
+   * Сюжетные скважины подбираются из реестра фонда по фактическим категории,
+   * состоянию и типу — вокруг самого крупного узла сбора (ТЗ §4.1 п.1).
+   * Выдуманного списка скважин в проекте больше нет.
+   */
+  const story = useMemo(() => selectStoryWells(data), [data]);
+
   const drainage = useMemo(
-    () => WELLS.filter((w) => ['skn', 'esp', 'frac'].includes(w.kind)).map(perfPoint),
-    [],
+    () => story.wells.filter((w) => ['skn', 'esp', 'frac'].includes(w.kind)).map(perfPoint),
+    [story],
   );
+
+  const storyUwis = useMemo(() => new Set(story.wells.map((w) => w.uwi)), [story]);
 
   return (
     <group ref={root}>
@@ -100,9 +114,20 @@ function FieldContents({ shadows }: { shadows: boolean }) {
       {features.grid && <GgdmGrid />}
       {features.isolines && <TopIsolines />}
       {features.seismic && <SeismicSection />}
-      {features.flood && <FloodFront />}
-      {features.cone && <WaterCone />}
+      {features.flood && <FloodFront wells={story.wells} />}
+      {features.cone && <WaterCone wells={story.wells} />}
       {features.drainage && <DrainageZones points={drainage} />}
+
+      {/*
+        Сюжетные скважины целиком: ствол с обсадной, НКТ, цементом,
+        перфорацией, ГНО и пакером — плюс наземное устье со своим исполнением.
+        Они НЕ входят в группу поверхности: при разнесении слоёв поверхность
+        поднимается, а стволы обязаны остаться на своих отметках — ради этого
+        разнесение и нужно.
+      */}
+      {story.wells.map((w) => (
+        <Well key={w.id} spec={w} groundY={surfY(w.x, w.z)} />
+      ))}
 
       {/* Поверхность промысла по фактическим координатам съёмки */}
       <Stratum id="surface">
@@ -110,7 +135,10 @@ function FieldContents({ shadows }: { shadows: boolean }) {
         <TerrainContours />
         <RealNetworks />
         <HubPads />
-        <WellMarkers />
+        {/* Весь остальной фонд — инстансами, но живой: работающие качалки
+            качаются, у каждой своя фаза. Сюжетные исключены, они уже
+            отрисованы полными моделями выше. */}
+        <WellFarm exclude={storyUwis} />
       </Stratum>
     </group>
   );

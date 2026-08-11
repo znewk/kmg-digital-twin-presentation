@@ -2,7 +2,8 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import * as THREE from 'three';
-import { perfPoint, wellCurve, resTopY, type WellSpec } from './geology';
+import { perfPoint, wellCurve, resTopY } from './geology';
+import type { StoryWell } from '../../data/geo/storyWells';
 import { Bars, type BarSpec } from './Bars';
 
 /**
@@ -180,8 +181,13 @@ function WorkoverHead({ y }: { y: number }) {
   );
 }
 
-/** Фонтанная арматура — добывающие УЭВН/ГРП/горизонтальные и нагнетательные. */
-function ChristmasTree({ y }: { y: number }) {
+/**
+ * Фонтанная арматура — добывающие ГРП/горизонтальные, нагнетательные и
+ * водозаборные. У исполнения под УЭЦН добавляется кабельный ввод: питание
+ * погружного насоса заходит в скважину через устьевой сальник, и без него
+ * устье ЭЦН неотличимо от любого другого (§4.4.2).
+ */
+function ChristmasTree({ y, cableEntry = false }: { y: number; cableEntry?: boolean }) {
   return (
     <group position={[0, y, 0]}>
       <mesh position={[0, 3.9, 0]} castShadow>
@@ -198,13 +204,31 @@ function ChristmasTree({ y }: { y: number }) {
           <meshStandardMaterial {...STEEL_DARK} />
         </mesh>
       ))}
+
+      {cableEntry && (
+        <group>
+          {/* Устьевой кабельный ввод и станция управления рядом с устьем */}
+          <mesh position={[0.95, 2.4, 0]} rotation={[0, 0, -0.5]} castShadow>
+            <cylinderGeometry args={[0.28, 0.28, 1.8, 8]} />
+            <meshStandardMaterial {...STEEL_DARK} />
+          </mesh>
+          <mesh position={[3.2, 1.5, 1.6]} castShadow>
+            <boxGeometry args={[1.5, 2.6, 1.1]} />
+            <meshStandardMaterial color="#5a6b58" metalness={0.4} roughness={0.6} />
+          </mesh>
+          <mesh position={[2.1, 0.35, 0.9]} rotation={[0, 0.6, 0]}>
+            <boxGeometry args={[3.2, 0.14, 0.3]} />
+            <meshStandardMaterial color="#2b3038" roughness={0.9} />
+          </mesh>
+        </group>
+      )}
     </group>
   );
 }
 
 // ── Скважина целиком ────────────────────────────────────────────────────────
 
-export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
+export function Well({ spec, groundY }: { spec: StoryWell; groundY: number }) {
   const curve = useMemo(() => wellCurve(spec), [spec]);
   const perf = useMemo(() => perfPoint(spec), [spec]);
 
@@ -271,6 +295,19 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
   });
 
   const tracePoints = useMemo(() => curve.getPoints(64), [curve]);
+
+  /**
+   * Траектория кабеля УЭЦН — копия ствола, отведённая вбок на радиус колонны.
+   * Смещение постоянное по горизонтали: ствол почти вертикален, и честный
+   * расчёт нормали к кривой дал бы кабель, ныряющий сквозь трубу на изгибах.
+   */
+  const cableCurve = useMemo(() => {
+    const pts = curve.getPoints(40);
+    const end = Math.round(pts.length * 0.74);
+    return new THREE.CatmullRomCurve3(
+      pts.slice(0, end + 1).map((p) => new THREE.Vector3(p.x + 1.9, p.y, p.z)),
+    );
+  }, [curve]);
 
   const TRACE_COLOR = spec.kind === 'inj' ? '#5fa8e8' : '#8fbaf0';
 
@@ -342,10 +379,20 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
         </mesh>
       )}
 
-      {/* ГНО */}
-      {/* ГНО: реальный ЭЦН — около 100 мм в диаметре и 10–20 м длиной. */}
-      {(spec.kind === 'skn' || spec.kind === 'esp') && (
-        <mesh position={curve.getPointAt(0.74)}>
+      {/*
+        ГНО — погружной насос. На этом промысле это УЭВН (электровинтовой),
+        а не УЭЦН: так в отчёте по обследованию, и так и должно быть на
+        высоковязкой нефти.
+
+        ДИАМЕТР СОЗНАТЕЛЬНО ПРЕУВЕЛИЧЕН. Настоящий погружной насос — около
+        100 мм в поперечнике при длине 10–20 м. На промысле шириной 5,3 км это
+        тоньше пикселя: в истинном масштабе ГНО не существует для зрителя
+        вовсе. Здесь радиус 1,4 м — примерно двадцативосьмикратно, ровно
+        столько, чтобы узел читался при подлёте камеры к устью. Длина при этом
+        оставлена настоящей.
+      */}
+      {(spec.kind === 'skn' || spec.kind === 'esp' || spec.kind === 'water') && (
+        <mesh position={curve.getPointAt(0.74)} userData={{ id: `${spec.id}:gno` }}>
           <cylinderGeometry args={[1.4, 1.4, 16, 12]} />
           <meshStandardMaterial
             color="#35d0c2"
@@ -356,6 +403,35 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
           />
         </mesh>
       )}
+
+      {/* Кабель питания УЭЦН вдоль колонны — от устьевого ввода до насоса.
+          Идёт снаружи НКТ, поэтому строится по смещённой копии траектории:
+          прижать его к оси значило бы спрятать внутрь трубы. */}
+      {spec.kind === 'esp' && (
+        <mesh userData={{ id: `${spec.id}:cable` }}>
+          <tubeGeometry args={[cableCurve, 36, 0.32, 5, false]} />
+          <meshStandardMaterial color="#2b3038" roughness={0.9} metalness={0.1} />
+        </mesh>
+      )}
+
+      {/* Пакер — разобщает затруб над интервалом перфорации */}
+      {spec.kind !== 'drill' && spec.kind !== 'horiz' && (
+        <mesh position={curve.getPointAt(0.86)} userData={{ id: `${spec.id}:packer` }}>
+          <cylinderGeometry args={[1.9, 1.9, 3.2, 12]} />
+          <meshStandardMaterial color="#6b5a4a" roughness={0.85} metalness={0.15} />
+        </mesh>
+      )}
+
+      {/* Отложения АСПО на НКТ в верхней части ствола — профильная проблема
+          высоковязкой нефти и повод для химизации (БРХ). Показываются только
+          на скважинах с механизированной добычей. */}
+      {(spec.kind === 'skn' || spec.kind === 'esp') &&
+        [0.1, 0.17, 0.24, 0.31].map((t) => (
+          <mesh key={t} position={curve.getPointAt(t)} userData={{ id: `${spec.id}:aspo` }}>
+            <cylinderGeometry args={[1.15, 1.05, 7, 9]} />
+            <meshStandardMaterial color="#3d3226" roughness={1} metalness={0} />
+          </mesh>
+        ))}
 
       {spec.kind === 'inj' && (
         <group ref={cones}>
@@ -393,9 +469,11 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
         {spec.kind === 'skn' && <PumpjackHead y={groundY} />}
         {spec.kind === 'drill' && <DerrickHead y={groundY} />}
         {spec.kind === 'wo' && <WorkoverHead y={groundY} />}
-        {(spec.kind === 'esp' || spec.kind === 'frac' || spec.kind === 'horiz' || spec.kind === 'inj') && (
-          <ChristmasTree y={groundY} />
-        )}
+        {spec.kind === 'esp' && <ChristmasTree y={groundY} cableEntry />}
+        {(spec.kind === 'frac' ||
+          spec.kind === 'horiz' ||
+          spec.kind === 'inj' ||
+          spec.kind === 'water') && <ChristmasTree y={groundY} />}
       </group>
     </group>
   );

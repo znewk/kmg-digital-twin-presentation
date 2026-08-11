@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { absToSceneY, FIELD_H, FIELD_W } from '../../data/geo/fieldData';
+import type { WellKind } from '../../data/geo/storyWells';
 import {
   HORIZONS,
   SECTION_BASE_ABS,
@@ -297,11 +298,12 @@ export { dome, throwAt };
 
 // ── Фонд скважин пилота ─────────────────────────────────────────────────────
 
-export type WellKind = 'skn' | 'esp' | 'horiz' | 'frac' | 'inj' | 'drill' | 'wo';
-
-export interface WellSpec {
-  id: string;
-  label: string;
+/**
+ * Минимум, нужный геометрии ствола. Выдуманного списка скважин здесь больше
+ * нет: состав фонда приходит из реестра (`selectStoryWells`), а этот модуль
+ * умеет только строить траекторию по устью, забою и отходу.
+ */
+export interface WellGeom {
   kind: WellKind;
   x: number;
   z: number;
@@ -309,24 +311,7 @@ export interface WellSpec {
   drift: number;
 }
 
-/**
- * ВРЕМЕННЫЙ состав сюжетного фонда — остался от прежней раскладки и подлежит
- * замене на выборку из реестра по фактическим `cat`/`st`/`type`/`hor` (ТЗ §4.1
- * п.1). Координаты пересчитаны на реальный габарит участка, отметки забоя — на
- * новые глубины разреза, но сами скважины пока не привязаны к реестру.
- */
-export const WELLS: WellSpec[] = [
-  { id: 'w-prod-1', label: 'Добывающая · ШГН', kind: 'skn', x: 180, z: -120, toe: absToSceneY(-300), drift: 40 },
-  { id: 'w-prod-2', label: 'Добывающая · УЭЦН', kind: 'esp', x: 420, z: 160, toe: absToSceneY(-292), drift: -46 },
-  { id: 'w-prod-3', label: 'Горизонтальная', kind: 'horiz', x: 60, z: 300, toe: absToSceneY(-262), drift: 0 },
-  { id: 'w-prod-4', label: 'Добывающая · ГРП', kind: 'frac', x: 300, z: -340, toe: absToSceneY(-330), drift: -40 },
-  { id: 'w-inj-1', label: 'Нагнетательная · ППД', kind: 'inj', x: -280, z: 80, toe: absToSceneY(-306), drift: 36 },
-  { id: 'w-inj-2', label: 'Нагнетательная · ППД', kind: 'inj', x: -120, z: -320, toe: absToSceneY(-312), drift: -30 },
-  { id: 'w-drill', label: 'Бурящаяся', kind: 'drill', x: -520, z: -140, toe: absToSceneY(-150), drift: 18 },
-  { id: 'w-workover', label: 'ПРС · подъёмник, ДЭЛ', kind: 'wo', x: 520, z: -220, toe: absToSceneY(-288), drift: 30 },
-];
-
-export function wellCurve(w: WellSpec): THREE.CatmullRomCurve3 {
+export function wellCurve(w: WellGeom): THREE.CatmullRomCurve3 {
   const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
   const head = surfY(w.x, w.z);
   if (w.kind === 'horiz') {
@@ -348,7 +333,7 @@ export function wellCurve(w: WellSpec): THREE.CatmullRomCurve3 {
 }
 
 /** Середина интервала перфорации — к ней крепятся линии тока и зоны дренирования. */
-export function perfPoint(w: WellSpec): THREE.Vector3 {
+export function perfPoint(w: WellGeom): THREE.Vector3 {
   const curve = wellCurve(w);
   const pts = curve.getPoints(200);
   if (w.kind === 'horiz') return pts[Math.round(pts.length * 0.82)].clone();

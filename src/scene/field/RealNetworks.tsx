@@ -113,49 +113,6 @@ export function RealNetworks() {
 }
 
 /**
- * 570 скважин инстансами (ТЗ §4.1 п.5).
- *
- * Детализированные модели ставятся отдельно и только на сюжетные скважины;
- * весь остальной фонд — одинаковые маркеры одним `InstancedMesh`. Иначе
- * пятьсот семьдесят отдельных объектов съедают кадр без всякой пользы:
- * на обзорном плане они всё равно неразличимы поштучно.
- */
-export function WellMarkers() {
-  const data = useFieldData();
-  const ref = useRef<THREE.InstancedMesh>(null);
-
-  const positions = useMemo(
-    () =>
-      data.wells.map((w) => {
-        const x = toSceneX(w.p[0]);
-        const z = toSceneZ(w.p[1]);
-        return new THREE.Vector3(x, surfY(x, z), z);
-      }),
-    [data],
-  );
-
-  useLayoutEffect(() => {
-    const mesh = ref.current;
-    if (!mesh) return;
-    const m = new THREE.Matrix4();
-    positions.forEach((p, i) => {
-      m.makeTranslation(p.x, p.y + 5, p.z);
-      mesh.setMatrixAt(i, m);
-    });
-    mesh.count = positions.length;
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.computeBoundingSphere();
-  }, [positions]);
-
-  return (
-    <instancedMesh ref={ref} args={[undefined, undefined, positions.length]} castShadow>
-      <cylinderGeometry args={[1.6, 1.6, 10, 6]} />
-      <meshStandardMaterial color="#c8d2e0" metalness={0.6} roughness={0.4} />
-    </instancedMesh>
-  );
-}
-
-/**
  * Кусты — 188 узлов сбора. Размер площадки берётся от числа сходящихся ниток:
  * куст на девять скважин физически крупнее куста на две.
  */

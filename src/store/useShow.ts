@@ -74,6 +74,17 @@ interface ShowState {
   features: Record<FeatureId, boolean>;
   labels: boolean;
 
+  /**
+   * Текущий шаг сквозной цепочки цикла (§4.4), `null` — цепочка не идёт.
+   *
+   * Хранится идентификатор шага, а не его номер. Номер сломался бы при первой
+   * же вставке шага в середину цепочки, и сломался бы молча: подсветка ушла бы
+   * на соседний передел, а понять это можно только глазами.
+   */
+  cycleStep: string | null;
+  /** Цепочка идёт сама, без прокрутки. */
+  cyclePlaying: boolean;
+
   /** Служебный оверлей: подсветка непереведённых строк, счётчик FPS. */
   debug: boolean;
 
@@ -97,6 +108,9 @@ interface ShowState {
   setClipX: (v: number) => void;
   toggleFeature: (f: FeatureId) => void;
   toggleLabels: () => void;
+
+  setCycleStep: (id: string | null) => void;
+  toggleCyclePlay: () => void;
 }
 
 const params = new URLSearchParams(globalThis.location?.search ?? '');
@@ -143,6 +157,9 @@ export const useShow = create<ShowState>((set, get) => ({
     traces: false,
   },
   labels: true,
+
+  cycleStep: null,
+  cyclePlaying: false,
 
   debug: params.has('debug'),
 
@@ -205,4 +222,9 @@ export const useShow = create<ShowState>((set, get) => ({
   toggleFeature: (f) =>
     set((s) => ({ features: { ...s.features, [f]: !s.features[f] } })),
   toggleLabels: () => set((s) => ({ labels: !s.labels })),
+
+  setCycleStep: (cycleStep) => set({ cycleStep }),
+  // Остановка не сбрасывает шаг: цепочку ставят на паузу, чтобы рассмотреть
+  // передел, на котором она стоит, а не чтобы вернуться в начало.
+  toggleCyclePlay: () => set((s) => ({ cyclePlaying: !s.cyclePlaying })),
 }));

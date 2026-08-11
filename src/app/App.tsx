@@ -7,10 +7,20 @@ import { StageCaption } from '../ui/StageCaption';
 import { Progress } from '../ui/Progress';
 import { DebugHud } from '../ui/DebugHud';
 import { PanelLayer } from '../ui/panels';
+import { CycleTrack } from '../ui/CycleTrack';
 import { useKeyboard } from '../hooks/useKeyboard';
+import { useShow } from '../store/useShow';
+
+/**
+ * Индикатор цепочки живёт только на этапах, где есть промысел. На глобусе и
+ * карте страны показывать «где сейчас флюид» не о чем: самого флюида в кадре
+ * ещё нет.
+ */
+const CYCLE_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'production']);
 
 export function App() {
   useKeyboard();
+  const stageId = useShow((s) => s.stageId);
 
   return (
     <>
@@ -23,6 +33,7 @@ export function App() {
         <SceneControls />
         <ObjectPanel />
         <StageCaption />
+        {CYCLE_STAGES.has(stageId) && <CycleTrack />}
         <Progress />
         <DebugHud />
       </div>

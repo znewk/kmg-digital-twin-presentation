@@ -20,6 +20,7 @@ import { flowEnabled, flowTime } from './kit/flow';
 import { useFieldData } from '../../data/geo/fieldData';
 import { selectStoryWells } from '../../data/geo/storyWells';
 import { useShow } from '../../store/useShow';
+import { CycleChain } from '../cycle/CycleChain';
 
 /**
  * Месторождение целиком — на реальных геоданных исполнительного топоплана
@@ -180,6 +181,9 @@ function FieldContents({ shadows }: { shadows: boolean }) {
           <WellHead key={`${w.id}:head`} spec={w} groundY={surfY(w.x, w.z)} />
         ))}
       </Stratum>
+
+      {/* Сквозная цепочка цикла — поверх живущего промысла, а не вместо него */}
+      <CycleChain />
 
       {/* Стволы — вне группы поверхности, на своих фактических отметках */}
       {story.wells.map((w) => (

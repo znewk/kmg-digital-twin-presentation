@@ -11,6 +11,7 @@ import {
   OWC_Y,
 } from './geology';
 import { absToSceneY } from '../../data/geo/fieldData';
+import { outlineCentroid, outlineRadius } from '../../data/geo/outline';
 import { owcAbs, resolveHorizon, SECTION_BASE_ABS } from '../../data/geo/stratigraphy';
 
 /**
@@ -173,17 +174,31 @@ export function SeismicSection() {
   }, []);
 
   /**
-   * Профиль ставится по фактическому габариту участка и на фактические
-   * глубины разреза. Прежние −460 по высоте и 1360 × 840 по размеру —
-   * наследие выдуманного поля: профиль висел в перекрывающей толще размером
-   * с четверть промысла.
+   * Профиль идёт по блоку, а не по рамке габарита.
+   *
+   * Стоял шириной в объявленные 5352 м и по оси сцены. Блок с тех пор построен
+   * по контуру снятой площади, которая рамку не заполняет и лежит в ней
+   * несимметрично, — и профиль торчал наружу двумя синими языками, висящими
+   * рядом с моделью в пустоте. Отсюда и вопрос «это что вообще»: со стороны это
+   * не читалось как сейсмический профиль ни при каком ракурсе.
+   *
+   * Теперь это отрезок запад — восток через центр площади, обрывающийся ровно
+   * на её границах: сейсмический профиль и есть линия наблюдений, а за краем
+   * съёмки наблюдений нет.
    */
+  const { west, span, cz } = useMemo(() => {
+    const [ox, oz] = outlineCentroid();
+    const w = ox - outlineRadius(Math.PI);
+    const e = ox + outlineRadius(0);
+    return { west: w, span: e - w, cz: oz };
+  }, []);
+
   const height = Math.abs(absToSceneY(SECTION_BASE_ABS) - absToSceneY(-60));
   const midY = (absToSceneY(SECTION_BASE_ABS) + absToSceneY(-60)) / 2;
 
   return (
-    <mesh position={[0, midY, 0]} userData={{ id: 'res-seismic' }}>
-      <planeGeometry args={[2 * HW * 0.96, height]} />
+    <mesh position={[west + span / 2, midY, cz]} userData={{ id: 'res-seismic' }}>
+      <planeGeometry args={[span, height]} />
       <meshBasicMaterial
         map={texture}
         transparent

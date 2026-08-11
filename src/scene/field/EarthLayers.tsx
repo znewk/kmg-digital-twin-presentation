@@ -7,11 +7,10 @@ import {
   resTopY,
   FIELD_STRATA,
   HD,
-  HW,
   REFERENCE_HORIZON,
 } from './geology';
 import { absToSceneY } from '../../data/geo/fieldData';
-import { insideOutline } from '../../data/geo/outline';
+import { insideOutline, outlineCentroid, outlineRadius } from '../../data/geo/outline';
 import {
   faultTraceAt,
   owcAbs,
@@ -44,6 +43,13 @@ import type { StoryWell } from '../../data/geo/storyWells';
  * и та же порода с разным заполнением, и граница между ними и есть контур
  * нефтеносности.
  */
+
+/**
+ * Контур нефтеносности принадлежит опорному горизонту и при разнесении слоёв
+ * обязан ехать вместе с ним, а не оставаться на месте: иначе линия контакта
+ * отрывается от пласта, границу которого она и очерчивает.
+ */
+const OWC_ORDER = FIELD_STRATA.find((s) => s.horizon === REFERENCE_HORIZON)?.order ?? 0;
 
 /**
  * Плоскость разрывного нарушения. Наклонена, поэтому её след смещается с
@@ -121,8 +127,14 @@ function useOwcContour() {
       const cz = Math.sin(a);
       const r = ringRadius(h, cx, cz, level);
       const x = cx * r;
+      const z = cz * r;
       if (reservoirPresence(x) < 0.5) continue;
-      pts.push(new THREE.Vector3(x, level, cz * r));
+      // Контур ищется по структуре, а структура задана на весь габарит: там,
+      // где кровля не опускается до уровня контакта, поиск упирался в предел
+      // и выносил точку далеко за блок. Снаружи снятой площади контура нет —
+      // он обрывается на её границе, как и обрывается сама модель.
+      if (!insideOutline(x, z)) continue;
+      pts.push(new THREE.Vector3(x, level, z));
     }
 
     return pts.length > 8 ? new THREE.CatmullRomCurve3(pts, false) : null;
@@ -144,6 +156,19 @@ function HorizonLabels({ open }: { open: boolean }) {
   // Число скважин на горизонт — из сводки реестра фонда. Оно и делает подпись
   // содержательной: видно не только имя пласта, но и сколько на него пробурено.
   const WELL_COUNT = useFieldData().well_stats.by_horizon;
+
+  /**
+   * Подписи прижимаются к западной грани БЛОКА, а не к рамке габарита.
+   *
+   * Стояли на `-HW`, то есть по объявленному прямоугольнику 5352 × 4682. Блок
+   * с тех пор идёт по контуру снятой площади и заметно уже рамки — подписи
+   * повисли в стороне от разреза, оторванные от слоёв, которые называют.
+   */
+  const anchor = useMemo(() => {
+    const [cx, cz] = outlineCentroid();
+    return { x: cx - outlineRadius(Math.PI) - 25, z: cz };
+  }, []);
+
   if (!open) return null;
 
   return (
@@ -157,9 +182,8 @@ function HorizonLabels({ open }: { open: boolean }) {
         return (
           <Html
             key={h.id}
-            // На западной грани блока и чуть за ней: подпись стоит у самого
-            // среза, а не висит в стороне от него.
-            position={[-HW - 40, mid + offset, -HD * 0.5]}
+            // У самой западной грани блока: подпись стоит вплотную к срезу.
+            position={[anchor.x, mid + offset, anchor.z]}
             zIndexRange={[8, 0]}
             style={{ pointerEvents: 'none' }}
           >
@@ -275,12 +299,13 @@ export function EarthLayers() {
           )}
       </Stratum>
 
-      {/* Контур нефтеносности опорного горизонта */}
+      {/* Контур нефтеносности опорного горизонта. Толщина в метрах: на блоке
+          шириной под пять километров трёхметровая нить была тоньше пикселя. */}
       {owcContour && (
-        <Stratum id="res-owc" offset={0}>
+        <Stratum id="res-owc" offset={strataOffset(OWC_ORDER)}>
           <mesh userData={{ id: 'res-owc' }}>
-            <tubeGeometry args={[owcContour, 180, 3, 6, false]} />
-            <meshBasicMaterial color="#f0ae4a" />
+            <tubeGeometry args={[owcContour, 180, 9, 6, false]} />
+            <meshBasicMaterial color="#ffc061" />
           </mesh>
         </Stratum>
       )}
@@ -330,7 +355,15 @@ export function DrainageZones({ wells }: { wells: StoryWell[] }) {
   );
 }
 
-/** Изолинии по кровле опорного горизонта — визуальный след Картопостроителя ABAI. */
+/**
+ * Изолинии по кровле опорного горизонта — визуальный след Картопостроителя ABAI.
+ *
+ * Их не было видно по двум причинам сразу, и обе от масштаба. Нить радиусом
+ * 1,6 м на блоке шириной под пять километров тоньше пикселя — линия рисовалась
+ * и не занимала на экране ничего. А сами кольца искались по структуре, заданной
+ * на весь габарит: где кровля не опускалась до нужной отметки, поиск упирался в
+ * предел и выносил изолинию далеко за пределы блока, в пустоту.
+ */
 export function TopIsolines() {
   const curves = useMemo(() => {
     const h = REFERENCE_HORIZON;
@@ -346,8 +379,10 @@ export function TopIsolines() {
           const cz = Math.sin(a);
           const r = ringRadius(h, cx, cz, level);
           const x = cx * r;
+          const z = cz * r;
           if (reservoirPresence(x) < 0.5) continue;
-          pts.push(new THREE.Vector3(x, resTopY(x, cz * r) + 3, cz * r));
+          if (!insideOutline(x, z)) continue;
+          pts.push(new THREE.Vector3(x, resTopY(x, z) + 6, z));
         }
         return pts.length > 8 ? new THREE.CatmullRomCurve3(pts, false) : null;
       })
@@ -358,8 +393,8 @@ export function TopIsolines() {
     <group userData={{ id: 'res-map' }}>
       {curves.map((c, i) => (
         <mesh key={i}>
-          <tubeGeometry args={[c, 110, 1.6, 5, false]} />
-          <meshBasicMaterial color="#f0ae4a" transparent opacity={0.7} depthWrite={false} />
+          <tubeGeometry args={[c, 110, 7, 5, false]} />
+          <meshBasicMaterial color="#ffd48a" transparent opacity={0.85} depthWrite={false} />
         </mesh>
       ))}
     </group>

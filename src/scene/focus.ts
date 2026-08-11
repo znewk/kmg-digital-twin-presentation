@@ -155,13 +155,17 @@ export interface FrameOptions {
   /** Уводить ли объект из-под правой панели. */
   offsetForPanel?: boolean;
   /**
-   * Ручной сдвиг объекта по экрану в долях кадра: больше нуля — влево.
+   * СВОБОДНАЯ ПОЛОСА КАДРА — доли ширины экрана, не занятые панелями.
    *
-   * Нужен там, где панели стоят с обеих сторон и свободное место не по центру
-   * экрана. Штатный сдвиг `offsetForPanel` знает только про правую панель и в
-   * такой раскладке загоняет объект под левую.
+   * Задаёт сразу две вещи, которые иначе приходится подбирать вручную и порознь:
+   * насколько отвести камеру, чтобы объект уместился в оставшееся место, и
+   * куда его сдвинуть, чтобы он встал в центр этого места, а не экрана.
+   *
+   * Без этого в разборе модуля объект вставал по центру экрана — то есть ровно
+   * под правую панель, — а вписывался в полную ширину, из которой видно было
+   * меньше половины.
    */
-  shift?: number;
+  band?: { left: number; right: number };
 }
 
 /** Общий расчёт положения камеры вокруг точки — один на оба реестра. */
@@ -175,13 +179,19 @@ export function frameAround(
 ): FocusFrame {
   const margin = opts.margin ?? MARGIN;
   const elevation = opts.elevation ?? ELEVATION;
-  const panel = opts.offsetForPanel === false ? 0 : PANEL_FRACTION;
+  const band = opts.band;
+  const panel = band ? 0 : opts.offsetForPanel === false ? 0 : PANEL_FRACTION;
+
+  // Доля ширины, реально доступная объекту, и смещение центра этой полосы от
+  // центра экрана. Больше нуля — свободное место левее центра.
+  const bandWidth = band ? Math.max(0.15, band.right - band.left) : 1 - panel;
+  const bandShift = band ? 0.5 - (band.left + band.right) / 2 : 0;
 
   // Дистанция из габарита и угла обзора. Панель съедает часть кадра по
   // ширине, поэтому эффективный горизонтальный угол меньше — учитываем это,
   // иначе объект «вылезает» из свободной зоны.
   const vFov = (fovDeg * Math.PI) / 180;
-  const usableAspect = aspect * (1 - panel);
+  const usableAspect = aspect * bandWidth;
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * usableAspect);
   const limiting = Math.min(vFov, hFov);
   const distance = (radius * margin) / Math.tan(limiting / 2);
@@ -195,7 +205,19 @@ export function frameAround(
 
   // Сдвиг цели вправо по экрану уводит объект влево — под свободную зону.
   const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
-  const shift = radius * margin * (panel * 0.9 + (opts.shift ?? 0) * 2);
+
+  /**
+   * Сдвиг цели считается в мире, а не на глаз.
+   *
+   * Половина кадра на дистанции до цели равна `distance * tan(hFov/2)`; чтобы
+   * объект сместился на заданную долю ЭКРАНА, цель надо отвести на удвоенную
+   * эту долю от полукадра. Так сдвиг остаётся верным при любом угле обзора и
+   * соотношении сторон, а не подобранным под один монитор.
+   */
+  const halfWidthAtTarget = distance * Math.tan(hFov / 2);
+  const shift = band
+    ? halfWidthAtTarget * bandShift * 2
+    : radius * margin * panel * 0.9;
   const target = center.clone().addScaledVector(right, -shift);
 
   return {

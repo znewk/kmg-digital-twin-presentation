@@ -334,6 +334,17 @@ export function shotFrame(
    */
   layout: 'cycle' | 'dive' = 'cycle',
 ): FocusFrame | null {
+  /**
+   * Свободная полоса кадра — доли ширины экрана между панелями.
+   *
+   * Числа те же, что в раскладке интерфейса: слева панель раздела 19 em с
+   * отступом 2 em, справа экран модуля 36 em с отступом 2,5 em. При базовой
+   * ширине раскладки это примерно от 0,22 до 0,60. В полном цикле панель одна
+   * и лежит снизу — по ширине свободно всё, только объект чуть приподнят над
+   * ней.
+   */
+  const band =
+    layout === 'dive' ? { left: 0.22, right: 0.6 } : { left: 0.06, right: 0.94 };
   const view = shotView(shot.look, route, ppd, data);
   if (!view) return null;
 
@@ -361,15 +372,6 @@ export function shotFrame(
   return frameAround(view.center, view.radius, azimuth, fovDeg, aspect, {
     margin: under ? SUBSURFACE_MARGIN[shot.framing] : f.margin,
     elevation: under ? SUBSURFACE_ELEVATION[shot.framing] : f.elevation,
-    shift: layout === 'dive' ? 0.1 : 0,
-    /**
-     * Смещать объект из-под правой панели больше не нужно.
-     *
-     * Сдвиг вводился, когда карточка объекта была единственной панелью и
-     * висела справа. В разделе панели стоят с ОБЕИХ сторон, и увод объекта
-     * влево загоняет его под левую — из одной помехи получаются две. Свободное
-     * место здесь по центру, туда объект и ставится.
-     */
-    offsetForPanel: false,
+    band,
   });
 }

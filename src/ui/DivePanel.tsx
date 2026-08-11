@@ -66,10 +66,21 @@ export function DivePanel() {
    */
   useEffect(() => {
     const root = document.documentElement;
-    if (dive) root.style.setProperty('--stage-left', '25.5rem');
-    else root.style.removeProperty('--stage-left');
+    if (dive) {
+      // Ширина панели раздела плюс её отступ: полноэкранные и боковые панели
+      // модулей начинаются ровно за ней, без зазора на глаз.
+      root.style.setProperty('--stage-left', '21.5rem');
+      // Экран модуля в разборе уже, чем в линейном показе: там он был
+      // единственной панелью, здесь напротив него стоит вторая, и на двоих
+      // сорока шести em не хватает — 3D оставалось четверть экрана.
+      root.style.setProperty('--panel-w', '36rem');
+    } else {
+      root.style.removeProperty('--stage-left');
+      root.style.removeProperty('--panel-w');
+    }
     return () => {
       root.style.removeProperty('--stage-left');
+      root.style.removeProperty('--panel-w');
     };
   }, [dive]);
 
@@ -117,7 +128,7 @@ export function DivePanel() {
         кнопками перехода по шагам. Прокручивается только досье — заголовок,
         текст шага и навигация остаются на месте.
       */}
-      <div className="pointer-events-auto absolute top-24 bottom-10 left-8 flex w-[22rem] flex-col gap-3 rounded border border-[var(--color-line)] bg-[var(--color-bg-panel)]/94 px-4 py-3.5 backdrop-blur">
+      <div className="pointer-events-auto absolute top-24 bottom-10 left-8 flex w-[19rem] flex-col gap-3 rounded border border-[var(--color-line)] bg-[var(--color-bg-panel)]/97 px-4 py-3.5 backdrop-blur">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-baseline gap-2">

@@ -14,6 +14,7 @@ import { BuriedNetworks, FundBores, Manholes, TrenchSection } from './Undergroun
 import { Well, WellHead } from './Well';
 import { WellFarm } from './WellFarm';
 import { CommMast, Roads, Traffic } from './SiteLife';
+import { ExternalNodes, Vegetation } from './Surroundings';
 import { Stratum, SURFACE_OFFSET } from './explode';
 import { flowEnabled, flowTime } from './kit/flow';
 import { useFieldData } from '../../data/geo/fieldData';
@@ -161,6 +162,8 @@ function FieldContents({ shadows }: { shadows: boolean }) {
       <Stratum id="surface" offset={SURFACE_OFFSET}>
         <RealTerrain />
         <TerrainContours />
+        <Vegetation />
+        <ExternalNodes />
         <RealNetworks />
         <Roads />
         <Facilities />

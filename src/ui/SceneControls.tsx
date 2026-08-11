@@ -13,6 +13,7 @@ import { useShow, type FeatureId } from '../store/useShow';
 const FIELD_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'production', 'outro']);
 
 const FEATURES: { id: FeatureId; label: string }[] = [
+  { id: 'utilities', label: 'Коммуникации' },
   { id: 'grid', label: 'Сетка ГГДМ' },
   { id: 'isolines', label: 'Изолинии' },
   { id: 'seismic', label: 'Сейсмика' },
@@ -103,11 +104,14 @@ export function SceneControls() {
 
       {clip && (
         <label className="flex items-center gap-2">
+          {/* Пределы — по фактической полуширине участка 2676 м. Прежние ±700
+              достались от выдуманного поля 1400 × 900: плоскость физически не
+              могла пройти через промысел и упиралась в его четверть. */}
           <input
             type="range"
-            min={-700}
-            max={700}
-            step={5}
+            min={-2700}
+            max={2700}
+            step={20}
             value={clipX}
             onChange={(e) => setClipX(Number(e.target.value))}
             className="w-full accent-[var(--color-dob)]"

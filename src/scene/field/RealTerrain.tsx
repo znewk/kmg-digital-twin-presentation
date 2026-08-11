@@ -10,6 +10,7 @@ import {
   type FieldDataset,
 } from '../../data/geo/fieldData';
 import { setTerrainSampler } from './geology';
+import { useShow } from '../../store/useShow';
 
 /**
  * Рельеф промысла по реальной высотной сетке (ТЗ §4.1 п.2).
@@ -49,9 +50,27 @@ export function RealTerrain() {
     return g;
   }, [data]);
 
+  /**
+   * В режиме подземных коммуникаций грунт становится полупрозрачным.
+   *
+   * Иначе закопанные трубы не увидеть в принципе — и это не недоработка
+   * визуализации, а свойство натуры: они в земле, земля непрозрачна.
+   * Разнесение слоёв тут не помогает, потому что поднимает поверхность вместе
+   * с породой, а трубы лежат внутри неё. Прозрачный грунт — единственный
+   * честный способ показать подземное хозяйство целиком, не выкапывая его.
+   */
+  const utilities = useShow((s) => s.features.utilities);
+
   return (
-    <mesh geometry={geometry} receiveShadow userData={{ id: 's-terrain' }}>
-      <meshStandardMaterial color="#55697e" roughness={0.97} metalness={0} />
+    <mesh geometry={geometry} receiveShadow={!utilities} userData={{ id: 's-terrain' }}>
+      <meshStandardMaterial
+        color={utilities ? '#3f5164' : '#55697e'}
+        roughness={0.97}
+        metalness={0}
+        transparent={utilities}
+        opacity={utilities ? 0.24 : 1}
+        depthWrite={!utilities}
+      />
     </mesh>
   );
 }

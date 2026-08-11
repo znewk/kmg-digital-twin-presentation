@@ -6,6 +6,7 @@ import { DrainageZones, EarthLayers, TopIsolines } from './EarthLayers';
 import { FloodFront, GgdmGrid, SeismicSection, WaterCone } from './features';
 import { RealTerrain, TerrainContours, useTerrainReady } from './RealTerrain';
 import { HubPads, RealNetworks } from './RealNetworks';
+import { Facilities } from './Facilities';
 import { Well } from './Well';
 import { WellFarm } from './WellFarm';
 import { Stratum } from './explode';
@@ -135,6 +136,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
         <TerrainContours />
         <RealNetworks />
         <HubPads />
+        <Facilities />
         {/* Весь остальной фонд — инстансами, но живой: работающие качалки
             качаются, у каждой своя фаза. Сюжетные исключены, они уже
             отрисованы полными моделями выше. */}

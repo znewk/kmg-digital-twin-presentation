@@ -25,18 +25,26 @@ export interface Placement {
 /**
  * Палитра материалов промысла.
  *
- * Оборудование на месторождении не радужное: сталь, окрашенный металл,
- * бетон и изоляция. Единственный насыщенный цвет — янтарный акцент на
- * запорной арматуре, и он тот же, что у нефти в палитре §8.1: маховик
- * задвижки на нефтяной линии и есть точка, где нефтью управляют.
+ * Вся сцена была стальной — восемь оттенков одного холодного серого, — и
+ * промысел выходил чёрно-белым. В натуре это не так: блок-боксы и насосные
+ * красят, обычно в приглушённый зелёный или синий, ёмкости идут в светлой
+ * изоляции, бетон тёплый и запылённый, а трубы разных сред различаются по
+ * окраске — это требование к обозначению, а не украшение.
+ *
+ * Насыщенность держится низкой намеренно. Палитра §8.1 отдаёт янтарь нефти,
+ * фиолетовый — системному слою Nedra, бирюзу — данным; оборудование не имеет
+ * права занимать эти голоса. Поэтому промышленные цвета здесь приглушённые и
+ * землистые: они дают сцене жизнь, но остаются фоном для смысловых цветов.
  */
 export const MATERIALS: Record<MatKey, THREE.MeshStandardMaterialParameters> = {
-  steel: { color: '#8c97a8', metalness: 0.72, roughness: 0.38 },
-  steelDark: { color: '#5f6b7e', metalness: 0.62, roughness: 0.5 },
-  painted: { color: '#7b8794', metalness: 0.28, roughness: 0.68 },
-  pipe: { color: '#9aa7b8', metalness: 0.7, roughness: 0.34 },
-  pipeWater: { color: '#5f8bb0', metalness: 0.62, roughness: 0.4 },
-  concrete: { color: '#6a6a63', metalness: 0.02, roughness: 0.95 },
+  steel: { color: '#98a2ac', metalness: 0.72, roughness: 0.38 },
+  steelDark: { color: '#5d6672', metalness: 0.62, roughness: 0.5 },
+  /** Окраска блок-боксов и насосных: приглушённый промышленный зелёный. */
+  painted: { color: '#5d6b5c', metalness: 0.24, roughness: 0.72 },
+  pipe: { color: '#a3a79c', metalness: 0.68, roughness: 0.36 },
+  pipeWater: { color: '#5b87a8', metalness: 0.6, roughness: 0.42 },
+  /** Бетон тёплый и запылённый — он лежит в степи, а не в цеху. */
+  concrete: { color: '#6e6759', metalness: 0.02, roughness: 0.95 },
   accent: { color: '#f0ae4a', metalness: 0.5, roughness: 0.45 },
   glass: {
     color: '#16212e',
@@ -45,7 +53,8 @@ export const MATERIALS: Record<MatKey, THREE.MeshStandardMaterialParameters> = {
     emissive: new THREE.Color('#2a5b7a'),
     emissiveIntensity: 0.35,
   },
-  insulation: { color: '#b9bcae', metalness: 0.08, roughness: 0.88 },
+  /** Тепловая изоляция ёмкостей — светлое серебро с тёплым уходом. */
+  insulation: { color: '#c2bda9', metalness: 0.08, roughness: 0.86 },
 };
 
 /** Порядок стабилен — от него зависит порядок ключей React. */

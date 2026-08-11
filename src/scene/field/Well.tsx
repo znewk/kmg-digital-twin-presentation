@@ -36,8 +36,9 @@ const ORIGIN: Placement[] = [{ x: 0, y: 0, z: 0 }];
  * качалки невозможно сделать, не рискуя сломать буровую.
  */
 
-const STEEL = { color: '#8c97a8', metalness: 0.7, roughness: 0.35 } as const;
-const STEEL_DARK = { color: '#5f6b7e', metalness: 0.6, roughness: 0.45 } as const;
+/** Те же цвета, что у фонда: сюжетная скважина не может выглядеть иначе. */
+const STEEL = { color: '#9aa2a6', metalness: 0.62, roughness: 0.44 } as const;
+const STEEL_DARK = { color: '#7a5f4c', metalness: 0.35, roughness: 0.68 } as const;
 const UNIT = { color: '#7e8ca0', metalness: 0.7, roughness: 0.35 } as const;
 
 // ── Устья ───────────────────────────────────────────────────────────────────

@@ -8,5 +8,8 @@ dist/
 data/_extract/
 tsconfig.tsbuildinfo
 
+# Архив исходных материалов — 24 МБ, содержимое уже распаковано в data/
+data.zip
+
 *.local
 .DS_Store

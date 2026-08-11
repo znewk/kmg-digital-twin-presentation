@@ -184,6 +184,41 @@ export function CyclePlayer() {
     elapsed.current = 0;
   }, [shotId]);
 
+  /**
+   * Кадр включает свои режимы сцены и гасит чужие.
+   *
+   * Состояние задаётся ЦЕЛИКОМ по текущему кадру, а не правится по разнице с
+   * предыдущим. Иначе при переходе назад или прыжке по индикатору остаются
+   * включёнными слои прошлого кадра, и разобраться, откуда взялась сейсмика в
+   * кадре про сборный пункт, уже невозможно.
+   */
+  useEffect(() => {
+    if (!shotId) return;
+    const shot = SHOT_BY_ID.get(shotId);
+    if (!shot) return;
+
+    const want = shot.setup ?? {};
+    const f = want.features ?? {};
+    useShow.setState((s) => ({
+      exploded: want.exploded ?? false,
+      clip: want.clip ?? false,
+      features: {
+        ...s.features,
+        grid: f.grid ?? false,
+        isolines: f.isolines ?? false,
+        seismic: f.seismic ?? false,
+        flood: f.flood ?? false,
+        cone: f.cone ?? false,
+        drainage: f.drainage ?? false,
+        utilities: f.utilities ?? false,
+        traces: f.traces ?? false,
+        // Поток остаётся включённым всегда: это движение среды в трубах, а не
+        // слой поверх сцены, и гасить его посреди рассказа о потоке незачем.
+        flow: true,
+      },
+    }));
+  }, [shotId]);
+
   useFrame((_, dt) => {
     if (!playing || !shotId) return;
     const shot = SHOT_BY_ID.get(shotId);

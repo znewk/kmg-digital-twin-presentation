@@ -63,6 +63,7 @@ export function SceneControls() {
   const setClipX = useShow((s) => s.setClipX);
   const toggleFeature = useShow((s) => s.toggleFeature);
   const togglePaused = useShow((s) => s.togglePaused);
+  const inCycle = useShow((s) => s.cycleShot !== null);
 
   if (!FIELD_STAGES.has(stageId)) return null;
   // Под полноэкранной панелью модуля сцены всё равно не видно.
@@ -72,15 +73,23 @@ export function SceneControls() {
 
   return (
     <div className="panel pointer-events-auto absolute top-24 left-8 flex w-[13.5rem] flex-col gap-2 px-3 py-3">
-      {/* Свободный осмотр: без него объекты почти невозможно поймать курсором
-          на общих планах, и кликабельность сцены остаётся незамеченной. */}
-      <Toggle on={paused} onClick={togglePaused}>
-        {paused ? '● свободный осмотр' : 'Свободный осмотр'}
+      {/*
+        Свободный осмотр: без него объекты почти невозможно поймать курсором на
+        общих планах, и кликабельность сцены остаётся незамеченной.
+
+        Во время полного цикла он показан выключенным, а нажатие выходит из
+        цикла. Режим ровно один: камерой владеет либо раскадровка, либо
+        пользователь, и совмещать их — значит не иметь ни того ни другого.
+      */}
+      <Toggle on={paused && !inCycle} onClick={togglePaused}>
+        {inCycle ? 'Взять камеру себе' : paused ? '● свободный осмотр' : 'Свободный осмотр'}
       </Toggle>
       <div className="text-[0.58rem] leading-tight text-[var(--color-txt-faint)]">
-        {paused
-          ? 'ЛКМ — поворот · колесо — приближение · ПКМ — сдвиг. Клик по объекту — карточка'
-          : 'Клавиша P. Скролл замрёт, камера перейдёт под мышь'}
+        {inCycle
+          ? 'Идёт полный цикл — камерой ведёт раскадровка'
+          : paused
+            ? 'ЛКМ — поворот · колесо — приближение · ПКМ — сдвиг. Клик по объекту — карточка'
+            : 'Клавиша P. Скролл замрёт, камера перейдёт под мышь'}
       </div>
 
       <div className="kicker mt-1 border-t border-[var(--color-line)] pt-2">Просмотр недр</div>

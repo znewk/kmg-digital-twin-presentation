@@ -1,7 +1,9 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
+import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeParts, type MatKey, type Part } from './parts';
 import { EQUIPMENT_SCALE } from './scale';
+import { useShow } from '../../../store/useShow';
 
 /**
  * Расстановка одной и той же детализированной установки по фактическим точкам.
@@ -145,8 +147,47 @@ export function Assembly({
 
   if (placements.length === 0) return null;
 
+  /**
+   * Выбор конкретного экземпляра сборки.
+   *
+   * Установки инстансированы: сорок одна ГЗУ — это один объект сцены, и
+   * обычный обработчик клика знал бы только «попали в ГЗУ вообще». Номер
+   * экземпляра приходит в событии, и по нему берётся та расстановка, в которую
+   * ткнули, — а с ней и подпись из чертежа.
+   *
+   * Событие останавливается: сборки вложены в группы, и без этого один клик
+   * дошёл бы до нескольких обработчиков, а выиграл бы случайный.
+   */
+  const pick = (e: ThreeEvent<MouseEvent>) => {
+    const target = e.instanceId !== undefined ? placements[e.instanceId]?.id : undefined;
+    if (!target) return;
+    e.stopPropagation();
+    const { selected, select } = useShow.getState();
+    select(selected === target ? null : target);
+  };
+
+  const hoverOn = (e: ThreeEvent<PointerEvent>) => {
+    const target = e.instanceId !== undefined ? placements[e.instanceId]?.id : undefined;
+    if (!target) return;
+    e.stopPropagation();
+    useShow.getState().hover(target);
+    document.body.style.cursor = 'pointer';
+  };
+
+  const hoverOff = () => {
+    useShow.getState().hover(null);
+    document.body.style.cursor = '';
+  };
+
+  const clickable = placements.some((p) => p.id);
+
   return (
-    <group userData={{ id }}>
+    <group
+      userData={{ id }}
+      onClick={clickable ? pick : undefined}
+      onPointerOver={clickable ? hoverOn : undefined}
+      onPointerOut={clickable ? hoverOff : undefined}
+    >
       {MAT_ORDER.filter((k) => merged.has(k)).map((k) => (
         <InstancedGroup
           key={k}

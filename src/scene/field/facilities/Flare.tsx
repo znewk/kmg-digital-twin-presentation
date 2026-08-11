@@ -233,7 +233,7 @@ export function Flare() {
     if (!p) return null;
     const x = toSceneX(p[0]);
     const z = toSceneZ(p[1]);
-    return { x, y: surfY(x, z), z };
+    return { x, y: surfY(x, z), z, id: 'flare' };
   }, [data]);
 
   // Отсвет от пламени: единственный динамический источник в сцене, поэтому

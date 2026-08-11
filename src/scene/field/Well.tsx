@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { perfPoint, wellCurve, resTopY } from './geology';
 import type { StoryWell } from '../../data/geo/storyWells';
 import { Assembly, type Placement } from './kit/Assembly';
+import { EQUIPMENT_SCALE } from './kit/scale';
 import { buildRigStatic } from './facilities/rig';
 import { buildWorkoverStatic } from './facilities/workover';
 import { Bars, type BarSpec } from './Bars';
@@ -104,7 +105,9 @@ function DerrickHead({ y }: { y: number }) {
 
   return (
     <group position={[0, y, 0]}>
-      <Assembly build={buildRigStatic} placements={ORIGIN} id="rig-static" />
+      {/* scale=1: родительская группа устья уже масштабирована, иначе коэффициент
+          применился бы дважды */}
+      <Assembly build={buildRigStatic} placements={ORIGIN} id="rig-static" scale={1} />
 
       <mesh ref={block} position={[0, 32, 0]} castShadow>
         <boxGeometry args={[2.2, 3.6, 2.2]} />
@@ -134,7 +137,7 @@ function WorkoverHead({ y }: { y: number }) {
 
   return (
     <group position={[0, y, 0]}>
-      <Assembly build={buildWorkoverStatic} placements={ORIGIN} id="workover-static" />
+      <Assembly build={buildWorkoverStatic} placements={ORIGIN} id="workover-static" scale={1} />
       <mesh ref={block} castShadow>
         <boxGeometry args={[0.9, 1.6, 1.1]} />
         <meshStandardMaterial {...UNIT} />
@@ -201,15 +204,22 @@ function ChristmasTree({ y, cableEntry = false }: { y: number; cableEntry?: bool
  */
 export function WellHead({ spec, groundY }: { spec: StoryWell; groundY: number }) {
   return (
-    <group position={[spec.x, 0, spec.z]} userData={{ id: `${spec.id}:head` }}>
-      {spec.kind === 'skn' && <PumpjackHead y={groundY} />}
-      {spec.kind === 'drill' && <DerrickHead y={groundY} />}
-      {spec.kind === 'wo' && <WorkoverHead y={groundY} />}
-      {spec.kind === 'esp' && <ChristmasTree y={groundY} cableEntry />}
+    // Отметка земли вынесена в положение группы, а масштаб — в саму группу:
+    // если оставить её внутри, коэффициент умножит и высоту посадки, и устье
+    // повиснет над землёй ровно во столько же раз.
+    <group
+      position={[spec.x, groundY, spec.z]}
+      scale={EQUIPMENT_SCALE}
+      userData={{ id: `${spec.id}:head` }}
+    >
+      {spec.kind === 'skn' && <PumpjackHead y={0} />}
+      {spec.kind === 'drill' && <DerrickHead y={0} />}
+      {spec.kind === 'wo' && <WorkoverHead y={0} />}
+      {spec.kind === 'esp' && <ChristmasTree y={0} cableEntry />}
       {(spec.kind === 'frac' ||
         spec.kind === 'horiz' ||
         spec.kind === 'inj' ||
-        spec.kind === 'water') && <ChristmasTree y={groundY} />}
+        spec.kind === 'water') && <ChristmasTree y={0} />}
     </group>
   );
 }

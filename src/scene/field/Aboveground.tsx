@@ -3,6 +3,7 @@ import { toSceneX, toSceneZ, useFieldData } from '../../data/geo/fieldData';
 import { NETWORK_STYLE } from '../../data/geo/fieldStyle';
 import { Assembly, type Placement } from './kit/Assembly';
 import { makeFlowMaterial } from './kit/flow';
+import { EQUIPMENT_SCALE } from './kit/scale';
 import { box, cyl, type Part } from './kit/parts';
 import { buildTubes } from './kit/tube';
 import { surfY } from './geology';
@@ -20,8 +21,14 @@ import { surfY } from './geology';
  * уже тесно от других коммуникаций.
  */
 
-/** Высота оси надземной трубы над землёй, м. */
+/**
+ * Высота оси надземной трубы над землёй, м.
+ *
+ * Растёт вместе с опорами: труба лежит на их ложементах, и разъехаться они не
+ * должны.
+ */
 const PIPE_HEIGHT = 2.6;
+const PIPE_AXIS = (2.6 + 0.24) * EQUIPMENT_SCALE;
 
 /** Опора надземного трубопровода: две стойки, ригель и ложемент под трубу. */
 function buildPipeSupport(): Part[] {
@@ -147,8 +154,8 @@ export function AbovegroundPipes() {
   const gasTube = useMemo(
     () =>
       buildTubes(data.networks.gas_overground, {
-        radius: 0.14,
-        offset: PIPE_HEIGHT + 0.24,
+        radius: 0.14 * EQUIPMENT_SCALE,
+        offset: PIPE_AXIS,
         elevation: surfY,
         radialSegments: 8,
       }),
@@ -226,15 +233,14 @@ export function AbovegroundPipes() {
             const dy = arr[j][1] - ly;
             const len = Math.hypot(dx, dy) || 1;
             const sign = i < arr.length - 1 ? 1 : -1;
-            return [
-              lx + ((-dy / len) * spec.shift * sign),
-              ly + ((dx / len) * spec.shift * sign),
-            ] as [number, number];
+            const shift = spec.shift * EQUIPMENT_SCALE * sign;
+            return [lx + (-dy / len) * shift, ly + (dx / len) * shift] as [number, number];
           }),
         ),
         {
-          radius: spec.radius,
-          offset: spec.offsetY,
+          // Нитки лежат на ригелях эстакады и растут вместе с ней.
+          radius: spec.radius * EQUIPMENT_SCALE,
+          offset: spec.offsetY * EQUIPMENT_SCALE,
           elevation: surfY,
           radialSegments: 8,
         },

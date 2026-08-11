@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeParts, type MatKey, type Part } from './parts';
+import { EQUIPMENT_SCALE } from './scale';
 
 /**
  * Расстановка одной и той же детализированной установки по фактическим точкам.
@@ -64,11 +65,13 @@ function InstancedGroup({
   geometry,
   material,
   placements,
+  scale,
   castShadow = true,
 }: {
   geometry: THREE.BufferGeometry;
   material: THREE.MeshStandardMaterialParameters;
   placements: Placement[];
+  scale: number;
   castShadow?: boolean;
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
@@ -81,9 +84,12 @@ function InstancedGroup({
     const p = new THREE.Vector3();
     const q = new THREE.Quaternion();
     const e = new THREE.Euler();
-    const s = new THREE.Vector3(1, 1, 1);
+    const s = new THREE.Vector3(scale, scale, scale);
 
     placements.forEach((pl, i) => {
+      // Масштаб применяется относительно точки посадки, а не центра модели:
+      // установка растёт вверх от своего основания и остаётся ровно там, где
+      // стоит на плане.
       p.set(pl.x, pl.y, pl.z);
       e.set(0, pl.yaw ?? 0, 0);
       q.setFromEuler(e);
@@ -94,7 +100,7 @@ function InstancedGroup({
     mesh.count = placements.length;
     mesh.instanceMatrix.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [placements]);
+  }, [placements, scale]);
 
   return (
     <instancedMesh
@@ -112,11 +118,19 @@ export function Assembly({
   build,
   placements,
   id,
+  scale = EQUIPMENT_SCALE,
 }: {
   /** Строитель деталей. Вызывается один раз — держите его стабильным. */
   build: () => Part[];
   placements: Placement[];
   id: string;
+  /**
+   * Габаритный коэффициент. По умолчанию общий для всего оборудования; явно
+   * задаётся там, где укрупнение неуместно — например, у вскрытой траншеи:
+   * это вырытая в земле канава, и растянуть её значит соврать про глубину
+   * заложения.
+   */
+  scale?: number;
 }) {
   const merged = useMemo(() => mergeParts(build()), [build]);
 
@@ -130,6 +144,7 @@ export function Assembly({
           geometry={merged.get(k)!}
           material={MATERIALS[k]}
           placements={placements}
+          scale={scale}
         />
       ))}
     </group>

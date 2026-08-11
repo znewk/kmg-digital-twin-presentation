@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import { toSceneX, toSceneZ, useFieldData } from '../../../data/geo/fieldData';
 import { Assembly } from '../kit/Assembly';
 import { box, cone, cyl, pipe, torus, valve, type Part } from '../kit/parts';
-import { surfY } from '../geology';
+import { surfY } from "../geology";
+import { EQUIPMENT_SCALE } from "../kit/scale";
 
 /**
  * Факельная установка — в фактической точке чертежа [4156, 2462], рядом со
@@ -249,11 +250,11 @@ export function Flare() {
     <group userData={{ id: 'fac-flare' }}>
       <Assembly build={buildFlareStack} placements={[spot]} id="flare-stack" />
       <group position={[spot.x, spot.y, spot.z]}>
-        <Flame y={1.5 + STACK_H + 6.6} />
-        <Smoke y={1.5 + STACK_H + 13} />
+        <Flame y={(1.5 + STACK_H + 6.6) * EQUIPMENT_SCALE} />
+        <Smoke y={(1.5 + STACK_H + 13) * EQUIPMENT_SCALE} />
         <pointLight
           ref={light}
-          position={[0, 1.5 + STACK_H + 4, 0]}
+          position={[0, (1.5 + STACK_H + 4) * EQUIPMENT_SCALE, 0]}
           color="#ff9a3c"
           distance={220}
           decay={2}

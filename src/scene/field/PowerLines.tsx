@@ -9,6 +9,7 @@ import {
 import { NETWORK_STYLE } from '../../data/geo/fieldStyle';
 import { Assembly, type Placement } from './kit/Assembly';
 import { makePulseMaterial } from './kit/flow';
+import { EQUIPMENT_SCALE } from './kit/scale';
 import { buildPole04, buildPole10 } from './facilities/pole';
 import { surfY } from './geology';
 
@@ -91,8 +92,10 @@ function buildWires(lines: Polyline[], conductors: Conductor[]): THREE.BufferGeo
       const nz = (bx - ax) / span;
 
       for (const wire of conductors) {
-        const ox = nx * wire.offset;
-        const oz = nz * wire.offset;
+        // Разнос по траверсе и высота подвеса растут вместе с опорой: иначе
+        // провода отвяжутся от траверс и повиснут сами по себе.
+        const ox = nx * wire.offset * EQUIPMENT_SCALE;
+        const oz = nz * wire.offset * EQUIPMENT_SCALE;
 
         for (let s = 0; s < SPAN_STEPS; s++) {
           const t0 = s / SPAN_STEPS;
@@ -103,7 +106,7 @@ function buildWires(lines: Polyline[], conductors: Conductor[]): THREE.BufferGeo
             const z = az + (bz - az) * t + oz;
             // Парабола провеса: ноль на опорах, максимум в середине пролёта.
             const droop = 4 * sag * t * (1 - t);
-            const y = ay + (by - ay) * t + wire.height - droop;
+            const y = ay + (by - ay) * t + wire.height * EQUIPMENT_SCALE - droop;
             pos.push(x, y, z);
             along.push(traveled + span * t);
           }

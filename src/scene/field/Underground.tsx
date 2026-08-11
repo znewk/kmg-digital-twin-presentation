@@ -236,6 +236,7 @@ export function TrenchSection({ near }: { near: { x: number; z: number } }) {
         },
       ]}
       id="trench-section"
+      scale={1}
     />
   );
 }

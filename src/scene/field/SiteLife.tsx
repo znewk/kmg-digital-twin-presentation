@@ -9,7 +9,8 @@ import {
 } from '../../data/geo/fieldData';
 import { Assembly } from './kit/Assembly';
 import { box, cyl, pipe, sphere, type Part } from './kit/parts';
-import { surfY } from './geology';
+import { surfY } from "./geology";
+import { EQUIPMENT_SCALE } from "./kit/scale";
 
 /**
  * Живой промысел: дороги полотном, транспорт, мачта связи с телеметрией
@@ -369,7 +370,7 @@ export function CommMast() {
     <group userData={{ id: 's-cio' }}>
       <Assembly build={buildCommMast} placements={[spot]} id="comm-mast" />
       <group position={[spot.x, spot.y, spot.z]}>
-        <TelemetryPulses height={34} />
+        <TelemetryPulses height={34 * EQUIPMENT_SCALE} />
       </group>
     </group>
   );

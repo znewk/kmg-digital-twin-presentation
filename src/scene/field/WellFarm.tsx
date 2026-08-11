@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { toSceneX, toSceneZ, useFieldData, type WellRecord } from '../../data/geo/fieldData';
 import { WELL_CATEGORY, WELL_STATUS } from '../../data/geo/fieldStyle';
+import { EQUIPMENT_SCALE } from './kit/scale';
 import { surfY } from './geology';
 
 /**
@@ -142,10 +143,10 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
 
   const composeBase = useMemo(
     () => (p: Placed, m: THREE.Matrix4, t: Tmp) => {
-      t.p.set(p.x, p.y + 0.3, p.z);
+      t.p.set(p.x, p.y + 0.3 * EQUIPMENT_SCALE, p.z);
       t.e.set(0, p.yaw, 0);
       t.q.setFromEuler(t.e);
-      t.s.set(1, 1, 1);
+      t.s.setScalar(EQUIPMENT_SCALE);
       m.compose(t.p, t.q, t.s);
     },
     [],
@@ -153,10 +154,10 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
 
   const composePost = useMemo(
     () => (p: Placed, m: THREE.Matrix4, t: Tmp) => {
-      t.p.set(p.x, p.y + 3.1, p.z);
+      t.p.set(p.x, p.y + 3.1 * EQUIPMENT_SCALE, p.z);
       t.e.set(0, p.yaw, 0);
       t.q.setFromEuler(t.e);
-      t.s.set(1, 1, 1);
+      t.s.setScalar(EQUIPMENT_SCALE);
       m.compose(t.p, t.q, t.s);
     },
     [],
@@ -171,7 +172,7 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
       m: new THREE.Matrix4(),
       p: new THREE.Vector3(),
       q: new THREE.Quaternion(),
-      s: new THREE.Vector3(1, 1, 1),
+      s: new THREE.Vector3().setScalar(EQUIPMENT_SCALE),
       e: new THREE.Euler(),
     }),
     [],
@@ -186,7 +187,7 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       const tilt = Math.sin(base2 + it.phase * Math.PI * 2) * 0.17;
-      p.set(it.x, it.y + 6, it.z);
+      p.set(it.x, it.y + 6 * EQUIPMENT_SCALE, it.z);
       e.set(0, it.yaw, tilt);
       q.setFromEuler(e);
       m.compose(p, q, s);
@@ -229,10 +230,10 @@ function TreeFarm({ items, id }: { items: Placed[]; id: string }) {
 
   const compose = useMemo(
     () => (p: Placed, m: THREE.Matrix4, t: Tmp) => {
-      t.p.set(p.x, p.y + 2.2, p.z);
+      t.p.set(p.x, p.y + 2.2 * EQUIPMENT_SCALE, p.z);
       t.e.set(0, p.yaw, 0);
       t.q.setFromEuler(t.e);
-      t.s.set(1, 1, 1);
+      t.s.setScalar(EQUIPMENT_SCALE);
       m.compose(t.p, t.q, t.s);
     },
     [],
@@ -273,9 +274,9 @@ function IdleFarm({ items }: { items: Placed[] }) {
 
   const compose = useMemo(
     () => (p: Placed, m: THREE.Matrix4, t: Tmp) => {
-      t.p.set(p.x, p.y + 0.7, p.z);
+      t.p.set(p.x, p.y + 0.7 * EQUIPMENT_SCALE, p.z);
       t.q.identity();
-      t.s.set(1, 1, 1);
+      t.s.setScalar(EQUIPMENT_SCALE);
       m.compose(t.p, t.q, t.s);
     },
     [],

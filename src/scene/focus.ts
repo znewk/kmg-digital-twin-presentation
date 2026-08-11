@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OBJECT_BY_ID, type FieldObject } from '../data/fieldObjects';
 import { surfY } from './field/geology';
+import { EQUIPMENT_SCALE } from './field/kit/scale';
 import type { CamKey } from '../data/stages';
 
 /**
@@ -95,7 +96,11 @@ export function focusFrameFor(
   const obj: FieldObject | undefined = OBJECT_BY_ID.get(id);
   if (!obj) return null;
 
-  const radius = FOCUS_RADIUS[id] ?? 50;
+  // Габарит наведения растёт вместе с оборудованием: иначе при укрупнении
+  // установок камера подходила бы к ним вплотную и объект не помещался в кадр.
+  // Толщи недр не масштабируются — коэффициент относится только к железу.
+  const isGeology = id.startsWith('g-') || id.startsWith('h-') || id.startsWith('res-');
+  const radius = (FOCUS_RADIUS[id] ?? 50) * (isGeology ? 1 : EQUIPMENT_SCALE);
 
   // Центр объекта. У наземных — рельеф плюс половина видимой высоты; у недр
   // отметка задана явно, они не «стоят на земле».

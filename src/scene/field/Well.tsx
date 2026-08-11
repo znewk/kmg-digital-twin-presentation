@@ -190,7 +190,32 @@ function ChristmasTree({ y, cableEntry = false }: { y: number; cableEntry?: bool
 
 // ── Скважина целиком ────────────────────────────────────────────────────────
 
-export function Well({ spec, groundY }: { spec: StoryWell; groundY: number }) {
+/**
+ * Устье скважины — то, что стоит НА грунте: станок-качалка, фонтанная
+ * арматура, буровая, агрегат ТКРС.
+ *
+ * Отделено от ствола намеренно. При разнесении слоёв устье обязано ехать
+ * вместе с почвенным слоем, на котором оно стоит, а ствол — оставаться на
+ * своих отметках: ради этого разнесение и нужно, под приподнятым грунтом
+ * открывается колонна, ГНО и перфорация.
+ */
+export function WellHead({ spec, groundY }: { spec: StoryWell; groundY: number }) {
+  return (
+    <group position={[spec.x, 0, spec.z]} userData={{ id: `${spec.id}:head` }}>
+      {spec.kind === 'skn' && <PumpjackHead y={groundY} />}
+      {spec.kind === 'drill' && <DerrickHead y={groundY} />}
+      {spec.kind === 'wo' && <WorkoverHead y={groundY} />}
+      {spec.kind === 'esp' && <ChristmasTree y={groundY} cableEntry />}
+      {(spec.kind === 'frac' ||
+        spec.kind === 'horiz' ||
+        spec.kind === 'inj' ||
+        spec.kind === 'water') && <ChristmasTree y={groundY} />}
+    </group>
+  );
+}
+
+/** Ствол скважины со всем заканчиванием. Остаётся на месте при разнесении. */
+export function Well({ spec }: { spec: StoryWell }) {
   const curve = useMemo(() => wellCurve(spec), [spec]);
   const perf = useMemo(() => perfPoint(spec), [spec]);
 
@@ -426,17 +451,6 @@ export function Well({ spec, groundY }: { spec: StoryWell; groundY: number }) {
         </mesh>
       )}
 
-      {/* Устье */}
-      <group position={[spec.x, 0, spec.z]}>
-        {spec.kind === 'skn' && <PumpjackHead y={groundY} />}
-        {spec.kind === 'drill' && <DerrickHead y={groundY} />}
-        {spec.kind === 'wo' && <WorkoverHead y={groundY} />}
-        {spec.kind === 'esp' && <ChristmasTree y={groundY} cableEntry />}
-        {(spec.kind === 'frac' ||
-          spec.kind === 'horiz' ||
-          spec.kind === 'inj' ||
-          spec.kind === 'water') && <ChristmasTree y={groundY} />}
-      </group>
     </group>
   );
 }

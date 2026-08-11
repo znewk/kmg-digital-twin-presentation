@@ -11,9 +11,9 @@ import { Facilities } from './Facilities';
 import { PowerLines } from './PowerLines';
 import { Tanks } from './Tanks';
 import { BuriedNetworks, FundBores, Manholes, TrenchSection } from './Underground';
-import { Well } from './Well';
+import { Well, WellHead } from './Well';
 import { WellFarm } from './WellFarm';
-import { Stratum } from './explode';
+import { Stratum, SURFACE_OFFSET } from './explode';
 import { flowTime } from './kit/flow';
 import { useFieldData } from '../../data/geo/fieldData';
 import { selectStoryWells } from '../../data/geo/storyWells';
@@ -140,45 +140,48 @@ function FieldContents({ shadows }: { shadows: boolean }) {
       {features.drainage && <DrainageZones points={drainage} />}
 
       {/*
-        РАЗНЕСЕНИЕ СЛОЁВ ДВИГАЕТ ТОЛЬКО ГРУНТ.
+        КАЖДЫЙ ОБЪЕКТ ЕДЕТ СО СВОИМ СЛОЁМ.
 
-        Раньше группа поверхности уносила наверх вместе с рельефом весь
-        промысел — ГЗУ, резервуары, опоры ВЛ, качалки, — а стволы скважин и
-        подземные трубы оставались на месте. Получалось, что оборудование
-        улетало отдельно от своих же скважин, и сцена переставала читаться.
+        Всё, что стоит на грунте или лежит в нём, — рельеф, ГЗУ, резервуары,
+        опоры ВЛ, качалки, закопанные трубы, колодцы, траншея — образует одну
+        группу и при разнесении двигается ВМЕСТЕ, с тем же смещением, что и
+        почвенный слой разреза. Не «примерно тем же», а буквально одним и тем
+        же числом: иначе площадка уезжает от своего же грунта.
 
-        Теперь поднимается только грунт, как снимаемая крышка. Всё остальное —
-        оборудование, устья, стволы, трубы, колодцы — стоит на своих
-        фактических отметках, и под снятым грунтом открывается промысел
-        целиком, со связями между наземной и подземной частью.
+        Снаружи остаются только стволы скважин. Они пронизывают все слои, и
+        привязать их к одному нельзя, — а главное, ради них разнесение и
+        существует: под приподнятым грунтом открывается колонна, ГНО и
+        перфорация. Устье при этом едет наверх со своей площадкой, ствол
+        остаётся — так и выглядит разнесённый вид в любом учебнике.
       */}
-      <Stratum id="surface">
+      <Stratum id="surface" offset={SURFACE_OFFSET}>
         <RealTerrain />
         <TerrainContours />
+        <RealNetworks />
+        <HubPads />
+        <Facilities />
+        <Tanks />
+        <AbovegroundPipes />
+        <PowerLines />
+        <Manholes />
+        <BuriedNetworks />
+        <TrenchSection near={story.focus} />
+
+        {/* Весь остальной фонд — инстансами, но живой: работающие качалки
+            качаются, у каждой своя фаза. Сюжетные исключены, у них полные
+            модели. */}
+        <WellFarm exclude={storyUwis} />
+
+        {story.wells.map((w) => (
+          <WellHead key={`${w.id}:head`} spec={w} groundY={surfY(w.x, w.z)} />
+        ))}
       </Stratum>
 
-      <RealNetworks />
-      <HubPads />
-      <Facilities />
-      <Tanks />
-      <AbovegroundPipes />
-      <PowerLines />
-      <Manholes />
-
-      {/* Весь остальной фонд — инстансами, но живой: работающие качалки
-          качаются, у каждой своя фаза. Сюжетные исключены, они отрисованы
-          полными моделями ниже. */}
-      <WellFarm exclude={storyUwis} />
-
-      {/* Сюжетные скважины целиком: ствол с обсадной, НКТ, цементом,
-          перфорацией, ГНО и пакером — плюс наземное устье. */}
+      {/* Стволы — вне группы поверхности, на своих фактических отметках */}
       {story.wells.map((w) => (
-        <Well key={w.id} spec={w} groundY={surfY(w.x, w.z)} />
+        <Well key={w.id} spec={w} />
       ))}
-
-      <BuriedNetworks />
       <FundBores exclude={storyUwis} near={story.focus} />
-      <TrenchSection near={story.focus} />
     </group>
   );
 }

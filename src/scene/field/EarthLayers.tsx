@@ -24,7 +24,7 @@ import {
   SECTION_BASE_ABS,
   type Fault,
 } from '../../data/geo/stratigraphy';
-import { EXPLODE_STEP, Stratum } from './explode';
+import { strataOffset, Stratum } from './explode';
 import { Interactive } from './Interactive';
 
 /**
@@ -145,12 +145,10 @@ export function EarthLayers() {
 
   const owcContour = useOwcContour(HORIZONS.indexOf(REFERENCE_HORIZON));
 
-  const refIndex = FIELD_STRATA.findIndex((s) => s.horizon === REFERENCE_HORIZON);
-
   return (
     <group>
       {strata.map((s, i) => (
-        <Stratum key={s.spec.id} id={s.spec.id} offset={(refIndex - i) * EXPLODE_STEP}>
+        <Stratum key={s.spec.id} id={s.spec.id} offset={strataOffset(i)}>
           <Interactive id={s.spec.id}>
             <mesh geometry={s.geometry} castShadow receiveShadow userData={{ id: s.spec.id }}>
               <meshStandardMaterial

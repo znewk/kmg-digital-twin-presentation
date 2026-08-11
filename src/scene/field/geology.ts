@@ -81,15 +81,21 @@ export interface FieldStratum {
   opacity: number;
   /** Продуктивный прослой — по нему идут залежь, ВНК и зоны дренирования. */
   horizon?: Horizon;
+  /** Чем насыщен прослой. Порода — всё непродуктивное. */
+  phase?: 'oil' | 'water' | 'rock';
+  /** Порядок в разрезе сверху вниз — по нему считается разнесение слоёв. */
+  order: number;
 }
 
 const COLOR = {
   soil: '#5c5448',
   overburden: '#44423e',
-  aquifer: '#28455c',
+  aquifer: '#2b4a63',
   interburden: '#3a3d42',
-  cretaceous: '#7a5a33',
-  jurassic: '#63482f',
+  /** Нефтенасыщенная часть коллектора. */
+  oil: '#7d5320',
+  /** Водонасыщенная часть того же коллектора. */
+  water: '#2e4a5e',
   basement: '#191c24',
 };
 
@@ -115,6 +121,7 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
   const botOf = (h: Horizon): Fn => (x, z) => horizonBotY(h, x, z);
 
   const first = HORIZONS[0];
+  let order = 0;
 
   out.push({
     id: 'g-soil',
@@ -124,6 +131,8 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
     bot: (x, z) => Math.min(ySoilTop(x, z) - 6, absToSceneY(-24)),
     color: COLOR.soil,
     opacity: 1,
+    phase: 'rock',
+    order: order++,
   });
 
   out.push({
@@ -134,19 +143,75 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
     bot: topOf(first),
     color: COLOR.overburden,
     opacity: 1,
+    phase: 'rock',
+    order: order++,
   });
 
   HORIZONS.forEach((h, i) => {
-    out.push({
-      id: `h-${h.id}`,
-      label: h.name,
-      note: h.productive ? SUITE_LABEL[h.suite] : 'альбский водоносный горизонт',
-      top: topOf(h),
-      bot: botOf(h),
-      color: h.productive ? COLOR[h.suite as 'cretaceous' | 'jurassic'] : COLOR.aquifer,
-      opacity: h.productive ? 0.92 : 0.8,
-      horizon: h,
-    });
+    const step = order++;
+
+    if (!h.productive) {
+      out.push({
+        id: `h-${h.id}`,
+        label: h.name,
+        note: 'водоносный горизонт',
+        top: topOf(h),
+        bot: botOf(h),
+        color: COLOR.aquifer,
+        opacity: 1,
+        horizon: h,
+        phase: 'water',
+        order: step,
+      });
+    } else {
+      /**
+       * Продуктивный прослой делится водонефтяным контактом на две части — и
+       * это не приём, а физика залежи.
+       *
+       * ВНК — горизонтальная отметка, одна на горизонт. Кровля пласта при этом
+       * поднята антиклиналью на 26–38 м, а сам прослой толщиной 10–24 м. Значит
+       * в своде пласт целиком выше контакта и заполнен нефтью, а на крыльях
+       * уходит под него и обводнён. Граница между ними — замкнутый контур
+       * нефтеносности, тот самый, который на картах и рисуют.
+       *
+       * Раньше залежь была отдельной линзой, положенной поверх пласта. Она
+       * спорила с ним по глубине, требовала отдельной прозрачности и не давала
+       * контакта: нефть просто лежала на коллекторе сверху.
+       */
+      const owc = absToSceneY(owcAbs(h));
+
+      out.push({
+        id: `h-${h.id}`,
+        label: h.name,
+        note: `${SUITE_LABEL[h.suite]} · нефтенасыщенная часть`,
+        // Нефть — часть пласта выше контакта. На восточном крыле коллектор
+        // замещён плотными породами, и залежь там кончается (§4.3 п.5).
+        top: (x, z) =>
+          reservoirPresence(x) < 0.5 ? owc : Math.max(horizonTopY(h, x, z), owc),
+        bot: (x, z) =>
+          reservoirPresence(x) < 0.5
+            ? owc
+            : Math.min(Math.max(horizonBotY(h, x, z), owc), Math.max(horizonTopY(h, x, z), owc)),
+        color: COLOR.oil,
+        opacity: 1,
+        horizon: h,
+        phase: 'oil',
+        order: step,
+      });
+
+      out.push({
+        id: `hw-${h.id}`,
+        label: h.name,
+        note: `${SUITE_LABEL[h.suite]} · водонасыщенная часть`,
+        top: (x, z) => Math.min(horizonTopY(h, x, z), owc),
+        bot: botOf(h),
+        color: COLOR.water,
+        opacity: 1,
+        horizon: h,
+        phase: 'water',
+        order: step,
+      });
+    }
 
     const next = HORIZONS[i + 1];
     if (next) {
@@ -157,6 +222,8 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
         bot: topOf(next),
         color: COLOR.interburden,
         opacity: 1,
+        phase: 'rock',
+        order: order++,
       });
     }
   });
@@ -170,6 +237,8 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
     bot: () => absToSceneY(SECTION_BASE_ABS),
     color: COLOR.basement,
     opacity: 1,
+    phase: 'rock',
+    order: order++,
   });
 
   return out;

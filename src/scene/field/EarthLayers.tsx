@@ -1,16 +1,13 @@
 import { useMemo } from 'react';
+import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   makeFieldLayer,
-  makeGasCap,
-  makeOilLens,
   ringRadius,
   resTopY,
   FIELD_STRATA,
   HD,
   HW,
-  OWC_Y,
-  PRODUCTIVE_STRATA,
   REFERENCE_HORIZON,
 } from './geology';
 import { absToSceneY } from '../../data/geo/fieldData';
@@ -26,20 +23,21 @@ import {
 } from '../../data/geo/stratigraphy';
 import { strataOffset, Stratum } from './explode';
 import { Interactive } from './Interactive';
+import { useShow } from '../../store/useShow';
 
 /**
  * Разрез недр Восточного Молдабека (ТЗ §4.3).
  *
- * Пятнадцать горизонтов с настоящими именами, разделённые непроницаемыми
- * перемычками, четыре разрывных нарушения, делящие залежь на блоки I–V,
- * газовая шапка только в блоке I и литологическое замещение на восточном крыле.
+ * ПРОЗРАЧНОСТЬ УБРАНА. Раньше два с половиной десятка поверхностей на весь
+ * блок были полупрозрачными и двусторонними: каждый пиксель промысла
+ * закрашивался двадцать пять раз подряд, и это съедало кадр целиком. Толща
+ * земли непрозрачна в натуре и непрозрачна здесь; заглянуть внутрь дают режимы
+ * разреза и разнесения слоёв — они для того и существуют.
  *
- * Номенклатура и число скважин на горизонт — фактические. Геометрия —
- * реконструкция, и она обязана быть помечена в интерфейсе как условная
- * геологическая модель.
- *
- * Геометрия статична и мемоизируется один раз: анимируется только материал.
- * На показе пересборка меша недопустима.
+ * Залежь больше не отдельная линза поверх пласта. Продуктивный прослой делится
+ * водонефтяным контактом на нефтенасыщенную и водонасыщенную части — это одна
+ * и та же порода с разным заполнением, и граница между ними и есть контур
+ * нефтеносности.
  */
 
 /**
@@ -81,26 +79,24 @@ function FaultPlane({ fault }: { fault: Fault }) {
       <meshStandardMaterial
         color="#6e4a3a"
         emissive="#3a2118"
-        emissiveIntensity={0.25}
+        emissiveIntensity={0.3}
         roughness={0.85}
-        transparent
-        opacity={0.32}
         side={THREE.DoubleSide}
-        depthWrite={false}
       />
     </mesh>
   );
 }
 
 /**
- * Контур нефтеносности горизонта по его ВНК.
+ * Контур нефтеносности опорного горизонта — линия пересечения кровли пласта с
+ * водонефтяным контактом. На карте её и рисуют как границу залежи.
  *
  * Луч на восток обрывается там, где коллектор замещён: контур не должен
  * замыкаться кольцом через зону, в которой залежи физически нет.
  */
-function useOwcContour(horizonIndex: number) {
+function useOwcContour() {
   return useMemo(() => {
-    const h = HORIZONS[horizonIndex];
+    const h = REFERENCE_HORIZON;
     const level = absToSceneY(owcAbs(h)) + 1.5;
     const pts: THREE.Vector3[] = [];
     const N = 128;
@@ -116,7 +112,52 @@ function useOwcContour(horizonIndex: number) {
     }
 
     return pts.length > 8 ? new THREE.CatmullRomCurve3(pts, false) : null;
-  }, [horizonIndex]);
+  }, []);
+}
+
+/**
+ * Подписи горизонтов на западной грани блока.
+ *
+ * Разрез без имён — просто цветные полосы; §4.3 требует называть пласты
+ * настоящими именами, и без подписи это требование не выполняется, сколько бы
+ * правильных отметок ни было в коде.
+ *
+ * Показываются только когда разрез вскрыт — в режиме разнесения слоёв или
+ * секущей плоскости. На обзорном плане они висели бы поверх промысла, подписывая
+ * то, чего не видно.
+ */
+function HorizonLabels() {
+  const exploded = useShow((s) => s.exploded);
+  const clip = useShow((s) => s.clip);
+  if (!exploded && !clip) return null;
+
+  return (
+    <group>
+      {HORIZONS.map((h) => {
+        const mid = absToSceneY((h.topAbs + h.botAbs) / 2);
+        const strat = FIELD_STRATA.find((s) => s.horizon === h);
+        const offset = strat ? strataOffset(strat.order) : 0;
+
+        return (
+          <Html
+            key={h.id}
+            position={[-HW - 60, mid + offset, -HD * 0.55]}
+            center
+            distanceFactor={900}
+            zIndexRange={[5, 0]}
+            style={{ pointerEvents: 'none' }}
+          >
+            <div className="whitespace-nowrap font-mono text-[13px] leading-tight">
+              <span style={{ color: h.productive ? '#f0ae4a' : '#5fa8e8' }}>{h.name}</span>
+              <span className="ml-2 text-[10px] text-[var(--color-txt-faint)]">
+                {h.topAbs.toFixed(0)} м абс.
+              </span>
+            </div>
+          </Html>
+        );
+      })}
+    </group>
+  );
 }
 
 export function EarthLayers() {
@@ -125,81 +166,28 @@ export function EarthLayers() {
     [],
   );
 
-  /**
-   * Залежи строятся не по всем четырнадцати продуктивным прослоям, а по шести
-   * самым разбуренным. Остальные восемь дали бы ещё сорок тысяч вершин ради
-   * линз толщиной в несколько метров, неразличимых на обзорном ракурсе, —
-   * прослои при этом остаются на месте и подписаны, отсутствует только
-   * подсветка нефтенасыщенной части.
-   */
-  const lenses = useMemo(() => {
-    const top = PRODUCTIVE_STRATA.slice(0, 6);
-    return top.map((s) => ({ id: s.id, geometry: makeOilLens(s.horizon!) }));
-  }, []);
-
-  /** Газовая шапка — в блоке I, то есть западнее следа первого разлома. */
-  const gasCap = useMemo(() => {
-    const westEdge = faultTraceAt(FAULTS[0], 0, REFERENCE_HORIZON.topAbs);
-    return makeGasCap(REFERENCE_HORIZON, westEdge);
-  }, []);
-
-  const owcContour = useOwcContour(HORIZONS.indexOf(REFERENCE_HORIZON));
+  const owcContour = useOwcContour();
 
   return (
     <group>
-      {strata.map((s, i) => (
-        <Stratum key={s.spec.id} id={s.spec.id} offset={strataOffset(i)}>
+      {strata.map((s) => (
+        <Stratum key={s.spec.id} id={s.spec.id} offset={strataOffset(s.spec.order)}>
           <Interactive id={s.spec.id}>
             <mesh geometry={s.geometry} castShadow receiveShadow userData={{ id: s.spec.id }}>
+              {/*
+                Непрозрачно и односторонне. Двусторонний материал на слое
+                разреза удваивает работу растеризатора без единого выигрыша:
+                изнутри толщи зритель видит стенки блока, а они у слоя есть.
+              */}
               <meshStandardMaterial
                 color={s.spec.color}
-                roughness={0.92}
-                metalness={0.04}
-                transparent={s.spec.opacity < 1}
-                opacity={s.spec.opacity}
-                side={THREE.DoubleSide}
+                roughness={0.94}
+                metalness={0.03}
+                emissive={s.spec.phase === 'oil' ? '#3a2408' : '#000000'}
+                emissiveIntensity={s.spec.phase === 'oil' ? 0.5 : 0}
               />
             </mesh>
           </Interactive>
-
-          {/* Нефтенасыщенная часть прослоя — выше ВНК и западнее замещения */}
-          {lenses
-            .filter((l) => l.id === s.spec.id)
-            .map((l) => (
-              <mesh key={l.id} geometry={l.geometry} userData={{ id: `oil-${s.spec.id}` }}>
-                <meshStandardMaterial
-                  color="#8a5a16"
-                  emissive="#c07b20"
-                  emissiveIntensity={0.45}
-                  roughness={0.5}
-                  metalness={0.1}
-                  transparent
-                  opacity={0.9}
-                  side={THREE.DoubleSide}
-                  polygonOffset
-                  polygonOffsetFactor={-3}
-                  polygonOffsetUnits={-3}
-                />
-              </mesh>
-            ))}
-
-          {/* Газовая шапка присутствует только в блоке I */}
-          {s.spec.horizon === REFERENCE_HORIZON && (
-            <mesh geometry={gasCap} userData={{ id: 'res-gascap' }}>
-              <meshStandardMaterial
-                color="#cfe8e4"
-                emissive="#7fd4c8"
-                emissiveIntensity={0.35}
-                roughness={0.4}
-                transparent
-                opacity={0.55}
-                side={THREE.DoubleSide}
-                polygonOffset
-                polygonOffsetFactor={-4}
-                polygonOffsetUnits={-4}
-              />
-            </mesh>
-          )}
         </Stratum>
       ))}
 
@@ -212,26 +200,17 @@ export function EarthLayers() {
         ))}
       </Stratum>
 
-      {/* Контур нефтеносности и плоскость ВНК опорного горизонта */}
-      <Stratum id="res-owc" offset={0}>
-        {owcContour && (
+      {/* Контур нефтеносности опорного горизонта */}
+      {owcContour && (
+        <Stratum id="res-owc" offset={0}>
           <mesh userData={{ id: 'res-owc' }}>
-            <tubeGeometry args={[owcContour, 180, 2.4, 6, false]} />
-            <meshBasicMaterial color="#f0ae4a" transparent opacity={0.85} depthWrite={false} />
+            <tubeGeometry args={[owcContour, 180, 3, 6, false]} />
+            <meshBasicMaterial color="#f0ae4a" />
           </mesh>
-        )}
+        </Stratum>
+      )}
 
-        <mesh position={[0, OWC_Y, 0]} rotation={[-Math.PI / 2, 0, 0]} userData={{ id: 'res-owc' }}>
-          <planeGeometry args={[2 * HW * 0.98, 2 * HD * 0.98]} />
-          <meshBasicMaterial
-            color="#5fa8e8"
-            transparent
-            opacity={0.1}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-          />
-        </mesh>
-      </Stratum>
+      <HorizonLabels />
     </group>
   );
 }
@@ -243,7 +222,7 @@ export function DrainageZones({ points }: { points: THREE.Vector3[] }) {
       {points.map((p, i) => (
         <mesh key={i} position={p} scale={[130, 26, 130]}>
           <sphereGeometry args={[1, 18, 12]} />
-          <meshBasicMaterial color="#f0ae4a" transparent opacity={0.1} depthWrite={false} />
+          <meshBasicMaterial color="#f0ae4a" transparent opacity={0.12} depthWrite={false} />
         </mesh>
       ))}
     </group>
@@ -254,8 +233,6 @@ export function DrainageZones({ points }: { points: THREE.Vector3[] }) {
 export function TopIsolines() {
   const curves = useMemo(() => {
     const h = REFERENCE_HORIZON;
-    // Уровни от свода вниз по кровле — пять изогипс с шагом около шести метров
-    // абсолютной отметки, что при тройном преувеличении даёт читаемый интервал.
     const levels = [-6, -12, -18, -24, -30].map((d) => absToSceneY(h.topAbs + 30 + d));
 
     return levels
@@ -280,8 +257,8 @@ export function TopIsolines() {
     <group userData={{ id: 'res-map' }}>
       {curves.map((c, i) => (
         <mesh key={i}>
-          <tubeGeometry args={[c, 110, 1.2, 5, false]} />
-          <meshBasicMaterial color="#f0ae4a" transparent opacity={0.6} depthWrite={false} />
+          <tubeGeometry args={[c, 110, 1.6, 5, false]} />
+          <meshBasicMaterial color="#f0ae4a" transparent opacity={0.7} depthWrite={false} />
         </mesh>
       ))}
     </group>

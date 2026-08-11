@@ -5,6 +5,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { useShow } from '../store/useShow';
 import { CAMS, FLAT_BEATS } from '../data/stages';
+import { focusFrameFor } from './focus';
 
 /**
  * Свободный осмотр сцены.
@@ -20,7 +21,8 @@ import { CAMS, FLAT_BEATS } from '../data/stages';
 export function FreeLook() {
   const paused = useShow((s) => s.paused);
   const beatIndex = useShow((s) => s.beatIndex);
-  const { camera } = useThree();
+  const selected = useShow((s) => s.selected);
+  const { camera, size } = useThree();
   const ref = useRef<OrbitControlsImpl>(null);
 
   useEffect(() => {
@@ -31,6 +33,31 @@ export function FreeLook() {
     ref.current.target.set(cam.t[0], cam.t[1], cam.t[2]);
     ref.current.update();
   }, [paused, beatIndex, camera]);
+
+  /**
+   * Наведение на выбранный объект в свободном осмотре.
+   *
+   * В обычном режиме камеру ведёт таймлайн, и наведение делает `CameraRig`.
+   * Но кликают чаще всего именно в свободном осмотре — а там камерой владеет
+   * орбита, и таймлайн отступает. Без этого клик открывал карточку, оставляя
+   * сам объект где-то вдали, тогда как §8.3 требует ровно обратного: зритель
+   * видит объект крупно, а панель лишь дополняет вид.
+   *
+   * Положение задаётся один раз на выбор, а не каждый кадр: иначе орбита
+   * перестала бы слушаться мыши — камеру заклинило бы на объекте.
+   */
+  useEffect(() => {
+    const controls = ref.current;
+    if (!paused || !controls || !selected) return;
+
+    const perspective = camera as THREE.PerspectiveCamera;
+    const frame = focusFrameFor(selected, perspective.fov ?? 38, size.width / size.height);
+    if (!frame) return;
+
+    camera.position.set(frame.p[0], frame.p[1], frame.p[2]);
+    controls.target.set(frame.t[0], frame.t[1], frame.t[2]);
+    controls.update();
+  }, [selected, paused, camera, size.width, size.height]);
 
   return (
     <OrbitControls

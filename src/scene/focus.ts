@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OBJECT_BY_ID, type FieldObject } from '../data/fieldObjects';
 import { surfY } from './field/geology';
 import { EQUIPMENT_SCALE } from './field/kit/scale';
+import { getFieldData, type FieldDataset } from '../data/geo/fieldData';
+import { objectAnchor } from '../data/cycle/objectState';
 import type { CamKey } from '../data/stages';
 
 /**
@@ -88,11 +90,109 @@ const DEFAULT_AZIMUTH = 0.9;
  */
 const ELEVATION = 0.78;
 
+/**
+ * Габаритный радиус объектов промысла, м — в натуральную величину, без учёта
+ * коэффициента укрупнения: он применяется отдельно, общим множителем.
+ *
+ * Взято по фактическому размеру модели, а не по её «важности»: камера должна
+ * встать так, чтобы объект занял кадр, а не так, чтобы он был красив.
+ */
+const REAL_RADIUS: Record<string, number> = {
+  well: 9,
+  gzu: 11,
+  kns: 20,
+  sp: 26,
+  ktp: 5,
+  flare: 22,
+};
+
+/** Радиус по типу объекта из датасета. */
+function radiusForDataObject(id: string, data: FieldDataset): number | null {
+  if (id.startsWith('well:')) return REAL_RADIUS.well;
+  if (id === 'flare') return REAL_RADIUS.flare;
+  if (id.startsWith('fac:')) {
+    const name = id.slice(4);
+    const f = data.facilities.find((x) => x.name === name);
+    return f ? (REAL_RADIUS[f.kind] ?? 12) : null;
+  }
+  return null;
+}
+
+/**
+ * Кадр под объект, взятый из датасета: скважину, ГЗУ, КНС, сборный пункт,
+ * КТП или факел.
+ *
+ * Прежде наведение знало только выдуманный реестр объектов, и клик по
+ * настоящей скважине открывал карточку, но камера оставалась на месте — а
+ * §8.3 требует ровно обратного: зритель должен увидеть сам объект крупно, а
+ * панель лишь дополняет вид.
+ */
+function dataObjectFrame(id: string, fovDeg: number, aspect: number): FocusFrame | null {
+  const data = getFieldData();
+  if (!data) return null;
+
+  const anchor = objectAnchor(id, data);
+  const real = radiusForDataObject(id, data);
+  if (!anchor || real === null) return null;
+
+  const radius = real * EQUIPMENT_SCALE;
+  // Цель — на половине высоты объекта над землёй: смотреть в подошву качалки
+  // значит показать зрителю фундамент вместо машины.
+  const center = new THREE.Vector3(
+    anchor.x,
+    surfY(anchor.x, anchor.z) + radius * 0.55,
+    anchor.z,
+  );
+
+  return frameAround(center, radius, DEFAULT_AZIMUTH, fovDeg, aspect);
+}
+
+/** Общий расчёт положения камеры вокруг точки — один на оба реестра. */
+function frameAround(
+  center: THREE.Vector3,
+  radius: number,
+  azimuth: number,
+  fovDeg: number,
+  aspect: number,
+): FocusFrame {
+  // Дистанция из габарита и угла обзора. Панель съедает часть кадра по
+  // ширине, поэтому эффективный горизонтальный угол меньше — учитываем это,
+  // иначе объект «вылезает» из свободной зоны.
+  const vFov = (fovDeg * Math.PI) / 180;
+  const usableAspect = aspect * (1 - PANEL_FRACTION);
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * usableAspect);
+  const limiting = Math.min(vFov, hFov);
+  const distance = (radius * MARGIN) / Math.tan(limiting / 2);
+
+  const dir = new THREE.Vector3(
+    Math.cos(ELEVATION) * Math.sin(azimuth),
+    Math.sin(ELEVATION),
+    Math.cos(ELEVATION) * Math.cos(azimuth),
+  );
+  const position = center.clone().addScaledVector(dir, distance);
+
+  // Сдвиг цели вправо по экрану уводит объект влево — под свободную зону.
+  const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+  const shift = radius * MARGIN * PANEL_FRACTION * 0.9;
+  const target = center.clone().addScaledVector(right, -shift);
+
+  return {
+    p: [position.x, position.y, position.z],
+    t: [target.x, target.y, target.z],
+    radius,
+  };
+}
+
 export function focusFrameFor(
   id: string,
   fovDeg: number,
   aspect: number,
 ): FocusFrame | null {
+  // Сначала объекты из датасета: их подавляющее большинство, и именно по ним
+  // кликает зритель.
+  const fromData = dataObjectFrame(id, fovDeg, aspect);
+  if (fromData) return fromData;
+
   const obj: FieldObject | undefined = OBJECT_BY_ID.get(id);
   if (!obj) return null;
 
@@ -109,31 +209,5 @@ export function focusFrameFor(
       ? new THREE.Vector3(obj.x, obj.centerY, obj.z)
       : new THREE.Vector3(obj.x, surfY(obj.x, obj.z) + obj.anchorY * 0.5, obj.z);
 
-  // Дистанция из габарита и угла обзора. Панель съедает часть кадра по
-  // ширине, поэтому эффективный горизонтальный угол меньше — учитываем это,
-  // иначе объект «вылезает» из свободной зоны.
-  const vFov = (fovDeg * Math.PI) / 180;
-  const usableAspect = aspect * (1 - PANEL_FRACTION);
-  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * usableAspect);
-  const limiting = Math.min(vFov, hFov);
-  const distance = (radius * MARGIN) / Math.tan(limiting / 2);
-
-  const az = VIEW_AZIMUTH[id] ?? DEFAULT_AZIMUTH;
-  const dir = new THREE.Vector3(
-    Math.cos(ELEVATION) * Math.sin(az),
-    Math.sin(ELEVATION),
-    Math.cos(ELEVATION) * Math.cos(az),
-  );
-  const position = center.clone().addScaledVector(dir, distance);
-
-  // Сдвиг цели вправо по экрану уводит объект влево — под свободную зону.
-  const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
-  const shift = radius * MARGIN * PANEL_FRACTION * 0.9;
-  const target = center.clone().addScaledVector(right, -shift);
-
-  return {
-    p: [position.x, position.y, position.z],
-    t: [target.x, target.y, target.z],
-    radius,
-  };
+  return frameAround(center, radius, VIEW_AZIMUTH[id] ?? DEFAULT_AZIMUTH, fovDeg, aspect);
 }

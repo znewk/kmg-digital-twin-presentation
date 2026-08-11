@@ -103,6 +103,15 @@ export const HORIZON_GROUP_LABEL: Record<HorizonGroup, string> = {
 
 // ── Сети и площадные объекты ────────────────────────────────────────────────
 
+/**
+ * Заложение трассы — определяет, как она строится в 3D (ТЗ §4.4.2):
+ * подземные идут в траншее с разрезом грунта, надземные — на опорах и
+ * эстакадах, воздушные — провисающими пролётами между опорами ВЛ.
+ *
+ * Источник — `meta.buried_note` датасета, разбор по слоям чертежа.
+ */
+export type Laying = 'buried' | 'aboveground' | 'overhead' | 'surface';
+
 export interface NetworkStyle {
   label: string;
   color: string;
@@ -110,9 +119,20 @@ export interface NetworkStyle {
   width: number;
   /** Штрих для линий, которые не являются трубопроводом. */
   dash?: [number, number];
-  /** Подъём над рельефом в 3D, м. */
+  /** Подъём над рельефом в 3D, м. Для подземных — отрицательный. */
   lift: number;
+  laying: Laying;
 }
+
+/**
+ * Условная глубина заложения подземных трасс, м.
+ *
+ * В чертеже глубина не указана ни для одной трассы (`meta.buried_note`).
+ * Значение принято по типовой практике промысловых трубопроводов —
+ * ниже глубины промерзания — и обязано быть помечено в интерфейсе как
+ * условное, наравне с геологической моделью.
+ */
+export const BURIED_DEPTH = 1.2;
 
 /**
  * Ключ выводится из самого датасета, а не перечисляется руками: если состав
@@ -122,39 +142,65 @@ export interface NetworkStyle {
 export type NetworkKey = keyof FieldNetworks;
 
 export const NETWORK_STYLE: Record<NetworkKey, NetworkStyle> = {
-  contour: { label: 'Горизонтали рельефа', color: '#1d2b3d', width: 0.45, lift: 0.4 },
-  road: { label: 'Дороги', color: '#8a99a8', width: 1.1, lift: 1 },
-  oil_pipeline: { label: 'Нефтесбор', color: '#f0ae4a', width: 0.85, lift: 2.5 },
-  water_pipeline: { label: 'Водовод ППД', color: '#5fa8e8', width: 0.85, lift: 2 },
-  gas_pipeline: { label: 'Газопровод', color: '#35d0c2', width: 0.85, lift: 3 },
-  power_10kv: { label: 'ВЛ-10 кВ', color: '#a9b8cf', width: 0.6, dash: [4, 3], lift: 6 },
-  power_04kv: { label: 'ВЛ-0,4 кВ', color: '#6d7d94', width: 0.4, dash: [2, 3], lift: 4 },
-  building: { label: 'Здания', color: '#55677f', width: 0.6, lift: 0.8 },
-  tank: { label: 'Резервуары', color: '#8fbaf0', width: 0.7, lift: 0.8 },
-  gzu: { label: 'ГЗУ', color: '#f0ae4a', width: 0.7, lift: 0.8 },
-  tp: { label: 'ТП / ВРП', color: '#6d7d94', width: 0.55, lift: 0.8 },
+  contour: { label: 'Горизонтали рельефа', color: '#1d2b3d', width: 0.45, lift: 0.4, laying: 'surface' },
+  road: { label: 'Дороги', color: '#8a99a8', width: 1.1, lift: 1, laying: 'surface' },
+  oil_pipeline: { label: 'Нефтесбор', color: '#f0ae4a', width: 0.85, lift: 2.5, laying: 'buried' },
+  water_pipeline: { label: 'Водовод ППД', color: '#5fa8e8', width: 0.85, lift: 2, laying: 'buried' },
+  gas_pipeline: { label: 'Газопровод', color: '#35d0c2', width: 0.85, lift: 3, laying: 'buried' },
+  gas_overground: {
+    label: 'Газопровод надземный',
+    color: '#35d0c2',
+    width: 1.1,
+    lift: 3,
+    laying: 'aboveground',
+  },
+  pipe_rack: { label: 'Эстакады', color: '#c8d2e0', width: 1.2, lift: 4, laying: 'aboveground' },
+  power_10kv: {
+    label: 'ВЛ-10 кВ',
+    color: '#a9b8cf',
+    width: 0.6,
+    dash: [4, 3],
+    lift: 6,
+    laying: 'overhead',
+  },
+  power_04kv: {
+    label: 'ВЛ-0,4 кВ',
+    color: '#6d7d94',
+    width: 0.4,
+    dash: [2, 3],
+    lift: 4,
+    laying: 'overhead',
+  },
+  comm_cable: {
+    label: 'Кабель связи',
+    color: '#5c6b84',
+    width: 0.4,
+    dash: [1, 4],
+    lift: 1,
+    laying: 'buried',
+  },
+  lv_cable: {
+    label: 'Кабель НН',
+    color: '#5c6b84',
+    width: 0.4,
+    dash: [1, 4],
+    lift: 1,
+    laying: 'buried',
+  },
+  building: { label: 'Здания', color: '#55677f', width: 0.6, lift: 0.8, laying: 'surface' },
+  tank: { label: 'Резервуары', color: '#8fbaf0', width: 0.7, lift: 0.8, laying: 'surface' },
+  gzu: { label: 'ГЗУ', color: '#f0ae4a', width: 0.7, lift: 0.8, laying: 'surface' },
+  tp: { label: 'ТП / ВРП', color: '#6d7d94', width: 0.55, lift: 0.8, laying: 'surface' },
+  manhole: { label: 'Колодцы', color: '#6d7d94', width: 0.5, lift: 0.8, laying: 'surface' },
 };
 
 /**
- * Порядок отрисовки снизу вверх. Горизонтали уходят в самый низ — они фон, а не
- * содержание; нефтесбор рисуется последним из линейных, потому что именно его
- * звездообразный рисунок и есть узнаваемый образ этого промысла.
+ * Что показывать в легенде схемы: служебная площадная мелочь туда не идёт.
+ *
+ * Порядок отрисовки здесь намеренно не задаётся — он неотделим от расписания
+ * проявления слоёв и живёт единым списком в `fieldPlan.ts`. Два параллельных
+ * перечня слоёв разошлись бы при первой же правке.
  */
-export const NETWORK_DRAW_ORDER: NetworkKey[] = [
-  'contour',
-  'road',
-  'building',
-  'power_04kv',
-  'power_10kv',
-  'tp',
-  'tank',
-  'gzu',
-  'gas_pipeline',
-  'water_pipeline',
-  'oil_pipeline',
-];
-
-/** Что показывать в легенде схемы: служебная площадная мелочь туда не идёт. */
 export const NETWORK_LEGEND: NetworkKey[] = [
   'oil_pipeline',
   'water_pipeline',

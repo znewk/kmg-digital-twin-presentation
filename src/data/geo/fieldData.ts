@@ -30,6 +30,11 @@ export interface FieldMeta {
   /** Центр площадки в WGS84, порядок `[широта, долгота]` — как в датасете. */
   site_center_wgs84: [number, number];
   facilities_note?: string;
+  /**
+   * Заложение линейной части по слоям чертежа. Глубина подземных трасс в
+   * чертеже НЕ указана — при визуализации задаётся условно и помечается.
+   */
+  buried_note?: string;
 }
 
 export interface TerrainGrid {
@@ -113,14 +118,38 @@ export interface FieldNetworks {
   oil_pipeline: Polyline[];
   water_pipeline: Polyline[];
   gas_pipeline: Polyline[];
+  /** Надземный участок газопровода — единственный в чертеже. */
+  gas_overground: Polyline[];
   power_10kv: Polyline[];
   power_04kv: Polyline[];
+  /** Кабели связи и низкого напряжения — подземные. */
+  comm_cable: Polyline[];
+  lv_cable: Polyline[];
+  /** Трубные эстакады. */
+  pipe_rack: Polyline[];
   road: Polyline[];
   contour: Polyline[];
   building: Polyline[];
   gzu: Polyline[];
   tank: Polyline[];
   tp: Polyline[];
+  manhole: Polyline[];
+}
+
+/**
+ * Точечные объекты. Здесь же лежит то, что определяет заложение линейной части:
+ * `power_pole_10kv` — 2877 опор ВЛ, `pipe_support` — 169 опор надземных участков
+ * трубопровода. По ним и различаются надземные трассы от подземных.
+ */
+export interface FieldPoints {
+  flare: [number, number][];
+  tp: [number, number][];
+  gzu: [number, number][];
+  tank: [number, number][];
+  power_pole_10kv: [number, number][];
+  comm_cable: [number, number][];
+  manhole: [number, number][];
+  pipe_support: [number, number][];
 }
 
 export interface FieldDataset {
@@ -129,7 +158,7 @@ export interface FieldDataset {
   wells: WellRecord[];
   hubs: HubRecord[];
   networks: FieldNetworks;
-  points: { flare: [number, number][]; tp: [number, number][] };
+  points: FieldPoints;
   facilities: FacilityRecord[];
   well_stats: WellStats;
 }
@@ -141,14 +170,51 @@ export const FIELD_W = 5352.4;
 export const FIELD_H = 4681.6;
 
 /**
- * Вертикальное преувеличение рельефа.
+ * Вертикальное преувеличение — ОДНО на всю сцену: и на рельеф, и на недра.
  *
- * Перепад на участке — 40 м на 5,3 км, то есть 0,75%: без усиления местность
- * абсолютно плоская и читается как лист бумаги. Пятикратное даёт около 200 м
- * условного перепада — выразительно и всё ещё правдоподобно для степи.
- * Коэффициент один и явный, чтобы преувеличение нигде не накапливалось.
+ * Раньше коэффициент был пятикратным и относился только к рельефу, потому что
+ * подземной части в сцене фактически не было. С появлением разреза по §4.3 это
+ * перестало работать: если поверхность растянута впятеро, а глубины нет, модель
+ * внутренне противоречива — предметы на ней стоят в одном масштабе, а порода
+ * под ними в другом.
+ *
+ * Тройка — компромисс между двумя противоположными требованиями. Рельефу нужно
+ * преувеличение побольше: перепад 40 м на 5,3 км это 0,75%, без усиления степь
+ * читается листом бумаги. Недрам нужно поменьше: продуктивная толща и так
+ * уходит на 700 м, и при пятикратном блок превращается в башню высотой почти с
+ * ширину участка. При тройке перепад рельефа — 120 м, а блок недр примерно
+ * вдвое ниже своей ширины: и то и другое читается.
+ *
+ * Тонкие прослои при этом остаются тонкими, как и требует §4.3 п.7:
+ * нефтенасыщенные 0,8–8,9 м превращаются в 2,4–27 м при ширине участка 5352 м.
+ * Толстыми «слоями торта» они не становятся — читаемость даёт приближение
+ * камеры, а не раздувание пласта.
  */
-export const TERRAIN_EXAGGERATION = 5;
+export const VERTICAL_EXAGGERATION = 3;
+
+/**
+ * Отметка, принятая за ноль сцены, м абс. Середина диапазона рельефа участка
+ * (64,2…104,9 м). Подставляется при построении сэмплера рельефа, чтобы у
+ * поверхности и у недр был общий нуль.
+ */
+let elevationDatum = 84.55;
+
+/**
+ * Абсолютная отметка (м) → координата Y сцены.
+ *
+ * Единственный способ поместить что-либо по высоте. Геологические отметки в
+ * источниках даны абсолютными (кровля продуктивной толщи −230,5 м), рельеф — в
+ * тех же абсолютных, поэтому и пересчёт обязан быть один: любая вторая формула
+ * рано или поздно разойдётся с первой, и пласт всплывёт над землёй.
+ */
+export function absToSceneY(absElevation: number): number {
+  return (absElevation - elevationDatum) * VERTICAL_EXAGGERATION;
+}
+
+/** Обратный перевод — нужен, чтобы подписывать глубины настоящими отметками. */
+export function sceneYToAbs(y: number): number {
+  return y / VERTICAL_EXAGGERATION + elevationDatum;
+}
 
 /**
  * Перевод координат съёмки в координаты сцены.
@@ -271,6 +337,9 @@ export function useFieldData(): FieldDataset {
 export function makeTerrainSampler(terrain: TerrainGrid) {
   const { n, grid, zmin, zmax } = terrain;
   const mid = (zmin + zmax) / 2;
+  // Нуль сцены закрепляется за серединой диапазона рельефа — с этого момента
+  // недра считаются от той же отметки, что и поверхность.
+  elevationDatum = mid;
 
   return function elevation(sceneX: number, sceneZ: number): number {
     const dx = toDataX(sceneX);
@@ -294,7 +363,7 @@ export function makeTerrainSampler(terrain: TerrainGrid) {
 
     const z = z00 * (1 - fx) * (1 - fy) + z10 * fx * (1 - fy) + z01 * (1 - fx) * fy + z11 * fx * fy;
 
-    return (z - mid) * TERRAIN_EXAGGERATION;
+    return absToSceneY(z);
   };
 }
 

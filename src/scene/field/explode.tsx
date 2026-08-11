@@ -13,19 +13,33 @@ import { useShow } from '../../store/useShow';
  * Ради этого разнесение и нужно: «заглянуть под землю».
  */
 export const EXPLODE_OFFSET: Record<string, number> = {
-  surface: 270,
-  'g-soil': 190,
-  'g-over': 110,
-  'g-cap': 40,
-  'g-res': 0,
-  'g-water': -100,
-  'g-base': -200,
+  surface: 620,
 };
+
+/**
+ * Шаг разнесения между соседними слоями разреза, м.
+ *
+ * Именованной таблицы смещений больше нет: слоёв стало тридцать один вместо
+ * шести, и перечислять их поимённо значит забыть один при первой же правке
+ * стратиграфии. Смещение считается от положения слоя в разрезе, а точка
+ * отсчёта — опорный горизонт: он остаётся на месте, остальное расходится от
+ * него вверх и вниз.
+ */
+export const EXPLODE_STEP = 26;
 
 /** Во сколько раз гасится непрозрачность породы в разнесённом виде. */
 const EXPLODED_OPACITY = 0.42;
 
-export function Stratum({ id, children }: { id: string; children: ReactNode }) {
+export function Stratum({
+  id,
+  offset,
+  children,
+}: {
+  id: string;
+  /** Смещение в разнесённом виде, м. Без него берётся из таблицы по id. */
+  offset?: number;
+  children: ReactNode;
+}) {
   const ref = useRef<THREE.Group>(null);
   /** Базовая непрозрачность материалов, снятая при первом кадре. */
   const base = useRef<Map<THREE.Material, number> | null>(null);
@@ -39,7 +53,7 @@ export function Stratum({ id, children }: { id: string; children: ReactNode }) {
     if (!g) return;
     const exploded = useShow.getState().exploded;
 
-    const target = exploded ? (EXPLODE_OFFSET[id] ?? 0) : 0;
+    const target = exploded ? (offset ?? EXPLODE_OFFSET[id] ?? 0) : 0;
     const k = 1 - Math.exp(-dt * 3);
     g.position.y += (target - g.position.y) * k;
 

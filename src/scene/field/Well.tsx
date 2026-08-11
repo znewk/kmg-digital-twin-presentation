@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import * as THREE from 'three';
-import { perfPoint, wellCurve, yResTop, type WellSpec } from './geology';
+import { perfPoint, wellCurve, resTopY, type WellSpec } from './geology';
 import { Bars, type BarSpec } from './Bars';
 
 /**
@@ -243,7 +243,7 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
 
     const px = spec.x + spec.drift * 0.85;
     const pz = spec.z + spec.drift * 0.6;
-    const topPay = yResTop(px, pz) - 12;
+    const topPay = resTopY(px, pz) - 12;
     for (const dy of [topPay, topPay - 28, topPay - 56]) {
       const c = atY(dy);
       for (let q = 0; q < 6; q++) {

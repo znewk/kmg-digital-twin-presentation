@@ -3,8 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
   perfPoint,
-  yResBot,
-  yResTop,
+  resBotY,
+  resTopY,
   HD,
   HW,
   OWC_Y,
@@ -59,23 +59,23 @@ export function GgdmGrid() {
       for (let j = 0; j <= NZ; j++) {
         const x = -RX + (2 * RX * i) / NX;
         const z = -RZ + (2 * RZ * j) / NZ;
-        push(V(x, yResTop(x, z) - 4, z), V(x, yResBot(x, z) + 4, z));
+        push(V(x, resTopY(x, z) - 4, z), V(x, resBotY(x, z) + 4, z));
       }
     for (let j = 0; j <= NZ; j++)
       for (let i = 0; i < NX; i++) {
         const z = -RZ + (2 * RZ * j) / NZ;
         const x1 = -RX + (2 * RX * i) / NX;
         const x2 = -RX + (2 * RX * (i + 1)) / NX;
-        push(V(x1, yResTop(x1, z) - 4, z), V(x2, yResTop(x2, z) - 4, z));
-        push(V(x1, yResBot(x1, z) + 4, z), V(x2, yResBot(x2, z) + 4, z));
+        push(V(x1, resTopY(x1, z) - 4, z), V(x2, resTopY(x2, z) - 4, z));
+        push(V(x1, resBotY(x1, z) + 4, z), V(x2, resBotY(x2, z) + 4, z));
       }
     for (let i = 0; i <= NX; i++)
       for (let j = 0; j < NZ; j++) {
         const x = -RX + (2 * RX * i) / NX;
         const z1 = -RZ + (2 * RZ * j) / NZ;
         const z2 = -RZ + (2 * RZ * (j + 1)) / NZ;
-        push(V(x, yResTop(x, z1) - 4, z1), V(x, yResTop(x, z2) - 4, z2));
-        push(V(x, yResBot(x, z1) + 4, z1), V(x, yResBot(x, z2) + 4, z2));
+        push(V(x, resTopY(x, z1) - 4, z1), V(x, resTopY(x, z2) - 4, z2));
+        push(V(x, resBotY(x, z1) + 4, z1), V(x, resBotY(x, z2) + 4, z2));
       }
 
     const g = new THREE.BufferGeometry();
@@ -95,8 +95,8 @@ export function GgdmGrid() {
       for (let j = 0; j < NZ; j++) {
         const x = -RX + (2 * RX * (i + 0.5)) / NX;
         const z = -RZ + (2 * RZ * (j + 0.5)) / NZ;
-        const top = yResTop(x, z) - 6;
-        const bot = yResBot(x, z) + 6;
+        const top = resTopY(x, z) - 6;
+        const bot = resBotY(x, z) + 6;
         const h = (top - bot) / NY;
         for (let l = 0; l < NY; l++) {
           const cy = bot + h * (l + 0.5);

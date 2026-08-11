@@ -1,118 +1,44 @@
 import * as THREE from 'three';
-import { FIELD_H, FIELD_W } from '../../data/geo/fieldData';
+import { absToSceneY, FIELD_H, FIELD_W } from '../../data/geo/fieldData';
+import {
+  HORIZONS,
+  SECTION_BASE_ABS,
+  dome,
+  horizonBotY,
+  horizonTopY,
+  owcAbs,
+  reservoirPresence,
+  resolveHorizon,
+  throwAt,
+  type Horizon,
+} from '../../data/geo/stratigraphy';
 
 /**
- * Геология месторождения в метрическом масштабе: 1 единица сцены = 1 метр.
+ * Геометрия недр в метрическом масштабе: 1 единица сцены = 1 метр по горизонтали.
  *
- * Функции перенесены из референсного прототипа — там процедурная геология была
- * сделана правильно: шум `fbm` + антиклиналь `dome` + сброс со смещением
- * (`faultTraceX`/`throwAt`). Это то, что даёт реалистичный разрез вместо
- * «игрушечных» полосок.
+ * Отличие от прежней версии — принципиальное. Раньше здесь были шесть безымянных
+ * слоёв на выдуманных отметках (ВНК на −520, подошва −900), унаследованных от
+ * референсного прототипа. Теперь разрез строится по стратиграфии месторождения
+ * (§4.3): пятнадцать горизонтов с настоящими именами на реконструированных, но
+ * обоснованных отметках, блоковое строение, литологическое замещение на востоке.
  *
- * Отличие от прототипа — дисциплина масштаба (ТЗ §2). Там объекты
- * подгонялись индивидуальными `scale.setScalar(1.3…1.6)`, отсюда и претензия
- * «слишком мелко/крупно». Здесь все размеры истинные, а любое преувеличение —
- * один явный коэффициент на группу.
+ * Все отметки живут в `stratigraphy.ts` в абсолютных величинах и переводятся в
+ * сцену единственной функцией `absToSceneY`. Здесь — только геометрия.
  */
 
-/**
- * Полуразмеры блока по фактическому габариту съёмки: 5352 × 4682 м.
- * Раньше здесь было выдуманное 1400 × 900 — почти вчетверо меньше настоящего
- * промысла, и вся раскладка сцены была условной.
- */
+/** Полуразмеры блока по фактическому габариту съёмки: 5352 × 4682 м. */
 export const HW = FIELD_W / 2;
 export const HD = FIELD_H / 2;
 
-/** Водонефтяной контакт, м. */
-export const OWC_Y = -520;
+// ── Отметка земли ───────────────────────────────────────────────────────────
 
 /**
- * НЕДРА ОСТАЮТСЯ УСЛОВНЫМИ. Топоплан описывает только поверхность —
- * подземной модели в нём нет, а данных по геологии Молдабека заказчик пока не
- * передал (ТЗ §12). Поэтому антиклиналь, сброс, залежь и ВНК по-прежнему
- * процедурные. В интерфейсе разрез помечается как условная модель: когда
- * поверхность настоящая, условные недра рядом с ней слишком легко принять за
- * факт, а аудитория здесь техническая.
- *
- * Частоты и радиусы пересчитаны под фактический габарит 5352 × 4682 м —
- * прежние были подогнаны под выдуманные 1400 × 900 и на реальном участке
- * давали рябь вместо свода.
- */
-const GEO_SCALE = 700 / (FIELD_W / 2);
-
-export function fbm(x: number, z: number): number {
-  const sx = x * GEO_SCALE;
-  const sz = z * GEO_SCALE;
-  return (
-    Math.sin(sx * 0.006 + sz * 0.009) * 0.55 +
-    Math.sin(sx * 0.017 - sz * 0.013 + 1.7) * 0.3 +
-    Math.sin(sx * 0.037 + sz * 0.031 + 4.2) * 0.15
-  );
-}
-
-/** Свод антиклинали — вытянут по простиранию промысла, с юго-запада на восток. */
-export function dome(x: number, z: number): number {
-  return Math.exp(-((x * x) / (1760 * 1760) + (z * z) / (1500 * 1500)));
-}
-
-const smoothstep = (t: number) => {
-  const c = Math.min(1, Math.max(0, t));
-  return c * c * (3 - 2 * c);
-};
-
-/** След сброса по глубине: плоскость наклонена, поэтому зависит от depth. */
-export function faultTraceX(depth: number, z: number): number {
-  return 1630 + 0.5 * (depth + 40) + 0.12 * z;
-}
-
-/** Вертикальное смещение по сбросу — висячее крыло опущено на 60 м. */
-export function throwAt(x: number, z: number, depth: number): number {
-  return -60 * smoothstep((x - faultTraceX(depth, z)) / 100 + 0.5);
-}
-
-type Fn = (x: number, z: number) => number;
-
-/**
- * ЕДИНАЯ ОТМЕТКА ЗЕМЛИ. Всё, что стоит на промысле — площадки, установки,
- * устья скважин, опоры труб, — садится ровно на `surfY`. Рельеф тоже.
- *
- * Кровля почвенного слоя уходит на два метра НИЖЕ рельефа. Раньше она была на
- * −40 м, и промысел висел над породой в воздухе; потом я сшил их вровень, и
- * копланарные поверхности начали драться за глубину. Поднимать рельеф нельзя —
- * тогда сооружения проваливаются под него. Поэтому опускается порода: рельеф
- * остаётся точкой отсчёта для всего, что на нём стоит, а зазор в два метра при
- * блоке глубиной 900 м не виден.
- */
-export const GROUND: Fn = (x, z) => surfY(x, z);
-
-export const ySoilTop: Fn = (x, z) => surfY(x, z) - 2;
-export const yOverTop: Fn = (x, z) => -180 + 34 * dome(x, z) + 12 * fbm(x, z) + throwAt(x, z, -180);
-export const yCapTop: Fn = (x, z) =>
-  -480 + 90 * dome(x, z) + 10 * fbm(x * 1.2, z * 1.2) + throwAt(x, z, -480);
-export const yResTop: Fn = (x, z) => -540 + 95 * dome(x, z) + 10 * fbm(x, z) + throwAt(x, z, -540);
-export const yResBot: Fn = (x, z) => -700 + 80 * dome(x, z) + 9 * fbm(x, z) + throwAt(x, z, -700);
-export const yWaterBot: Fn = (x, z) => -800 + 40 * dome(x, z) + 7 * fbm(x, z) + throwAt(x, z, -800);
-export const yBaseBot: Fn = () => -900;
-
-/**
- * Отражающие горизонты в перекрывающей толще. Без них триста метров породы
- * читаются однородной массой и разрез теряет глубину.
- */
-export const OVERBURDEN_MARKERS = [-260, -340, -420];
-
-export const markerHorizon = (d: number): Fn => (x, z) =>
-  d + 55 * dome(x, z) * ((d + 480) / 300 + 0.4) + 10 * fbm(x, z) + throwAt(x, z, d);
-
-/**
- * ОТМЕТКА ЗЕМЛИ — теперь настоящая (ТЗ §4.1 п.2).
- *
- * Раньше здесь был процедурный шум с выполаживанием под выдуманными
- * площадками. Сейчас высота берётся выборкой из высотной сетки топоплана,
- * построенной по 30 864 геодезическим отметкам съёмки 2023 года.
+ * ЕДИНАЯ ОТМЕТКА ЗЕМЛИ. Всё, что стоит на промысле — площадки, установки, устья
+ * скважин, опоры труб, — садится ровно на `surfY`.
  *
  * Функция синхронная и вызывается из десятков мест, а датасет грузится
  * асинхронно, поэтому сэмплер подставляется один раз при загрузке. До неё
- * поверхность плоская — но поле и монтируется только под Suspense, уже после.
+ * поверхность плоская — но поле монтируется под Suspense, уже после.
  */
 let sampler: ((x: number, z: number) => number) | null = null;
 
@@ -124,30 +50,151 @@ export function surfY(x: number, z: number): number {
   return sampler ? sampler(x, z) : 0;
 }
 
+type Fn = (x: number, z: number) => number;
+
+/**
+ * Кровля почвенного слоя — на два метра ниже рельефа.
+ *
+ * Сшивать вровень нельзя: копланарные поверхности дерутся за глубину и разрез
+ * начинает мерцать. Поднимать рельеф тоже нельзя — тогда сооружения
+ * проваливаются под него. Поэтому опускается порода, а рельеф остаётся точкой
+ * отсчёта для всего, что на нём стоит.
+ */
+export const ySoilTop: Fn = (x, z) => surfY(x, z) - 2;
+
+// ── Слои разреза ────────────────────────────────────────────────────────────
+
 export interface FieldStratum {
   id: string;
   label: string;
+  /** Подпись второй строкой: число скважин, свита, признак условности. */
+  note?: string;
   top: Fn;
   bot: Fn;
   color: string;
   opacity: number;
+  /** Продуктивный прослой — по нему идут залежь, ВНК и зоны дренирования. */
+  horizon?: Horizon;
 }
 
-/** Та же дисциплина цвета, что и на витрине: тёплый верх, холодный низ. */
-export const FIELD_STRATA: FieldStratum[] = [
-  { id: 'g-soil', label: 'Почвенный слой · ЗСС', top: ySoilTop, bot: yOverTop, color: '#5c5448', opacity: 1 },
-  { id: 'g-over', label: 'Перекрывающая толща', top: yOverTop, bot: yCapTop, color: '#44423e', opacity: 1 },
-  { id: 'g-cap', label: 'Покрышка · флюидоупор', top: yCapTop, bot: yResTop, color: '#26333e', opacity: 1 },
-  { id: 'g-res', label: 'Продуктивный пласт', top: yResTop, bot: yResBot, color: '#7a5a33', opacity: 0.78 },
-  { id: 'g-water', label: 'Водонасыщенная зона', top: yResBot, bot: yWaterBot, color: '#28455c', opacity: 1 },
-  { id: 'g-base', label: 'Фундамент', top: yWaterBot, bot: yBaseBot, color: '#191c24', opacity: 1 },
-];
+const COLOR = {
+  soil: '#5c5448',
+  overburden: '#44423e',
+  aquifer: '#28455c',
+  interburden: '#3a3d42',
+  cretaceous: '#7a5a33',
+  jurassic: '#63482f',
+  basement: '#191c24',
+};
+
+const SUITE_LABEL: Record<Horizon['suite'], string> = {
+  aquifer: 'водоносный',
+  cretaceous: 'меловые отложения',
+  jurassic: 'среднеюрские отложения',
+};
 
 /**
- * Прямоугольный слой блока: кровля, подошва и четыре стенки. Сегментация
- * умеренная — слоёв шесть, и лишние треугольники здесь умножаются на шесть.
+ * Разрез сверху вниз: почва, перекрывающая толща, затем чередование
+ * продуктивных прослоев и непроницаемых перемычек, внизу фундамент.
+ *
+ * Перемычки выделены отдельными слоями намеренно. Если рисовать одну сплошную
+ * толщу и врезать в неё прослои, при любом ракурсе кроме строго бокового
+ * прослои тонут внутри массива. А главное — именно чередование «тонкий
+ * коллектор — толстая перемычка» и есть то, что §4.3 п.7 требует сохранить:
+ * не шесть однородных «слоёв торта», а много тонких пластов в толще.
  */
-export function makeFieldLayer(topFn: Fn, botFn: Fn, segX = 44, segZ = 30): THREE.BufferGeometry {
+export const FIELD_STRATA: FieldStratum[] = (() => {
+  const out: FieldStratum[] = [];
+  const topOf = (h: Horizon): Fn => (x, z) => horizonTopY(h, x, z);
+  const botOf = (h: Horizon): Fn => (x, z) => horizonBotY(h, x, z);
+
+  const first = HORIZONS[0];
+
+  out.push({
+    id: 'g-soil',
+    label: 'Почвенный слой',
+    note: 'зона малых скоростей',
+    top: ySoilTop,
+    bot: (x, z) => Math.min(ySoilTop(x, z) - 6, absToSceneY(-24)),
+    color: COLOR.soil,
+    opacity: 1,
+  });
+
+  out.push({
+    id: 'g-overburden',
+    label: 'Перекрывающая толща',
+    note: 'выше продуктивного разреза',
+    top: (x, z) => Math.min(ySoilTop(x, z) - 6, absToSceneY(-24)),
+    bot: topOf(first),
+    color: COLOR.overburden,
+    opacity: 1,
+  });
+
+  HORIZONS.forEach((h, i) => {
+    out.push({
+      id: `h-${h.id}`,
+      label: h.name,
+      note: h.productive ? SUITE_LABEL[h.suite] : 'альбский водоносный горизонт',
+      top: topOf(h),
+      bot: botOf(h),
+      color: h.productive ? COLOR[h.suite as 'cretaceous' | 'jurassic'] : COLOR.aquifer,
+      opacity: h.productive ? 0.92 : 0.8,
+      horizon: h,
+    });
+
+    const next = HORIZONS[i + 1];
+    if (next) {
+      out.push({
+        id: `ib-${h.id}`,
+        label: 'Непроницаемая перемычка',
+        top: botOf(h),
+        bot: topOf(next),
+        color: COLOR.interburden,
+        opacity: 1,
+      });
+    }
+  });
+
+  const last = HORIZONS[HORIZONS.length - 1];
+  out.push({
+    id: 'g-base',
+    label: 'Фундамент',
+    note: 'ниже продуктивного разреза',
+    top: botOf(last),
+    bot: () => absToSceneY(SECTION_BASE_ABS),
+    color: COLOR.basement,
+    opacity: 1,
+  });
+
+  return out;
+})();
+
+/** Только продуктивные прослои — по ним строятся залежи и ВНК. */
+export const PRODUCTIVE_STRATA = FIELD_STRATA.filter((s) => s.horizon?.productive);
+
+/**
+ * Опорный горизонт — М-I-А: самый верхний продуктивный и самый разбуренный
+ * (135 скважин). К нему привязано всё, что в сцене требует «пласта» вообще:
+ * сетка ГГДМ, сейсмический профиль, конус обводнения.
+ */
+export const REFERENCE_HORIZON = resolveHorizon('М-I-А')!;
+
+export const resTopY: Fn = (x, z) => horizonTopY(REFERENCE_HORIZON, x, z);
+export const resBotY: Fn = (x, z) => horizonBotY(REFERENCE_HORIZON, x, z);
+
+/** ВНК опорного горизонта в координатах сцены. */
+export const OWC_Y = absToSceneY(owcAbs(REFERENCE_HORIZON));
+
+// ── Построение геометрии ────────────────────────────────────────────────────
+
+/**
+ * Прямоугольный слой блока: кровля, подошва и четыре стенки.
+ *
+ * Сегментация умеренная: слоёв тридцать один, и лишние треугольники здесь
+ * умножаются на тридцать один. Свод и разломы читаются и на такой сетке —
+ * рельефа в подземной части нет, формы гладкие.
+ */
+export function makeFieldLayer(topFn: Fn, botFn: Fn, segX = 32, segZ = 22): THREE.BufferGeometry {
   const nx = segX + 1;
   const nz = segZ + 1;
   const pos: number[] = [];
@@ -189,24 +236,64 @@ export function makeFieldLayer(topFn: Fn, botFn: Fn, segX = 44, segZ = 30): THRE
   return g;
 }
 
-/** Нефтяная залежь: часть коллектора выше ВНК. */
-export function makeOilLens(): THREE.BufferGeometry {
-  const top: Fn = (x, z) => Math.max(yResTop(x, z) - 4, OWC_Y);
-  const bot: Fn = (x, z) => Math.min(Math.max(yResBot(x, z) + 4, OWC_Y), top(x, z));
+/**
+ * Нефтяная залежь горизонта: часть коллектора выше ВНК, ограниченная с востока
+ * литологическим замещением.
+ *
+ * Замещение здесь не декоративное: коллектор выклинивается, и залежь на восток
+ * не продолжается (§4.3 п.5). Там, где `reservoirPresence` уходит в ноль,
+ * кровля и подошва линзы схлопываются — залежь физически кончается.
+ */
+export function makeOilLens(h: Horizon): THREE.BufferGeometry {
+  const owc = absToSceneY(owcAbs(h));
+
+  const top: Fn = (x, z) => {
+    const t = horizonTopY(h, x, z);
+    const present = reservoirPresence(x);
+    return present <= 0.01 ? owc : Math.max(t, owc);
+  };
+  const bot: Fn = (x, z) => {
+    const b = horizonBotY(h, x, z);
+    const present = reservoirPresence(x);
+    if (present <= 0.01) return owc;
+    return Math.min(Math.max(b, owc - 0.5), top(x, z));
+  };
+
   return makeFieldLayer(top, bot, 40, 28);
 }
 
-/** Радиус контура нефтеносности вдоль луча — кровля монотонно падает от свода. */
-export function ringRadius(cx: number, cz: number, level: number): number {
+/**
+ * Газовая шапка — только в блоке I (§4.3 п.4), в самом своде над нефтью.
+ * Строится по верхнему меловому горизонту: именно там она и присутствует.
+ */
+export function makeGasCap(h: Horizon, westEdgeX: number): THREE.BufferGeometry {
+  const gwc = absToSceneY(h.topAbs - (h.topAbs - h.botAbs) * 0.22);
+
+  const inBlock = (x: number) => (x < westEdgeX ? 1 : 0);
+  const top: Fn = (x, z) => (inBlock(x) ? horizonTopY(h, x, z) : gwc);
+  const bot: Fn = (x, z) => (inBlock(x) ? Math.min(gwc, horizonTopY(h, x, z)) : gwc);
+
+  return makeFieldLayer(top, bot, 28, 20);
+}
+
+/**
+ * Радиус контура нефтеносности вдоль луча: кровля монотонно падает от свода,
+ * поэтому уровень пересекается ровно один раз и годится половинное деление.
+ */
+export function ringRadius(h: Horizon, cx: number, cz: number, levelY: number): number {
   let lo = 0;
-  let hi = 1000;
-  for (let i = 0; i < 28; i++) {
+  let hi = 1;
+  const reach = Math.max(HW, HD) * 1.4;
+  for (let i = 0; i < 26; i++) {
     const mid = (lo + hi) / 2;
-    if (yResTop(cx * mid, cz * mid) > level) lo = mid;
+    if (horizonTopY(h, cx * mid * reach, cz * mid * reach) > levelY) lo = mid;
     else hi = mid;
   }
-  return (lo + hi) / 2;
+  return ((lo + hi) / 2) * reach;
 }
+
+/** След разлома в плане на заданной глубине — для отрисовки плоскостей сброса. */
+export { dome, throwAt };
 
 // ── Фонд скважин пилота ─────────────────────────────────────────────────────
 
@@ -222,34 +309,40 @@ export interface WellSpec {
   drift: number;
 }
 
-/** Состав фонда — из реестра прототипа, он согласован с топологией пилота. */
+/**
+ * ВРЕМЕННЫЙ состав сюжетного фонда — остался от прежней раскладки и подлежит
+ * замене на выборку из реестра по фактическим `cat`/`st`/`type`/`hor` (ТЗ §4.1
+ * п.1). Координаты пересчитаны на реальный габарит участка, отметки забоя — на
+ * новые глубины разреза, но сами скважины пока не привязаны к реестру.
+ */
 export const WELLS: WellSpec[] = [
-  { id: 'w-prod-1', label: 'Добывающая Д-1 · ШГН', kind: 'skn', x: 180, z: -120, toe: -640, drift: 40 },
-  { id: 'w-prod-2', label: 'Добывающая Д-2 · УЭВН', kind: 'esp', x: 420, z: 160, toe: -630, drift: -46 },
-  { id: 'w-prod-3', label: 'Горизонтальная Д-3', kind: 'horiz', x: 60, z: 300, toe: -590, drift: 0 },
-  { id: 'w-prod-4', label: 'Добывающая Д-4 · ГРП', kind: 'frac', x: 300, z: -340, toe: -635, drift: -40 },
-  { id: 'w-inj-1', label: 'Нагнетательная Н-1 · ППД', kind: 'inj', x: -280, z: 80, toe: -655, drift: 36 },
-  { id: 'w-inj-2', label: 'Нагнетательная Н-2 · ППД', kind: 'inj', x: -120, z: -320, toe: -660, drift: -30 },
-  { id: 'w-drill', label: 'Бурящаяся Б-1', kind: 'drill', x: -520, z: -140, toe: -320, drift: 18 },
-  { id: 'w-workover', label: 'ПРС · подъёмник, ДЭЛ', kind: 'wo', x: 520, z: -220, toe: -610, drift: 30 },
+  { id: 'w-prod-1', label: 'Добывающая · ШГН', kind: 'skn', x: 180, z: -120, toe: absToSceneY(-300), drift: 40 },
+  { id: 'w-prod-2', label: 'Добывающая · УЭЦН', kind: 'esp', x: 420, z: 160, toe: absToSceneY(-292), drift: -46 },
+  { id: 'w-prod-3', label: 'Горизонтальная', kind: 'horiz', x: 60, z: 300, toe: absToSceneY(-262), drift: 0 },
+  { id: 'w-prod-4', label: 'Добывающая · ГРП', kind: 'frac', x: 300, z: -340, toe: absToSceneY(-330), drift: -40 },
+  { id: 'w-inj-1', label: 'Нагнетательная · ППД', kind: 'inj', x: -280, z: 80, toe: absToSceneY(-306), drift: 36 },
+  { id: 'w-inj-2', label: 'Нагнетательная · ППД', kind: 'inj', x: -120, z: -320, toe: absToSceneY(-312), drift: -30 },
+  { id: 'w-drill', label: 'Бурящаяся', kind: 'drill', x: -520, z: -140, toe: absToSceneY(-150), drift: 18 },
+  { id: 'w-workover', label: 'ПРС · подъёмник, ДЭЛ', kind: 'wo', x: 520, z: -220, toe: absToSceneY(-288), drift: 30 },
 ];
 
 export function wellCurve(w: WellSpec): THREE.CatmullRomCurve3 {
   const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const head = surfY(w.x, w.z);
   if (w.kind === 'horiz') {
     return new THREE.CatmullRomCurve3([
-      V(w.x, 0, w.z),
-      V(w.x, -260, w.z),
-      V(w.x + 15, -470, w.z - 70),
-      V(w.x + 35, -575, w.z - 160),
-      V(w.x + 50, -590, w.z - 280),
-      V(w.x + 60, -592, w.z - 460),
+      V(w.x, head, w.z),
+      V(w.x, head + (w.toe - head) * 0.45, w.z),
+      V(w.x + 15, head + (w.toe - head) * 0.8, w.z - 70),
+      V(w.x + 35, w.toe, w.z - 160),
+      V(w.x + 50, w.toe - 6, w.z - 280),
+      V(w.x + 60, w.toe - 8, w.z - 460),
     ]);
   }
   return new THREE.CatmullRomCurve3([
-    V(w.x, 0, w.z),
-    V(w.x + w.drift * 0.25, w.toe * 0.35, w.z + w.drift * 0.18),
-    V(w.x + w.drift * 0.7, w.toe * 0.75, w.z + w.drift * 0.5),
+    V(w.x, head, w.z),
+    V(w.x + w.drift * 0.25, head + (w.toe - head) * 0.35, w.z + w.drift * 0.18),
+    V(w.x + w.drift * 0.7, head + (w.toe - head) * 0.75, w.z + w.drift * 0.5),
     V(w.x + w.drift, w.toe, w.z + w.drift * 0.75),
   ]);
 }
@@ -259,9 +352,10 @@ export function perfPoint(w: WellSpec): THREE.Vector3 {
   const curve = wellCurve(w);
   const pts = curve.getPoints(200);
   if (w.kind === 'horiz') return pts[Math.round(pts.length * 0.82)].clone();
+
   const px = w.x + w.drift * 0.85;
   const pz = w.z + w.drift * 0.6;
-  const target = yResTop(px, pz) - 40;
+  const target = resTopY(px, pz) - 12;
   let best = pts[0];
   let bd = Infinity;
   for (const p of pts) {

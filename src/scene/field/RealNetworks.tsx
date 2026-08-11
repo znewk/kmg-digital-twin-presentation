@@ -162,55 +162,120 @@ export function RealNetworks() {
   );
 }
 
+/** Запас отсыпки за крайними устьями куста, м. */
+const PAD_MARGIN = 14;
+
 /**
- * Кусты — 188 узлов сбора. Размер площадки берётся от числа сходящихся ниток:
- * куст на девять скважин физически крупнее куста на две.
+ * Кустовые площадки — по фактическому пятну скважин.
+ *
+ * Раньше здесь стояли 188 одинаковых прямоугольников в узлах `hubs`. Это было
+ * неправильно по существу: `hubs` — не площадки, а вычисленные точки схождения
+ * линий нефтесбора. Часть из них приходится на простые тройники в поле, где
+ * никакой площадки нет и быть не может, — отсюда и прямоугольники посреди
+ * степи без единого объекта на них.
+ *
+ * Площадка теперь строится от того, что на ней стоит: берутся скважины,
+ * приписанные к узлу, и отсыпка накрывает их пятно с запасом. Узел, к которому
+ * не приписано хотя бы двух скважин, площадки не получает вовсе.
+ *
+ * Разворот считается по главной оси группы: скважины на кусте почти всегда
+ * стоят в ряд, и площадка вытянута вдоль этого ряда, а не по сторонам света.
+ * Именно это делает её похожей на настоящую отсыпку, а не на плитку.
  */
-export function HubPads() {
+export function WellPads() {
   const data = useFieldData();
   const ref = useRef<THREE.InstancedMesh>(null);
 
-  const hubs = useMemo(
-    () =>
-      data.hubs.map((h) => {
-        const x = toSceneX(h.p[0]);
-        const z = toSceneZ(h.p[1]);
-        // Площадка тем крупнее, чем больше ниток сходится в узле: куст на
-        // девять скважин физически больше куста на две.
-        return { x, z, y: surfY(x, z), size: 26 + Math.min(h.links, 10) * 4 };
-      }),
-    [data],
-  );
+  const pads = useMemo(() => {
+    const byHub = new Map<number, { x: number; z: number }[]>();
+    for (const w of data.wells) {
+      if (w.hub === null) continue;
+      const spot = { x: toSceneX(w.p[0]), z: toSceneZ(w.p[1]) };
+      const bucket = byHub.get(w.hub);
+      if (bucket) bucket.push(spot);
+      else byHub.set(w.hub, [spot]);
+    }
+
+    const out: { x: number; y: number; z: number; yaw: number; w: number; d: number }[] = [];
+
+    for (const pts of byHub.values()) {
+      if (pts.length < 2) continue;
+
+      const mx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
+      const mz = pts.reduce((a, p) => a + p.z, 0) / pts.length;
+
+      // Главная ось группы через ковариацию: скважины куста стоят рядом, и
+      // площадка обязана быть вытянута вдоль ряда.
+      let cxx = 0;
+      let czz = 0;
+      let cxz = 0;
+      for (const p of pts) {
+        const dx = p.x - mx;
+        const dz = p.z - mz;
+        cxx += dx * dx;
+        czz += dz * dz;
+        cxz += dx * dz;
+      }
+      const angle = 0.5 * Math.atan2(2 * cxz, cxx - czz);
+      const ax = Math.cos(angle);
+      const az = Math.sin(angle);
+
+      let halfA = 0;
+      let halfB = 0;
+      for (const p of pts) {
+        const dx = p.x - mx;
+        const dz = p.z - mz;
+        halfA = Math.max(halfA, Math.abs(dx * ax + dz * az));
+        halfB = Math.max(halfB, Math.abs(-dx * az + dz * ax));
+      }
+
+      out.push({
+        x: mx,
+        y: surfY(mx, mz),
+        z: mz,
+        yaw: Math.atan2(-az, ax),
+        w: halfA * 2 + PAD_MARGIN * 2,
+        d: halfB * 2 + PAD_MARGIN * 2,
+      });
+    }
+
+    return out;
+  }, [data]);
 
   useLayoutEffect(() => {
     const mesh = ref.current;
     if (!mesh) return;
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
+    const e = new THREE.Euler();
     const s = new THREE.Vector3();
     const p = new THREE.Vector3();
-    hubs.forEach((h, i) => {
-      p.set(h.x, h.y + 0.6, h.z);
-      s.set(h.size, 1.2, h.size * 0.72);
+
+    pads.forEach((pad, i) => {
+      p.set(pad.x, pad.y + 0.35, pad.z);
+      e.set(0, pad.yaw, 0);
+      q.setFromEuler(e);
+      s.set(pad.w, 0.7, pad.d);
       m.compose(p, q, s);
       mesh.setMatrixAt(i, m);
     });
-    mesh.count = hubs.length;
+
+    mesh.count = pads.length;
     mesh.instanceMatrix.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [hubs]);
+  }, [pads]);
+
+  if (pads.length === 0) return null;
 
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, hubs.length]} receiveShadow>
+    <instancedMesh ref={ref} args={[undefined, undefined, pads.length]} receiveShadow>
       <boxGeometry args={[1, 1, 1]} />
       {/*
-        Кустовая площадка — это отсыпка щебнем и грунтом, спланированная под
-        оборудование. Была тёмно-синей плитой и читалась инородной пластиной,
-        лежащей на степи; отсюда и вопрос «что это за прямоугольники». Теперь
-        песчано-гравийная отсыпка в тон грунта: сверху видно, что площадка
-        подготовлена, но она не спорит с рельефом.
+        Отсыпка щебнем и грунтом, спланированная под оборудование. Держится в
+        тон земли и чуть светлее её: площадка должна читаться как подготовленное
+        место, а не как плита, положенная на степь.
       */}
-      <meshStandardMaterial color="#6b6553" roughness={1} metalness={0} />
+      <meshStandardMaterial color="#4a4638" roughness={1} metalness={0} />
     </instancedMesh>
   );
 }

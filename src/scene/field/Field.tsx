@@ -5,7 +5,7 @@ import { perfPoint, surfY } from './geology';
 import { DrainageZones, EarthLayers, TopIsolines } from './EarthLayers';
 import { FloodFront, GgdmGrid, SeismicSection, WaterCone } from './features';
 import { RealTerrain, TerrainContours, useTerrainReady } from './RealTerrain';
-import { HubPads, RealNetworks } from './RealNetworks';
+import { RealNetworks, WellPads } from './RealNetworks';
 import { AbovegroundPipes } from './Aboveground';
 import { Facilities } from './Facilities';
 import { PowerLines } from './PowerLines';
@@ -163,7 +163,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
         <TerrainContours />
         <RealNetworks />
         <Roads />
-        <HubPads />
+        <WellPads />
         <Facilities />
         <Tanks />
         <AbovegroundPipes />

@@ -320,7 +320,10 @@ function Wires({
     () =>
       makePulseMaterial({
         color,
-        pulseColor: '#eaf4ff',
+        // Импульс приглушён до тёплого серого. Белый на тонкой линии даёт
+        // резкую искру, и на общем плане тысячи пролётов ВЛ начинали
+        // перекрикивать нефтесбор — при том, что главное на промысле не они.
+        pulseColor: '#b8c6d6',
         period: 240,
         speed,
         opacity,
@@ -348,11 +351,14 @@ export function PowerLines() {
       {/* По магистральной ВЛ импульс идёт быстрее, чем по разводке 0,4 кВ —
           так видно направление: от питающей подстанции к КТП и дальше к
           приводам, а не наоборот. */}
+      {/* Провода держатся заметно тусклее трубопроводов: их тысячи пролётов
+          против сотен трасс нефтесбора, и при равной подаче энергетика
+          застилает собой промысел. */}
       <Wires
         spans={line10.spans}
         conductors={WIRES_10}
         color={NETWORK_STYLE.power_10kv.color}
-        opacity={0.9}
+        opacity={0.42}
         speed={150}
         id="s-vl10"
       />
@@ -360,7 +366,7 @@ export function PowerLines() {
         spans={line04.spans}
         conductors={WIRES_04}
         color={NETWORK_STYLE.power_04kv.color}
-        opacity={0.7}
+        opacity={0.28}
         speed={80}
         id="s-vl04"
       />

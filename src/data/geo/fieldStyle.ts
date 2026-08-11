@@ -157,7 +157,7 @@ export const NETWORK_STYLE: Record<NetworkKey, NetworkStyle> = {
   pipe_rack: { label: 'Эстакады', color: '#c8d2e0', width: 1.2, lift: 4, laying: 'aboveground' },
   power_10kv: {
     label: 'ВЛ-10 кВ',
-    color: '#a9b8cf',
+    color: '#7d8b9e',
     width: 0.6,
     dash: [4, 3],
     lift: 6,
@@ -165,7 +165,7 @@ export const NETWORK_STYLE: Record<NetworkKey, NetworkStyle> = {
   },
   power_04kv: {
     label: 'ВЛ-0,4 кВ',
-    color: '#6d7d94',
+    color: '#5b697a',
     width: 0.4,
     dash: [2, 3],
     lift: 4,

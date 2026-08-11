@@ -120,7 +120,20 @@ interface ShowState {
    * архитектуры по клику на контур. Поэтому это состояние, а не позиция
    * скролла: выйти из раздела нужно туда же, откуда вошли.
    */
-  dive: { id: string; step: number } | null;
+  dive: {
+    id: string;
+    step: number;
+    /**
+     * Такт, с которого вошли, и режим камеры на тот момент.
+     *
+     * Вход в раздел перематывает показ к промыслу — объекты живут там, а экран
+     * архитектуры идёт поверх глобуса, где поля в сцене нет вовсе. Значит выход
+     * обязан вернуть и такт, и режим: без этого «Выход» гасил раздел и оставлял
+     * зрителя посреди недр, откуда он в этот раздел не заходил.
+     */
+    from: number;
+    wasPaused: boolean;
+  } | null;
   openDive: (id: string) => void;
   setDiveStep: (n: number) => void;
   closeDive: () => void;
@@ -130,6 +143,21 @@ const params = new URLSearchParams(globalThis.location?.search ?? '');
 const initialTier = (params.get('quality') as QualityTier | null) ?? null;
 const initialNaming = (params.get('naming') as NamingMode | null) ?? 'hybrid';
 const initialLang = (params.get('lang') as Lang | null) ?? 'ru';
+
+/**
+ * Перемотка показа на такт — вместе с прокруткой страницы.
+ *
+ * Двигать только состояние нельзя: позиция страницы останется прежней, и первое
+ * же движение колеса выбросит зрителя обратно туда, откуда его увели.
+ */
+function jumpToBeat(index: number, set: (s: Partial<ShowState>) => void): void {
+  const at = Math.min(TOTAL_BEATS - 1, Math.max(0, index));
+  const doc = document.documentElement;
+  const top = ((at + 0.5) / TOTAL_BEATS) * (doc.scrollHeight - globalThis.innerHeight);
+  globalThis.scrollTo({ top, behavior: 'auto' });
+  progressRef.current = top / Math.max(1, doc.scrollHeight - globalThis.innerHeight);
+  set({ beatIndex: at, stageId: FLAT_BEATS[at].stage.id });
+}
 
 export const useShow = create<ShowState>((set, get) => ({
   beatIndex: 0,
@@ -274,19 +302,28 @@ export const useShow = create<ShowState>((set, get) => ({
    * зрителя обратно.
    */
   openDive: (id) => {
+    const from = get().beatIndex;
+    const wasPaused = get().paused;
+
     const at = FLAT_BEATS.findIndex((b) => b.stage.id === 'reservoir');
-    if (at >= 0) {
-      const doc = document.documentElement;
-      globalThis.scrollTo({
-        top: ((at + 0.5) / TOTAL_BEATS) * (doc.scrollHeight - globalThis.innerHeight),
-        behavior: 'auto',
-      });
-      set({ beatIndex: at, stageId: FLAT_BEATS[at].stage.id });
-    }
+    if (at >= 0) jumpToBeat(at, set);
+
     // Раздел, цикл и свободный осмотр — один режим на троих.
-    set({ dive: { id, step: 0 }, paused: true, cycleShot: null, cyclePlaying: false });
+    set({
+      dive: { id, step: 0, from, wasPaused },
+      paused: true,
+      cycleShot: null,
+      cyclePlaying: false,
+    });
   },
 
   setDiveStep: (n) => set((s) => (s.dive ? { dive: { ...s.dive, step: n } } : s)),
-  closeDive: () => set({ dive: null }),
+
+  closeDive: () => {
+    const d = get().dive;
+    set({ dive: null });
+    if (!d) return;
+    jumpToBeat(d.from, set);
+    set({ paused: d.wasPaused });
+  },
 }));

@@ -140,7 +140,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
         открыться трубы, кабели и колонны, а не уехать вместе с ней.
       */}
       <BuriedNetworks />
-      <FundBores exclude={storyUwis} />
+      <FundBores exclude={storyUwis} near={story.focus} />
       <TrenchSection near={story.focus} />
 
       {/* Поверхность промысла по фактическим координатам съёмки */}

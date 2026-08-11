@@ -209,22 +209,37 @@ export function Manholes() {
 }
 
 /**
- * Стволы всего фонда — 1101 скважина до своего продуктивного горизонта.
+ * Стволы соседнего фонда вокруг детализируемого узла.
  *
- * Сюжетные скважины показаны полностью, с обсадной, НКТ и ГНО; здесь — весь
- * остальной фонд одной колонной на скважину. Без них при разнесении слоёв под
- * поверхностью пусто: девять стволов на промысел, где скважин больше тысячи,
- * выглядят единичными, а фонд — главное, что на этом месторождении есть.
+ * Сначала здесь рисовались стволы всего фонда — все 1080 скважин, у которых в
+ * реестре указан горизонт. В разнесённом виде это оказалось нечитаемо: тысяча
+ * вертикальных линий на всю ширину промысла превращается в штриховку, за
+ * которой не видно ни горизонтов, ни залежи, ни заканчивания сюжетных скважин.
+ * Разрез существует, чтобы показать строение недр, а не плотность сетки бурения.
+ *
+ * Поэтому берётся выборка вокруг узла детализации: ближайшие скважины, ровно
+ * столько, сколько нужно для ощущения «скважина здесь не одна». Весь остальной
+ * фонд при этом никуда не делся — его устья стоят на поверхности все до одного,
+ * и на плоской схеме он показан целиком.
  *
  * Инстансы с индивидуальным масштабом по высоте: глубина у каждой своя, по её
  * фактическому горизонту из реестра.
  */
-export function FundBores({ exclude }: { exclude: Set<string> }) {
+export function FundBores({
+  exclude,
+  near,
+  limit = 24,
+}: {
+  exclude: Set<string>;
+  /** Центр выборки — узел детализации. */
+  near: { x: number; z: number };
+  limit?: number;
+}) {
   const data = useFieldData();
   const mesh = useRef<THREE.InstancedMesh>(null);
 
   const bores = useMemo(() => {
-    const out: { x: number; z: number; top: number; bottom: number }[] = [];
+    const candidates: { x: number; z: number; top: number; bottom: number; d: number }[] = [];
 
     for (const w of data.wells) {
       if (exclude.has(w.uwi)) continue;
@@ -233,11 +248,18 @@ export function FundBores({ exclude }: { exclude: Set<string> }) {
 
       const x = toSceneX(w.p[0]);
       const z = toSceneZ(w.p[1]);
-      out.push({ x, z, top: surfY(x, z), bottom: absToSceneY(h.botAbs - 6) });
+      candidates.push({
+        x,
+        z,
+        top: surfY(x, z),
+        bottom: absToSceneY(h.botAbs - 6),
+        d: (x - near.x) ** 2 + (z - near.z) ** 2,
+      });
     }
 
-    return out;
-  }, [data, exclude]);
+    candidates.sort((a, b) => a.d - b.d);
+    return candidates.slice(0, limit);
+  }, [data, exclude, near.x, near.z, limit]);
 
   useLayoutEffect(() => {
     const m = mesh.current;
@@ -268,8 +290,11 @@ export function FundBores({ exclude }: { exclude: Set<string> }) {
       args={[undefined, undefined, bores.length]}
       userData={{ id: 'fund-bores' }}
     >
-      {/* Высота единичная — реальная длина задаётся масштабом инстанса. */}
-      <cylinderGeometry args={[0.9, 0.9, 1, 6]} />
+      {/* Высота единичная — реальная длина задаётся масштабом инстанса.
+          Стволов теперь два десятка вместо тысячи, поэтому колонна сделана
+          заметно толще: раньше её приходилось делать тонкой, чтобы фонд не
+          сливался в сплошную стену. */}
+      <cylinderGeometry args={[1.6, 1.6, 1, 8]} />
       <meshStandardMaterial color="#8a95a6" metalness={0.6} roughness={0.45} />
     </instancedMesh>
   );

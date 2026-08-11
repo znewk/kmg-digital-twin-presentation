@@ -1,8 +1,12 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 import { perfPoint, surfY, WELLS } from './geology';
 import { DrainageZones, EarthLayers, TopIsolines } from './EarthLayers';
+import { FloodFront, GgdmGrid, SeismicSection, WaterCone } from './features';
 import { Well } from './Well';
 import { SurfaceFacilities } from './Surface';
+import { Stratum } from './explode';
 import { Interactive } from './Interactive';
 import { useShow } from '../../store/useShow';
 
@@ -43,8 +47,47 @@ function FieldLighting({ shadows }: { shadows: boolean }) {
   );
 }
 
+/**
+ * Секущая плоскость. Материалов в сцене сотни и они создаются в разных
+ * компонентах, поэтому плоскость навешивается обходом дерева, а не пробросом
+ * пропа в каждый материал — иначе пришлось бы тащить его через всю иерархию.
+ * Положение плоскости меняется каждый кадр без пересборки материалов.
+ */
+function useClipping(root: React.RefObject<THREE.Group | null>) {
+  const clip = useShow((s) => s.clip);
+  const { gl } = useThree();
+  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(-1, 0, 0), 700), []);
+
+  useEffect(() => {
+    gl.localClippingEnabled = true;
+  }, [gl]);
+
+  useEffect(() => {
+    const g = root.current;
+    if (!g) return;
+    g.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.material) return;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const m of mats) {
+        m.clippingPlanes = clip ? [plane] : null;
+        m.needsUpdate = true;
+      }
+    });
+  }, [clip, plane, root]);
+
+  useFrame(() => {
+    plane.constant = useShow.getState().clipX;
+  });
+}
+
 export function Field({ shadows }: { shadows: boolean }) {
   const stageId = useShow((s) => s.stageId);
+  const features = useShow((s) => s.features);
+  const root = useRef<THREE.Group>(null);
+
+  useClipping(root);
+
   const drainage = useMemo(
     () => WELLS.filter((w) => ['skn', 'esp', 'frac'].includes(w.kind)).map(perfPoint),
     [],
@@ -53,12 +96,25 @@ export function Field({ shadows }: { shadows: boolean }) {
   if (!FIELD_STAGES.has(stageId)) return null;
 
   return (
-    <group>
+    <group ref={root}>
       <FieldLighting shadows={shadows} />
+
+      {/* Недра: каждый слой в своей группе, чтобы их можно было разнести */}
       <EarthLayers />
-      <TopIsolines />
-      <DrainageZones points={drainage} />
-      <SurfaceFacilities />
+
+      {features.grid && <GgdmGrid />}
+      {features.isolines && <TopIsolines />}
+      {features.seismic && <SeismicSection />}
+      {features.flood && <FloodFront />}
+      {features.cone && <WaterCone />}
+      {features.drainage && <DrainageZones points={drainage} />}
+
+      {/* Поверхность поднимается при разнесении, скважины остаются на месте —
+          именно так под приподнятым промыслом открываются стволы */}
+      <Stratum id="surface">
+        <SurfaceFacilities />
+      </Stratum>
+
       {WELLS.map((w) => (
         <Interactive key={w.id} id={w.id}>
           <Well spec={w} groundY={surfY(w.x, w.z)} />

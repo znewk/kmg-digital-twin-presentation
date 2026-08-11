@@ -59,6 +59,15 @@ const FOCUS_RADIUS: Record<string, number> = {
   'w-inj-2': 7,
   'w-drill': 25,
   'w-workover': 14,
+
+  // Толщи: кадрируются как часть блока, а не целиком — иначе камера уходит
+  // за полтора километра и слой перестаёт быть предметом разговора.
+  'g-soil': 380,
+  'g-over': 380,
+  'g-cap': 340,
+  'g-res': 340,
+  'g-water': 380,
+  'res-fault': 300,
 };
 
 /** Азимут обзора по объектам, где направление по умолчанию неудачно. */
@@ -88,9 +97,12 @@ export function focusFrameFor(
 
   const radius = FOCUS_RADIUS[id] ?? 50;
 
-  // Центр объекта: рельеф плюс половина видимой высоты.
-  const ground = surfY(obj.x, obj.z);
-  const center = new THREE.Vector3(obj.x, ground + obj.anchorY * 0.5, obj.z);
+  // Центр объекта. У наземных — рельеф плюс половина видимой высоты; у недр
+  // отметка задана явно, они не «стоят на земле».
+  const center =
+    obj.centerY !== undefined
+      ? new THREE.Vector3(obj.x, obj.centerY, obj.z)
+      : new THREE.Vector3(obj.x, surfY(obj.x, obj.z) + obj.anchorY * 0.5, obj.z);
 
   // Дистанция из габарита и угла обзора. Панель съедает часть кадра по
   // ширине, поэтому эффективный горизонтальный угол меньше — учитываем это,

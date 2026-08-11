@@ -15,6 +15,7 @@ import type { ModuleId } from './modules';
  */
 
 export type ObjectKind =
+  | 'stratum'
   | 'well-pad'
   | 'well'
   | 'pump'
@@ -45,6 +46,8 @@ export interface FieldObject {
   z: number;
   /** Высота якоря над рельефом для бейджа и наведения камеры, м. */
   anchorY: number;
+  /** Абсолютная отметка центра, м. Задаётся для недр — они не «стоят на земле». */
+  centerY?: number;
   modules: ModuleId[];
   params: FieldParam[];
   /** Границы пилота по этому объекту, если заданы отчётом. */
@@ -420,7 +423,122 @@ const WELL_OBJECTS: FieldObject[] = [
   },
 ];
 
-FIELD_OBJECTS.push(...WELL_OBJECTS);
+/**
+ * Геологические слои. По §8.3 кликабелен каждый слой, и для пласта показываются
+ * пористость, проницаемость и насыщенность — эти параметры аудитория ждёт
+ * увидеть, ткнув в породу.
+ *
+ * Значения по продуктивному пласту — из демо-проекта NUMEX (скриншот сценария),
+ * по остальным толщам иллюстративные: замеров по ним в материалах нет.
+ */
+const STRATUM_OBJECTS: FieldObject[] = [
+  {
+    id: 'g-soil',
+    label: 'Почвенный слой · ЗСС',
+    subtitle: 'Зона слабых скоростей, глубина 0–180 м',
+    kind: 'stratum',
+    x: -420,
+    z: 250,
+    anchorY: 0,
+    centerY: -90,
+    modules: ['abaiKp'],
+    params: [
+      { label: 'Мощность', value: '180', unit: 'м' },
+      { label: 'Литология', value: 'пески, суглинки', unit: '' },
+      { label: 'Пористость', value: '0,32', unit: '' },
+    ],
+  },
+  {
+    id: 'g-over',
+    label: 'Перекрывающая толща',
+    subtitle: 'Глубина 180–480 м, три отражающих горизонта',
+    kind: 'stratum',
+    x: -420,
+    z: 250,
+    anchorY: 0,
+    centerY: -330,
+    modules: ['abaiKp', 'tNavigator'],
+    params: [
+      { label: 'Мощность', value: '300', unit: 'м' },
+      { label: 'Отражающих горизонтов', value: '3', unit: '' },
+      { label: 'Пористость', value: '0,21', unit: '' },
+      { label: 'Проницаемость', value: '18', unit: 'мД' },
+    ],
+  },
+  {
+    id: 'g-cap',
+    label: 'Покрышка · флюидоупор',
+    subtitle: 'Глубина 480–540 м, запечатывает залежь',
+    kind: 'stratum',
+    x: -420,
+    z: 250,
+    anchorY: 0,
+    centerY: -510,
+    modules: ['abaiKp', 'tNavigator'],
+    params: [
+      { label: 'Мощность', value: '60', unit: 'м' },
+      { label: 'Литология', value: 'глины', unit: '' },
+      { label: 'Проницаемость', value: '< 0,01', unit: 'мД', tone: 'ok' },
+      { label: 'Целостность', value: 'не нарушена', unit: '', tone: 'ok' },
+    ],
+  },
+  {
+    id: 'g-res',
+    label: 'Продуктивный пласт',
+    subtitle: 'Пятый Юрский объект, глубина 540–700 м',
+    kind: 'stratum',
+    x: -420,
+    z: 250,
+    anchorY: 0,
+    centerY: -620,
+    modules: ['abaiKp', 'abaiCrns', 'numex', 'tNavigator'],
+    pilotScope: '2 объекта: один — оптимизация ППД, один — ТЭО ГТМ (ВНС)',
+    params: [
+      { label: 'Эффективная толщина', value: '3', unit: 'м' },
+      { label: 'Пористость', value: '0,16', unit: '' },
+      { label: 'Проницаемость', value: '2', unit: 'мД' },
+      { label: 'Нач. водонасыщенность', value: '0,87', unit: '' },
+      { label: 'Начальное пластовое давление', value: '250', unit: 'бар' },
+      { label: 'Давление насыщения', value: '100', unit: 'бар' },
+      { label: 'Отношение Kx/Kz', value: '10', unit: '' },
+      { label: 'Текущая обводнённость', value: '67,4', unit: '%', tone: 'warn', forecast: '61,2 % после оптимизации ППД' },
+    ],
+  },
+  {
+    id: 'g-water',
+    label: 'Водонасыщенная зона',
+    subtitle: 'Ниже ВНК, отметка −520 м',
+    kind: 'stratum',
+    x: -420,
+    z: 250,
+    anchorY: 0,
+    centerY: -750,
+    modules: ['abaiUz', 'numexOptimize'],
+    params: [
+      { label: 'Отметка ВНК', value: '−520', unit: 'м' },
+      { label: 'Водонасыщенность', value: '1,0', unit: '' },
+      { label: 'Минерализация', value: '112', unit: 'г/л' },
+    ],
+  },
+  {
+    id: 'res-fault',
+    label: 'Тектонический сброс',
+    subtitle: 'Наклонная плоскость смещения',
+    kind: 'stratum',
+    x: 430,
+    z: 0,
+    anchorY: 0,
+    centerY: -440,
+    modules: ['abaiKp', 'tNavigator'],
+    params: [
+      { label: 'Амплитуда смещения', value: '60', unit: 'м' },
+      { label: 'Тип', value: 'сброс', unit: '' },
+      { label: 'Экранирующий', value: 'да', unit: '', tone: 'ok' },
+    ],
+  },
+];
+
+FIELD_OBJECTS.push(...WELL_OBJECTS, ...STRATUM_OBJECTS);
 
 export const OBJECT_BY_ID = new Map(FIELD_OBJECTS.map((o) => [o.id, o]));
 

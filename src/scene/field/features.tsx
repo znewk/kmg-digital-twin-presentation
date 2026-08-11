@@ -1,0 +1,311 @@
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import {
+  perfPoint,
+  yResBot,
+  yResTop,
+  HD,
+  HW,
+  OWC_Y,
+  WELLS,
+} from './geology';
+
+/**
+ * Дополнительные слои визуализации недр — перенесены из референсного
+ * прототипа (ТЗ §1, §8.4). Каждый включается тумблером и нужен по сценарию:
+ * сетка ГГДМ и сейсмика — блок 3 шаг 1, фронт заводнения — блок 3 шаг 3,
+ * конус обводнения — обоснование обводнённости.
+ */
+
+const COL_OIL = '#f0ae4a';
+const COL_WATER = '#5fa8e8';
+
+/** Бегущая градиентная текстура для линий тока и потока в трубах. */
+export function makeFlowTexture(hex: string): THREE.CanvasTexture {
+  const cv = document.createElement('canvas');
+  cv.width = 128;
+  cv.height = 4;
+  const c = cv.getContext('2d')!;
+  const g = c.createLinearGradient(0, 0, 42, 0);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(0.7, hex);
+  g.addColorStop(1, '#ffffff');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 42, 4);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = THREE.RepeatWrapping;
+  return tex;
+}
+
+/**
+ * Сетка ГГДМ: каркас расчётных ячеек по продуктивному пласту плюс сами ячейки
+ * инстансами, окрашенные по положению относительно ВНК.
+ */
+export function GgdmGrid() {
+  const { lines, cells, colors, count } = useMemo(() => {
+    const NX = 10;
+    const NZ = 8;
+    const NY = 3;
+    const RX = 440;
+    const RZ = 340;
+
+    const lp: number[] = [];
+    const push = (a: THREE.Vector3, b: THREE.Vector3) =>
+      lp.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+    for (let i = 0; i <= NX; i++)
+      for (let j = 0; j <= NZ; j++) {
+        const x = -RX + (2 * RX * i) / NX;
+        const z = -RZ + (2 * RZ * j) / NZ;
+        push(V(x, yResTop(x, z) - 4, z), V(x, yResBot(x, z) + 4, z));
+      }
+    for (let j = 0; j <= NZ; j++)
+      for (let i = 0; i < NX; i++) {
+        const z = -RZ + (2 * RZ * j) / NZ;
+        const x1 = -RX + (2 * RX * i) / NX;
+        const x2 = -RX + (2 * RX * (i + 1)) / NX;
+        push(V(x1, yResTop(x1, z) - 4, z), V(x2, yResTop(x2, z) - 4, z));
+        push(V(x1, yResBot(x1, z) + 4, z), V(x2, yResBot(x2, z) + 4, z));
+      }
+    for (let i = 0; i <= NX; i++)
+      for (let j = 0; j < NZ; j++) {
+        const x = -RX + (2 * RX * i) / NX;
+        const z1 = -RZ + (2 * RZ * j) / NZ;
+        const z2 = -RZ + (2 * RZ * (j + 1)) / NZ;
+        push(V(x, yResTop(x, z1) - 4, z1), V(x, yResTop(x, z2) - 4, z2));
+        push(V(x, yResBot(x, z1) + 4, z1), V(x, yResBot(x, z2) + 4, z2));
+      }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+
+    // Ячейки: матрицы и цвета считаются один раз, дальше только рисуются.
+    const n = NX * NZ * NY;
+    const mats: THREE.Matrix4[] = [];
+    const cols: THREE.Color[] = [];
+    const amber = new THREE.Color(COL_OIL);
+    const blue = new THREE.Color('#3e7fbf');
+    const M = new THREE.Matrix4();
+    const Q = new THREE.Quaternion();
+    const S = new THREE.Vector3();
+    const P = new THREE.Vector3();
+    for (let i = 0; i < NX; i++)
+      for (let j = 0; j < NZ; j++) {
+        const x = -RX + (2 * RX * (i + 0.5)) / NX;
+        const z = -RZ + (2 * RZ * (j + 0.5)) / NZ;
+        const top = yResTop(x, z) - 6;
+        const bot = yResBot(x, z) + 6;
+        const h = (top - bot) / NY;
+        for (let l = 0; l < NY; l++) {
+          const cy = bot + h * (l + 0.5);
+          P.set(x, cy, z);
+          S.set(((2 * RX) / NX) * 0.86, h * 0.8, ((2 * RZ) / NZ) * 0.86);
+          M.compose(P, Q, S);
+          mats.push(M.clone());
+          cols.push(cy > OWC_Y ? amber : blue);
+        }
+      }
+
+    return { lines: g, cells: mats, colors: cols, count: n };
+  }, []);
+
+  const inst = useRef<THREE.InstancedMesh>(null);
+  const applied = useRef(false);
+  useFrame(() => {
+    const m = inst.current;
+    if (!m || applied.current) return;
+    cells.forEach((mat, i) => m.setMatrixAt(i, mat));
+    colors.forEach((c, i) => m.setColorAt(i, c));
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    applied.current = true;
+  });
+
+  return (
+    <group userData={{ id: 'res-grid' }}>
+      <lineSegments geometry={lines}>
+        <lineBasicMaterial color={COL_OIL} transparent opacity={0.3} depthWrite={false} />
+      </lineSegments>
+      <instancedMesh ref={inst} args={[undefined, undefined, count]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshBasicMaterial transparent opacity={0.16} depthWrite={false} />
+      </instancedMesh>
+    </group>
+  );
+}
+
+/** Сейсмический профиль-срез: отражающие горизонты со сбоем на разломе. */
+export function SeismicSection() {
+  const texture = useMemo(() => {
+    const cv = document.createElement('canvas');
+    cv.width = 1024;
+    cv.height = 512;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#0b1622';
+    c.fillRect(0, 0, 1024, 512);
+    for (let k = 0; k < 44; k++) {
+      const y0 = 20 + k * 11;
+      const bright = k % 6 === 0;
+      c.strokeStyle = bright ? 'rgba(190,215,240,0.8)' : 'rgba(120,150,185,0.35)';
+      c.lineWidth = bright ? 1.6 : 1;
+      c.beginPath();
+      for (let px = 0; px <= 1024; px += 8) {
+        const xw = (px / 1024) * 2 - 1;
+        let y = y0 - 52 * Math.exp(-xw * xw * 3.2) * (0.3 + k / 44) + 3.5 * Math.sin(px * 0.05 + k * 1.7);
+        // Разрыв прослеживания отражений на сбросе — то, ради чего сейсмика
+        // вообще показывается на блоке 3.
+        if (px > 660) y += 26 * (0.3 + k / 44);
+        if (px === 0) c.moveTo(px, y);
+        else c.lineTo(px, y);
+      }
+      c.stroke();
+    }
+    return new THREE.CanvasTexture(cv);
+  }, []);
+
+  return (
+    <mesh position={[0, -460, -40]} userData={{ id: 'res-seismic' }}>
+      <planeGeometry args={[1360, 840]} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        opacity={0.55}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
+/**
+ * Фронт заводнения: расширяющиеся от нагнетательных полусферы плюс светящиеся
+ * линии тока к добывающим. Главная визуальная метафора блока 3 шага 3.
+ */
+export function FloodFront() {
+  const fronts = useRef<THREE.Mesh[]>([]);
+  const streams = useRef<THREE.Group>(null);
+
+  const { injectors, links } = useMemo(() => {
+    const byId = new Map(WELLS.map((w) => [w.id, w]));
+    const inj = ['w-inj-1', 'w-inj-2']
+      .map((id) => byId.get(id))
+      .filter((w): w is NonNullable<typeof w> => !!w)
+      .map(perfPoint);
+
+    const pairs: [string, string][] = [
+      ['w-inj-1', 'w-prod-1'],
+      ['w-inj-1', 'w-prod-2'],
+      ['w-inj-2', 'w-prod-1'],
+      ['w-inj-2', 'w-prod-4'],
+    ];
+    const curves = pairs
+      .map(([a, b]) => {
+        const wa = byId.get(a);
+        const wb = byId.get(b);
+        if (!wa || !wb) return null;
+        const pa = perfPoint(wa);
+        const pb = perfPoint(wb);
+        const mid = pa.clone().lerp(pb, 0.5);
+        mid.y -= 16;
+        return new THREE.CatmullRomCurve3([pa, mid, pb]);
+      })
+      .filter((c): c is THREE.CatmullRomCurve3 => c !== null);
+
+    return { injectors: inj, links: curves };
+  }, []);
+
+  const flowTex = useMemo(() => links.map(() => makeFlowTexture(COL_WATER)), [links]);
+
+  useFrame(({ clock }, dt) => {
+    // Фронт пульсирует циклом 20 с: волна вытеснения уходит от нагнетательной
+    // и гаснет, затем цикл повторяется.
+    const k = (clock.elapsedTime % 20) / 20;
+    for (const m of fronts.current) {
+      if (!m) continue;
+      const r = 24 + 300 * k;
+      m.scale.set(r, r * 0.32, r);
+      (m.material as THREE.MeshBasicMaterial).opacity = 0.3 * (1 - k) + 0.03;
+    }
+    for (const t of flowTex) t.offset.x -= dt * 0.35;
+    void streams;
+  });
+
+  return (
+    <group userData={{ id: 'res-flood' }}>
+      {injectors.map((p, i) => (
+        <mesh
+          key={i}
+          position={p}
+          ref={(m) => {
+            if (m) fronts.current[i] = m;
+          }}
+        >
+          <sphereGeometry args={[1, 20, 14]} />
+          <meshBasicMaterial
+            color={COL_WATER}
+            transparent
+            opacity={0.25}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      ))}
+
+      <group ref={streams}>
+        {links.map((c, i) => (
+          <mesh key={i}>
+            <tubeGeometry args={[c, 48, 2.6, 6, false]} />
+            <meshBasicMaterial
+              map={flowTex[i]}
+              transparent
+              opacity={0.9}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+/** Конус обводнения под добывающей Д-1 — подтягивание воды от ВНК к перфорации. */
+export function WaterCone() {
+  const geometry = useMemo(() => {
+    const profile = [
+      new THREE.Vector2(6, 92),
+      new THREE.Vector2(20, 70),
+      new THREE.Vector2(52, 42),
+      new THREE.Vector2(100, 16),
+      new THREE.Vector2(150, 0),
+    ];
+    return new THREE.LatheGeometry(profile, 26);
+  }, []);
+
+  const pos = useMemo(() => {
+    const w = WELLS.find((x) => x.id === 'w-prod-1');
+    const p = w ? perfPoint(w) : new THREE.Vector3(200, -560, -90);
+    return new THREE.Vector3(p.x, OWC_Y - 10, p.z);
+  }, []);
+
+  return (
+    <mesh geometry={geometry} position={pos} userData={{ id: 'res-cone' }}>
+      <meshBasicMaterial
+        color={COL_WATER}
+        transparent
+        opacity={0.22}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
+/** Карта изолиний по кровле — визуальный след Картопостроителя ABAI. */
+export { TopIsolines } from './EarthLayers';
+
+/** Габариты блока — пригодятся секущей плоскости. */
+export const BLOCK = { HW, HD };

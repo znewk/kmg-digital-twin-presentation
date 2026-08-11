@@ -473,6 +473,8 @@ function Terrain() {
     const g = new THREE.PlaneGeometry(2 * HW, 2 * HD, 72, 48);
     g.rotateX(-Math.PI / 2);
     const p = g.attributes.position;
+    // Ровно по отметке земли: всё остальное на промысле стоит на ней же.
+    // Зазор с породой обеспечивает кровля почвы, опущенная на 2 м (см. geology).
     for (let i = 0; i < p.count; i++) p.setY(i, surfY(p.getX(i), p.getZ(i)));
     g.computeVertexNormals();
     return g;
@@ -483,14 +485,9 @@ function Terrain() {
       {/* Почти непрозрачный: полупрозрачная поверхность на тёмном фоне даёт
           провал по светлоте, и промысел с высоты читается чёрным пятном.
           Прозрачность под разрез включается отдельно, на этапе ЦД Пласта. */}
-      <meshStandardMaterial
-        color="#465d73"
-        roughness={0.96}
-        metalness={0}
-        transparent
-        opacity={0.92}
-        side={THREE.DoubleSide}
-      />
+      {/* Непрозрачный: сквозь полупрозрачный грунт просвечивал бурый почвенный
+          слой, и поверхность промысла выглядела пятнистой. */}
+      <meshStandardMaterial color="#465d73" roughness={0.96} metalness={0} side={THREE.DoubleSide} />
     </mesh>
   );
 }

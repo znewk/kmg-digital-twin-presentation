@@ -6,6 +6,17 @@ import { FLAT_BEATS, TOTAL_BEATS, type StageId } from '../data/stages';
 export type QualityTier = 'high' | 'mid' | 'low';
 export type NavMode = 'scroll' | 'clicker';
 
+/** Дополнительные слои визуализации недр и промысла. */
+export type FeatureId =
+  | 'grid'
+  | 'isolines'
+  | 'seismic'
+  | 'flood'
+  | 'cone'
+  | 'drainage'
+  | 'flow'
+  | 'telemetry';
+
 /**
  * КРИТИЧЕСКОЕ ПРАВИЛО ПРОИЗВОДИТЕЛЬНОСТИ.
  *
@@ -37,6 +48,18 @@ interface ShowState {
   tier: QualityTier;
   tierLocked: boolean;
 
+  /**
+   * Режимы просмотра недр — перенесены из референсного прототипа (ТЗ §1, §8.4).
+   * Именно они позволяют «заглянуть под землю»: разнести слои, срезать блок
+   * плоскостью, включить сетку ГГДМ, сейсмику, заводнение.
+   */
+  exploded: boolean;
+  clip: boolean;
+  /** Положение секущей плоскости по X, м. */
+  clipX: number;
+  features: Record<FeatureId, boolean>;
+  labels: boolean;
+
   /** Служебный оверлей: подсветка непереведённых строк, счётчик FPS. */
   debug: boolean;
 
@@ -54,6 +77,12 @@ interface ShowState {
   setTier: (t: QualityTier, lock?: boolean) => void;
   toggleDebug: () => void;
   reset: () => void;
+
+  toggleExplode: () => void;
+  toggleClip: () => void;
+  setClipX: (v: number) => void;
+  toggleFeature: (f: FeatureId) => void;
+  toggleLabels: () => void;
 }
 
 const params = new URLSearchParams(globalThis.location?.search ?? '');
@@ -77,6 +106,23 @@ export const useShow = create<ShowState>((set, get) => ({
 
   tier: initialTier ?? 'high',
   tierLocked: initialTier !== null,
+
+  exploded: false,
+  clip: false,
+  clipX: 700,
+  // Поток в трубах и телеметрия идут по умолчанию — это «живость» сцены,
+  // остальные слои включаются по ходу рассказа.
+  features: {
+    grid: false,
+    isolines: false,
+    seismic: false,
+    flood: false,
+    cone: false,
+    drainage: false,
+    flow: true,
+    telemetry: true,
+  },
+  labels: true,
 
   debug: params.has('debug'),
 
@@ -122,6 +168,21 @@ export const useShow = create<ShowState>((set, get) => ({
   reset: () => {
     globalThis.scrollTo({ top: 0, behavior: 'auto' });
     progressRef.current = 0;
-    set({ beatIndex: 0, stageId: 'hero', selected: null, hovered: null, paused: false });
+    set({
+      beatIndex: 0,
+      stageId: 'hero',
+      selected: null,
+      hovered: null,
+      paused: false,
+      exploded: false,
+      clip: false,
+    });
   },
+
+  toggleExplode: () => set((s) => ({ exploded: !s.exploded })),
+  toggleClip: () => set((s) => ({ clip: !s.clip })),
+  setClipX: (clipX) => set({ clipX }),
+  toggleFeature: (f) =>
+    set((s) => ({ features: { ...s.features, [f]: !s.features[f] } })),
+  toggleLabels: () => set((s) => ({ labels: !s.labels })),
 }));

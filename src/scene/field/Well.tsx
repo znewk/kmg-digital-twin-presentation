@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { perfPoint, wellCurve, yResTop, type WellSpec } from './geology';
 import { Bars, type BarSpec } from './Bars';
@@ -269,8 +270,27 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
     });
   });
 
+  const tracePoints = useMemo(() => curve.getPoints(64), [curve]);
+
+  const TRACE_COLOR = spec.kind === 'inj' ? '#5fa8e8' : '#8fbaf0';
+
   return (
     <group userData={{ id: spec.id }}>
+      {/* Экранная трасса ствола постоянной толщины.
+          Геометрический диаметр колонны честный — около четырёх метров, и на
+          обзорном плане с полутора километров это тоньше пикселя: разнесёшь
+          слои, а скважин между ними не видно. Линия задаётся в пикселях, а не
+          в метрах, поэтому траектория читается на любом удалении, тогда как
+          вблизи работает уже настоящая геометрия колонны. */}
+      <Line
+        points={tracePoints}
+        color={TRACE_COLOR}
+        lineWidth={2.6}
+        transparent
+        opacity={0.95}
+        depthWrite={false}
+      />
+
       {/* Цементное кольцо → обсадная колонна → НКТ.
           Диаметры умеренно преувеличены: настоящая обсадная — 168–245 мм, на
           промысле в полтора километра это тоньше пикселя. Прототип задавал

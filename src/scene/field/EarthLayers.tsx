@@ -13,6 +13,8 @@ import {
   OVERBURDEN_MARKERS,
   OWC_Y,
 } from './geology';
+import { Stratum } from './explode';
+import { Interactive } from './Interactive';
 
 /**
  * Недра месторождения: шесть слоёв, тектонический сброс, залежь, ВНК.
@@ -91,63 +93,88 @@ export function EarthLayers() {
     return new THREE.CatmullRomCurve3(pts, true);
   }, []);
 
-  return (
-    <group>
-      {strata.map(({ spec, geometry }) => (
-        <mesh key={spec.id} geometry={geometry} castShadow receiveShadow userData={{ id: spec.id }}>
+  // Каждый слой — в собственной группе: только так они могут разъезжаться
+  // по отдельности. Всё, что принадлежит слою по смыслу (прослои — толще,
+  // залежь, ВНК и сброс — коллектору), едет вместе с ним.
+  const byId = new Map(strata.map((s) => [s.spec.id, s]));
+  const layer = (id: string) => {
+    const s = byId.get(id);
+    if (!s) return null;
+    return (
+      <Interactive id={id}>
+        <mesh geometry={s.geometry} castShadow receiveShadow userData={{ id }}>
           <meshStandardMaterial
-            color={spec.color}
+            color={s.spec.color}
             roughness={0.92}
             metalness={0.04}
-            transparent={spec.opacity < 1}
-            opacity={spec.opacity}
+            transparent={s.spec.opacity < 1}
+            opacity={s.spec.opacity}
             side={THREE.DoubleSide}
           />
         </mesh>
-      ))}
+      </Interactive>
+    );
+  };
 
-      {/* Отражающие горизонты в перекрывающей толще */}
-      {markers.map((g, i) => (
-        <mesh key={i} geometry={g}>
-          <meshStandardMaterial color="#57534a" roughness={0.95} metalness={0} />
+  return (
+    <group>
+      <Stratum id="g-soil">{layer('g-soil')}</Stratum>
+
+      <Stratum id="g-over">
+        {layer('g-over')}
+        {/* Отражающие горизонты в перекрывающей толще */}
+        {markers.map((g, i) => (
+          <mesh key={i} geometry={g}>
+            <meshStandardMaterial color="#57534a" roughness={0.95} metalness={0} />
+          </mesh>
+        ))}
+      </Stratum>
+
+      <Stratum id="g-cap">{layer('g-cap')}</Stratum>
+
+      <Stratum id="g-res">
+        {layer('g-res')}
+        <Interactive id="res-fault">
+          <FaultPlane />
+        </Interactive>
+
+        {/* Залежь. polygonOffset — стенки линзы копланарны стенкам коллектора. */}
+        <mesh geometry={lens} userData={{ id: 'res-oil' }}>
+          <meshStandardMaterial
+            color="#8a5a16"
+            emissive="#c07b20"
+            emissiveIntensity={0.45}
+            roughness={0.5}
+            metalness={0.1}
+            transparent
+            opacity={0.88}
+            side={THREE.DoubleSide}
+            polygonOffset
+            polygonOffsetFactor={-3}
+            polygonOffsetUnits={-3}
+          />
         </mesh>
-      ))}
 
-      <FaultPlane />
+        <mesh userData={{ id: 'res-oil' }}>
+          <tubeGeometry args={[owcContour, 220, 2.4, 6, true]} />
+          <meshBasicMaterial color="#f0ae4a" transparent opacity={0.85} depthWrite={false} />
+        </mesh>
 
-      {/* Залежь. polygonOffset — стенки линзы копланарны стенкам коллектора. */}
-      <mesh geometry={lens} userData={{ id: 'res-oil' }}>
-        <meshStandardMaterial
-          color="#8a5a16"
-          emissive="#c07b20"
-          emissiveIntensity={0.45}
-          roughness={0.5}
-          metalness={0.1}
-          transparent
-          opacity={0.88}
-          side={THREE.DoubleSide}
-          polygonOffset
-          polygonOffsetFactor={-3}
-          polygonOffsetUnits={-3}
-        />
-      </mesh>
+        {/* Плоскость ВНК */}
+        <mesh position={[0, OWC_Y, 0]} rotation={[-Math.PI / 2, 0, 0]} userData={{ id: 'res-owc' }}>
+          <planeGeometry args={[2 * HW * 0.98, 2 * HD * 0.98]} />
+          <meshBasicMaterial
+            color="#5fa8e8"
+            transparent
+            opacity={0.12}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+      </Stratum>
 
-      <mesh userData={{ id: 'res-oil' }}>
-        <tubeGeometry args={[owcContour, 220, 2.4, 6, true]} />
-        <meshBasicMaterial color="#f0ae4a" transparent opacity={0.85} depthWrite={false} />
-      </mesh>
-
-      {/* Плоскость ВНК */}
-      <mesh position={[0, OWC_Y, 0]} rotation={[-Math.PI / 2, 0, 0]} userData={{ id: 'res-owc' }}>
-        <planeGeometry args={[2 * HW * 0.98, 2 * HD * 0.98]} />
-        <meshBasicMaterial
-          color="#5fa8e8"
-          transparent
-          opacity={0.12}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
+      <Stratum id="g-water">{layer('g-water')}</Stratum>
+      <Stratum id="g-base">{layer('g-base')}</Stratum>
     </group>
   );
 }

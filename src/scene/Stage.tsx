@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { useShow } from '../store/useShow';
 import { TIER_SETTINGS, usePerfTier } from '../hooks/usePerfTier';
 import { CameraRig } from './CameraRig';
+import { FreeLook } from './FreeLook';
 import { FieldShowcase } from './hero/FieldShowcase';
 import { Globe } from './geo/Globe';
 import { Field } from './field/Field';
@@ -45,8 +46,8 @@ function SkyDome() {
         side={THREE.BackSide}
         depthWrite={false}
         uniforms={{
-          top: { value: new THREE.Color('#0f1a2e') },
-          bot: { value: new THREE.Color('#03060d') },
+          top: { value: new THREE.Color('#13203a') },
+          bot: { value: new THREE.Color('#070c16') },
         }}
         vertexShader={`
           varying vec3 vP;
@@ -68,13 +69,16 @@ function SkyDome() {
 function SceneContents() {
   usePerfTier();
   const tier = useShow((s) => s.tier);
+  const paused = useShow((s) => s.paused);
   const settings = TIER_SETTINGS[tier];
 
   return (
     <>
       <SkyDome />
       <AmbientRig />
-      <CameraRig />
+      {/* На паузе управление камерой отдаётся мыши, таймлайн отступает */}
+      <CameraRig enabled={!paused} />
+      <FreeLook />
 
       <Suspense fallback={null}>
         <FieldShowcase shadows={settings.shadows} />

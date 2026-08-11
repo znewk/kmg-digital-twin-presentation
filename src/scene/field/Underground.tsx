@@ -305,10 +305,16 @@ export function Manholes() {
  * которой не видно ни горизонтов, ни залежи, ни заканчивания сюжетных скважин.
  * Разрез существует, чтобы показать строение недр, а не плотность сетки бурения.
  *
- * Поэтому берётся выборка вокруг узла детализации: ближайшие скважины, ровно
+ * Поэтому берётся выборка вокруг кустов: ближайшие к каждому скважины, ровно
  * столько, сколько нужно для ощущения «скважина здесь не одна». Весь остальной
  * фонд при этом никуда не делся — его устья стоят на поверхности все до одного,
  * и на плоской схеме он показан целиком.
+ *
+ * Кустов не один, а два десятка, разнесённых по площади. С единственным узлом
+ * недра выглядели пустыми: посреди блока висел одинокий пучок стволов, будто
+ * бурили только здесь. Промысел разрабатывается по всей площади, и группы
+ * стволов по всему блоку показывают это, не скатываясь обратно в штриховку из
+ * тысячи линий, — плотно у кустов, чисто между ними, ровно как в натуре.
  *
  * Инстансы с индивидуальным масштабом по высоте: глубина у каждой своя, по её
  * фактическому горизонту из реестра.
@@ -316,18 +322,26 @@ export function Manholes() {
 export function FundBores({
   exclude,
   near,
+  clusters = [],
   limit = 24,
+  perCluster = 9,
 }: {
   exclude: Set<string>;
-  /** Центр выборки — узел детализации. */
+  /** Центр основной выборки — узел детализации. */
   near: { x: number; z: number };
+  /** Прочие кусты по площади. */
+  clusters?: { x: number; z: number }[];
+  /** Стволов у узла детализации. */
   limit?: number;
+  /** Стволов у каждого из прочих кустов. */
+  perCluster?: number;
 }) {
   const data = useFieldData();
   const mesh = useRef<THREE.InstancedMesh>(null);
 
   const bores = useMemo(() => {
-    const candidates: { x: number; z: number; top: number; bottom: number; d: number }[] = [];
+    type Bore = { x: number; z: number; top: number; bottom: number };
+    const candidates: (Bore & { d: number })[] = [];
 
     for (const w of data.wells) {
       if (exclude.has(w.uwi)) continue;
@@ -341,13 +355,35 @@ export function FundBores({
         z,
         top: surfY(x, z),
         bottom: absToSceneY(h.botAbs - 6),
-        d: (x - near.x) ** 2 + (z - near.z) ** 2,
+        d: 0,
       });
     }
 
-    candidates.sort((a, b) => a.d - b.d);
-    return candidates.slice(0, limit);
-  }, [data, exclude, near.x, near.z, limit]);
+    // Скважина показывается один раз, даже если попала в радиус двух кустов.
+    const taken = new Set<number>();
+    const out: Bore[] = [];
+
+    const nearestTo = (cx: number, cz: number, n: number) => {
+      for (let i = 0; i < candidates.length; i++) {
+        const c = candidates[i];
+        c.d = (c.x - cx) ** 2 + (c.z - cz) ** 2;
+      }
+      const order = candidates
+        .map((_, i) => i)
+        .filter((i) => !taken.has(i))
+        .sort((a, b) => candidates[a].d - candidates[b].d)
+        .slice(0, n);
+      for (const i of order) {
+        taken.add(i);
+        out.push(candidates[i]);
+      }
+    };
+
+    nearestTo(near.x, near.z, limit);
+    for (const c of clusters) nearestTo(c.x, c.z, perCluster);
+
+    return out;
+  }, [data, exclude, near.x, near.z, clusters, limit, perCluster]);
 
   useLayoutEffect(() => {
     const m = mesh.current;

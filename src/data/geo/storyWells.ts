@@ -154,6 +154,55 @@ export interface StorySelection {
   byKind: Map<WellKind, StoryWell>;
   /** Центр узла детализации в координатах сцены. */
   focus: { x: number; z: number; hub: number };
+  /**
+   * Кусты, разнесённые по всей площади, — для стволов остального фонда.
+   *
+   * Детально показывался один узел, и под землёй он выглядел одиноким пучком
+   * стволов посреди пустого блока: 1101 скважина есть в реестре, а в недрах
+   * видно два десятка. Промысел разрабатывается по всей площади, и разрез
+   * обязан это показывать.
+   */
+  satellites: { x: number; z: number; hub: number }[];
+}
+
+/**
+ * Кусты, максимально разнесённые по площади.
+ *
+ * Не первые попавшиеся и не самые крупные: и то и другое даёт скопление в одной
+ * части промысла, потому что кусты сами по себе стоят неравномерно. Берётся
+ * поочерёдно тот куст, который дальше всех отстоит от уже выбранных, — так
+ * фонд ложится по всей площади равномерно при любом числе точек.
+ */
+function spreadHubs(data: FieldDataset, from: number, count: number): number[] {
+  const hubs = data.hubs;
+  const chosen = [from];
+  const minD = hubs.map((h) => dist2p(h.p, hubs[from].p));
+
+  while (chosen.length <= count) {
+    let best = -1;
+    let bestD = -1;
+    for (let i = 0; i < hubs.length; i++) {
+      if (minD[i] > bestD) {
+        bestD = minD[i];
+        best = i;
+      }
+    }
+    if (best < 0 || bestD <= 0) break;
+
+    chosen.push(best);
+    minD[best] = -1;
+    for (let i = 0; i < hubs.length; i++) {
+      if (minD[i] < 0) continue;
+      minD[i] = Math.min(minD[i], dist2p(hubs[i].p, hubs[best].p));
+    }
+  }
+
+  // Первым в списке лежит сам узел детализации — он уже показан полностью.
+  return chosen.slice(1);
+}
+
+function dist2p(a: [number, number], b: [number, number]): number {
+  return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
 }
 
 /**
@@ -199,6 +248,31 @@ export function selectStoryWells(data: FieldDataset): StorySelection {
   // простое, а сам факт бурения помечается как сюжет, а не как факт реестра.
   take('drill', (w) => w.cat === 'oil' && w.st === 'idle');
 
+  /**
+   * Узел детализации — не единственное место, где идёт добыча.
+   *
+   * Один работающий куст на весь промысел читается как опытный участок, а не
+   * как разрабатываемое месторождение. На двух самых удалённых кустах ставятся
+   * полные модели работающих скважин: подъём флюида по колонне и приток в
+   * перфорацию видны и там, за несколько километров от основного узла.
+   *
+   * Скважины под них ищутся в реестре по тем же правилам, что и остальные, —
+   * нефтяная, в работе, вертикальная, — только рядом со СВОИМ кустом.
+   */
+  const satelliteHubs = spreadHubs(data, hub, 20);
+
+  for (const h of satelliteHubs.slice(0, 2)) {
+    const w = pickNearest(
+      data.wells,
+      data.hubs[h].p,
+      used,
+      (r) => r.cat === 'oil' && working(r) && r.type === 'vert',
+    );
+    if (!w) continue;
+    used.add(w.uwi);
+    wells.push(toStory(w, 'skn'));
+  }
+
   const byKind = new Map<WellKind, StoryWell>();
   for (const w of wells) if (!byKind.has(w.kind)) byKind.set(w.kind, w);
 
@@ -206,5 +280,10 @@ export function selectStoryWells(data: FieldDataset): StorySelection {
     wells,
     byKind,
     focus: { x: toSceneX(center[0]), z: toSceneZ(center[1]), hub },
+    satellites: satelliteHubs.map((i) => ({
+      x: toSceneX(data.hubs[i].p[0]),
+      z: toSceneZ(data.hubs[i].p[1]),
+      hub: i,
+    })),
   };
 }

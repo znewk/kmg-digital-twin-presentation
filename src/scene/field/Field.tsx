@@ -185,7 +185,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
       {story.wells.map((w) => (
         <Well key={w.id} spec={w} />
       ))}
-      <FundBores exclude={storyUwis} near={story.focus} />
+      <FundBores exclude={storyUwis} near={story.focus} clusters={story.satellites} />
     </group>
   );
 }

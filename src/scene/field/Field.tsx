@@ -14,6 +14,7 @@ import { BuriedNetworks, FundBores, Manholes, TrenchSection } from './Undergroun
 import { Well } from './Well';
 import { WellFarm } from './WellFarm';
 import { Stratum } from './explode';
+import { flowTime } from './kit/flow';
 import { useFieldData } from '../../data/geo/fieldData';
 import { selectStoryWells } from '../../data/geo/storyWells';
 import { useShow } from '../../store/useShow';
@@ -86,6 +87,20 @@ function useClipping(root: React.RefObject<THREE.Group | null>) {
   });
 }
 
+/**
+ * Единые часы потока.
+ *
+ * Все бегущие волны — в трубах, на эстакадах, по проводам — читают одну и ту же
+ * переменную времени. Один компонент пишет её раз в кадр, и это вся работа
+ * процессора на анимацию потока во всём промысле: остальное делает шейдер.
+ */
+function FlowClock() {
+  useFrame(({ clock }) => {
+    flowTime.value = clock.elapsedTime;
+  });
+  return null;
+}
+
 function FieldContents({ shadows }: { shadows: boolean }) {
   // Сэмплер рельефа ставится здесь, до рендера всего, что садится на землю.
   useTerrainReady();
@@ -111,6 +126,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
 
   return (
     <group ref={root}>
+      <FlowClock />
       <FieldLighting shadows={shadows} />
 
       {/* Недра — условная модель, топоплан описывает только поверхность */}

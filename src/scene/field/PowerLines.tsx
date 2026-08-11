@@ -8,6 +8,7 @@ import {
 } from '../../data/geo/fieldData';
 import { NETWORK_STYLE } from '../../data/geo/fieldStyle';
 import { Assembly, type Placement } from './kit/Assembly';
+import { makePulseMaterial } from './kit/flow';
 import { buildPole04, buildPole10 } from './facilities/pole';
 import { surfY } from './geology';
 
@@ -62,8 +63,13 @@ const WIRES_04: Conductor[] = [
  */
 function buildWires(lines: Polyline[], conductors: Conductor[]): THREE.BufferGeometry {
   const pos: number[] = [];
+  // Продольная координата в метрах — по ней бежит импульс. Копится сквозь все
+  // пролёты одной трассы, иначе импульс перезапускался бы на каждой опоре.
+  const along: number[] = [];
 
   for (const line of lines) {
+    let traveled = 0;
+
     for (let i = 0; i < line.length - 1; i++) {
       const ax = toSceneX(line[i][0]);
       const az = toSceneZ(line[i][1]);
@@ -99,14 +105,18 @@ function buildWires(lines: Polyline[], conductors: Conductor[]): THREE.BufferGeo
             const droop = 4 * sag * t * (1 - t);
             const y = ay + (by - ay) * t + wire.height - droop;
             pos.push(x, y, z);
+            along.push(traveled + span * t);
           }
         }
       }
+
+      traveled += span;
     }
   }
 
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('aAlong', new THREE.Float32BufferAttribute(along, 1));
   g.computeBoundingSphere();
   return g;
 }
@@ -194,21 +204,38 @@ function Wires({
   conductors,
   color,
   opacity,
+  speed,
   id,
 }: {
   lines: Polyline[];
   conductors: Conductor[];
   color: string;
   opacity: number;
+  /** Скорость импульса, м/с. */
+  speed: number;
   id: string;
 }) {
   const geometry = useMemo(() => buildWires(lines, conductors), [lines, conductors]);
 
-  return (
-    <lineSegments geometry={geometry} userData={{ id }}>
-      <lineBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} />
-    </lineSegments>
+  /**
+   * Импульс по проводу — условное изображение передачи энергии, а не движение
+   * заряда: электричество так не выглядит. Но нитку энергетики надо чем-то
+   * оживить, а бегущий по проводу свет читается однозначно и не притворяется
+   * физической величиной.
+   */
+  const material = useMemo(
+    () =>
+      makePulseMaterial({
+        color,
+        pulseColor: '#eaf4ff',
+        period: 240,
+        speed,
+        opacity,
+      }),
+    [color, opacity, speed],
   );
+
+  return <lineSegments geometry={geometry} material={material} userData={{ id }} />;
 }
 
 export function PowerLines() {
@@ -221,11 +248,15 @@ export function PowerLines() {
       <Assembly build={buildPole10} placements={poles10} id="poles-10kv" />
       <Assembly build={buildPole04} placements={poles04} id="poles-04kv" />
 
+      {/* По магистральной ВЛ импульс идёт быстрее, чем по разводке 0,4 кВ —
+          так видно направление: от питающей подстанции к КТП и дальше к
+          приводам, а не наоборот. */}
       <Wires
         lines={data.networks.power_10kv}
         conductors={WIRES_10}
         color={NETWORK_STYLE.power_10kv.color}
         opacity={0.9}
+        speed={150}
         id="s-vl10"
       />
       <Wires
@@ -233,6 +264,7 @@ export function PowerLines() {
         conductors={WIRES_04}
         color={NETWORK_STYLE.power_04kv.color}
         opacity={0.7}
+        speed={80}
         id="s-vl04"
       />
     </group>

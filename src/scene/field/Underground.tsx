@@ -10,6 +10,7 @@ import {
 import { BURIED_DEPTH, NETWORK_STYLE, type NetworkKey } from '../../data/geo/fieldStyle';
 import { resolveHorizon } from '../../data/geo/stratigraphy';
 import { Assembly } from './kit/Assembly';
+import { makeFlowMaterial } from './kit/flow';
 import { buildTubes } from './kit/tube';
 import { buildTrench } from './facilities/trench';
 import { surfY } from './geology';
@@ -48,6 +49,22 @@ const BURIED_KEYS: NetworkKey[] = [
   'lv_cable',
 ];
 
+/**
+ * Скорость и шаг волны по системам.
+ *
+ * Нефть в коллекторе идёт медленно и вязко — это высоковязкая нефть; вода в
+ * системе ППД под давлением ощутимо быстрее; газ быстрее обоих. Разная
+ * скорость по средам не украшение: по ней зритель отличает нитки друг от друга
+ * даже не читая легенду.
+ *
+ * Кабели не текут — по ним нечему бежать, у них своя роль в цепочке.
+ */
+const FLOW: Partial<Record<NetworkKey, { speed: number; period: number }>> = {
+  oil_pipeline: { speed: 9, period: 46 },
+  water_pipeline: { speed: 16, period: 52 },
+  gas_pipeline: { speed: 26, period: 60 },
+};
+
 function BuriedSystem({
   lines,
   networkKey,
@@ -69,11 +86,33 @@ function BuriedSystem({
   );
 
   const style = NETWORK_STYLE[networkKey];
+  const flow = FLOW[networkKey];
+
+  const material = useMemo(
+    () =>
+      flow
+        ? makeFlowMaterial({
+            color: style.color,
+            flowColor: '#ffffff',
+            period: flow.period,
+            speed: flow.speed,
+            intensity: 1.4,
+          })
+        : new THREE.MeshStandardMaterial({
+            color: style.color,
+            metalness: 0.5,
+            roughness: 0.55,
+          }),
+    [style.color, flow],
+  );
 
   return (
-    <mesh geometry={geometry} userData={{ id: `buried-${networkKey}` }} castShadow={false}>
-      <meshStandardMaterial color={style.color} metalness={0.55} roughness={0.5} />
-    </mesh>
+    <mesh
+      geometry={geometry}
+      material={material}
+      userData={{ id: `buried-${networkKey}` }}
+      castShadow={false}
+    />
   );
 }
 

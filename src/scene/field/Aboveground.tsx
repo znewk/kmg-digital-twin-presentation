@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { toSceneX, toSceneZ, useFieldData } from '../../data/geo/fieldData';
 import { NETWORK_STYLE } from '../../data/geo/fieldStyle';
 import { Assembly, type Placement } from './kit/Assembly';
+import { makeFlowMaterial } from './kit/flow';
 import { box, cyl, type Part } from './kit/parts';
 import { buildTubes } from './kit/tube';
 import { surfY } from './geology';
@@ -159,15 +160,62 @@ export function AbovegroundPipes() {
    * нитке в чертеже нет — есть ось эстакады, поэтому нитки разносятся от неё
    * поперёк и по высоте, как они и лежат на ригелях.
    */
+  /** Надземный газопровод течёт так же, как подземный: среда одна. */
+  const gasMaterial = useMemo(
+    () =>
+      makeFlowMaterial({
+        color: NETWORK_STYLE.gas_overground.color,
+        flowColor: '#ffffff',
+        period: 60,
+        speed: 26,
+        intensity: 1.4,
+      }),
+    [],
+  );
+
   const rackTubes = useMemo(() => {
-    const specs: { offsetY: number; shift: number; radius: number; color: string }[] = [
-      { offsetY: 4.55, shift: -0.85, radius: 0.16, color: NETWORK_STYLE.oil_pipeline.color },
-      { offsetY: 4.55, shift: 0.85, radius: 0.14, color: NETWORK_STYLE.water_pipeline.color },
-      { offsetY: 2.95, shift: 0, radius: 0.11, color: NETWORK_STYLE.gas_pipeline.color },
+    const specs: {
+      offsetY: number;
+      shift: number;
+      radius: number;
+      color: string;
+      speed: number;
+      period: number;
+    }[] = [
+      {
+        offsetY: 4.55,
+        shift: -0.85,
+        radius: 0.16,
+        color: NETWORK_STYLE.oil_pipeline.color,
+        speed: 9,
+        period: 46,
+      },
+      {
+        offsetY: 4.55,
+        shift: 0.85,
+        radius: 0.14,
+        color: NETWORK_STYLE.water_pipeline.color,
+        speed: 16,
+        period: 52,
+      },
+      {
+        offsetY: 2.95,
+        shift: 0,
+        radius: 0.11,
+        color: NETWORK_STYLE.gas_pipeline.color,
+        speed: 26,
+        period: 60,
+      },
     ];
 
     return specs.map((spec) => ({
-      color: spec.color,
+      material: makeFlowMaterial({
+        color: spec.color,
+        flowColor: '#ffffff',
+        period: spec.period,
+        speed: spec.speed,
+        intensity: 1.4,
+      }),
       geometry: buildTubes(
         data.networks.pipe_rack.map((line) =>
           // Поперечное смещение считается по звену: эстакады короткие и почти
@@ -199,18 +247,21 @@ export function AbovegroundPipes() {
       <Assembly build={buildPipeSupport} placements={supports} id="pipe-supports" />
       <Assembly build={buildRackBent} placements={bents} id="rack-bents" />
 
-      <mesh geometry={gasTube} castShadow userData={{ id: 's-gas-overground' }}>
-        <meshStandardMaterial
-          color={NETWORK_STYLE.gas_overground.color}
-          metalness={0.62}
-          roughness={0.38}
-        />
-      </mesh>
+      <mesh
+        geometry={gasTube}
+        material={gasMaterial}
+        castShadow
+        userData={{ id: 's-gas-overground' }}
+      />
 
       {rackTubes.map((t, i) => (
-        <mesh key={i} geometry={t.geometry} castShadow userData={{ id: `rack-line-${i}` }}>
-          <meshStandardMaterial color={t.color} metalness={0.62} roughness={0.4} />
-        </mesh>
+        <mesh
+          key={i}
+          geometry={t.geometry}
+          material={t.material}
+          castShadow
+          userData={{ id: `rack-line-${i}` }}
+        />
       ))}
     </group>
   );

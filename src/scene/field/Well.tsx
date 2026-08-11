@@ -4,7 +4,16 @@ import { Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { perfPoint, wellCurve, resTopY } from './geology';
 import type { StoryWell } from '../../data/geo/storyWells';
+import { Assembly, type Placement } from './kit/Assembly';
+import { buildRigStatic } from './facilities/rig';
+import { buildWorkoverStatic } from './facilities/workover';
 import { Bars, type BarSpec } from './Bars';
+
+/**
+ * Сборка ставится в начало координат: родительская группа уже смещена на
+ * устье скважины, и второе смещение увело бы установку с площадки.
+ */
+const ORIGIN: Placement[] = [{ x: 0, y: 0, z: 0 }];
 
 /**
  * Скважина как один компонент с разными исполнениями устья и заканчивания.
@@ -74,108 +83,61 @@ function PumpjackHead({ y }: { y: number }) {
   );
 }
 
-/** Буровая вышка: 41 м, талевый блок ходит, ротор вращается. */
+/**
+ * Буровая установка. Неподвижная часть — вышка, мостки со стеллажами,
+ * циркуляционная система, насосный блок — собрана в одну инстансированную
+ * сборку; здесь остаются только подвижные узлы.
+ *
+ * Талевый блок ходит вверх-вниз с периодом наращивания, ротор вращается.
+ */
 function DerrickHead({ y }: { y: number }) {
   const block = useRef<THREE.Mesh>(null);
   const rotor = useRef<THREE.Mesh>(null);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (block.current) block.current.position.y = 26 - 9 * (0.5 + 0.5 * Math.sin((t * Math.PI * 2) / 11));
+    if (block.current) {
+      block.current.position.y = 32 - 12 * (0.5 + 0.5 * Math.sin((t * Math.PI * 2) / 11));
+    }
     if (rotor.current) rotor.current.rotation.y = t * 2.2;
   });
 
-  const bars = useMemo<BarSpec[]>(() => {
-    const H = 41;
-    const b0 = 7;
-    const b1 = 1.9;
-    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-    const corner = (sx: number, sz: number, t: number) =>
-      new THREE.Vector3(lerp(b0 * sx, b1 * sx, t), H * t, lerp(b0 * sz, b1 * sz, t));
-    const S: [number, number][] = [
-      [1, 1],
-      [1, -1],
-      [-1, -1],
-      [-1, 1],
-    ];
-    const out: BarSpec[] = [];
-    for (const [sx, sz] of S) out.push([corner(sx, sz, 0), corner(sx, sz, 1), 0.42]);
-    const LV = 8;
-    for (let l = 1; l <= LV; l++) {
-      const t = l / LV;
-      for (let k = 0; k < 4; k++) {
-        const a = S[k];
-        const b = S[(k + 1) % 4];
-        out.push([corner(a[0], a[1], t), corner(b[0], b[1], t), 0.26]);
-        out.push([corner(a[0], a[1], (l - 1) / LV), corner(b[0], b[1], t), 0.2]);
-      }
-    }
-    return out;
-  }, []);
-
   return (
     <group position={[0, y, 0]}>
-      <Bars bars={bars} material={STEEL} />
-      <mesh position={[0, 42, 0]} castShadow>
-        <boxGeometry args={[4.6, 1.4, 4.6]} />
-        <meshStandardMaterial {...STEEL_DARK} />
-      </mesh>
-      <mesh position={[0, 1.6, 0]} castShadow>
-        <boxGeometry args={[18, 1.4, 15]} />
-        <meshStandardMaterial {...STEEL_DARK} />
-      </mesh>
-      <mesh ref={block} position={[0, 26, 0]} castShadow>
-        <boxGeometry args={[2.4, 4, 2.4]} />
+      <Assembly build={buildRigStatic} placements={ORIGIN} id="rig-static" />
+
+      <mesh ref={block} position={[0, 32, 0]} castShadow>
+        <boxGeometry args={[2.2, 3.6, 2.2]} />
         <meshStandardMaterial {...UNIT} />
       </mesh>
-      <mesh ref={rotor} position={[0, 2.8, 0]}>
-        <cylinderGeometry args={[2.6, 2.6, 0.9, 16]} />
+      <mesh ref={rotor} position={[0, 6.3, 0]}>
+        <cylinderGeometry args={[1.5, 1.5, 0.55, 16]} />
         <meshStandardMaterial {...UNIT} />
       </mesh>
     </group>
   );
 }
 
-/** Подъёмник ПРС с наклонной мачтой и датчиком ДЭЛ. */
+/**
+ * Агрегат ТКРС А-50 с выложенными НКТ. Подвижный узел один — талевый блок на
+ * мачте: при подъёме колонны он и ходит.
+ */
 function WorkoverHead({ y }: { y: number }) {
-  const bars = useMemo<BarSpec[]>(() => {
-    const top = new THREE.Vector3(-1.8, 22, 0);
-    const out: BarSpec[] = [
-      [new THREE.Vector3(2.4, 2.4, -1.5), top.clone().setZ(-0.6), 0.34],
-      [new THREE.Vector3(2.4, 2.4, 1.5), top.clone().setZ(0.6), 0.34],
-      [top, new THREE.Vector3(9, 1.2, -5.4), 0.14],
-      [top, new THREE.Vector3(9, 1.2, 5.4), 0.14],
-    ];
-    for (let l = 1; l < 5; l++) {
-      const t = l / 5;
-      out.push([
-        new THREE.Vector3(2.4 + (top.x - 2.4) * t, 2.4 + (top.y - 2.4) * t, -1.5 + 0.9 * t),
-        new THREE.Vector3(2.4 + (top.x - 2.4) * t, 2.4 + (top.y - 2.4) * t, 1.5 - 0.9 * t),
-        0.18,
-      ]);
-    }
-    return out;
-  }, []);
+  const block = useRef<THREE.Mesh>(null);
+
+  useFrame(({ clock }) => {
+    if (!block.current) return;
+    const k = 0.5 + 0.5 * Math.sin((clock.elapsedTime * Math.PI * 2) / 14);
+    // Ходит вдоль наклонной мачты, а не строго по вертикали.
+    block.current.position.set(-Math.sin(0.13) * (4 + 14 * k), 2.6 + Math.cos(0.13) * (4 + 14 * k), 0);
+  });
 
   return (
     <group position={[0, y, 0]}>
-      <mesh position={[6, 1.5, 0]} castShadow>
-        <boxGeometry args={[12, 2.1, 4.2]} />
-        <meshStandardMaterial {...STEEL_DARK} />
-      </mesh>
-      <mesh position={[11.4, 3.6, 0]} castShadow>
-        <boxGeometry args={[3.3, 2.7, 3.9]} />
+      <Assembly build={buildWorkoverStatic} placements={ORIGIN} id="workover-static" />
+      <mesh ref={block} castShadow>
+        <boxGeometry args={[0.9, 1.6, 1.1]} />
         <meshStandardMaterial {...UNIT} />
-      </mesh>
-      <Bars bars={bars} material={STEEL} />
-      {/* Датчик ДЭЛ — периметр пилота: 3 бригады ПРС, оснащённые ДЭЛ */}
-      <mesh position={[1.2, 7.8, -1.8]}>
-        <boxGeometry args={[1, 1.4, 0.9]} />
-        <meshStandardMaterial {...UNIT} />
-      </mesh>
-      <mesh position={[1.2, 8.8, -1.8]}>
-        <sphereGeometry args={[0.34, 6, 5]} />
-        <meshBasicMaterial color="#35d0c2" />
       </mesh>
     </group>
   );

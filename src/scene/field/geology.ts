@@ -89,29 +89,49 @@ export interface FieldStratum {
 }
 
 /**
- * Палитра разреза.
+ * Палитра и плотность разреза: ПОРОДА — СТЕКЛО, ФЛЮИД — ТЕЛО.
  *
- * Светлее прежней намеренно. Когда слои стали непрозрачными, выяснилось, что
- * они были рассчитаны на просвет: сквозь полупрозрачную толщу пробивался свет
- * соседних, и разрез читался за счёт этого. Плотные слои того же цвета слились
- * в тёмное пятно.
+ * Через две неудачи. Плотными слои сливались в тёмное пятно. Полупрозрачными
+ * поровну — в кашу: тридцать один цветной лист друг за другом складывается в
+ * муть, где не различить ни одного. Прозрачность вообще нельзя раздавать
+ * равномерно, потому что она копится вдоль луча зрения.
  *
- * Порода держится в серо-коричневой гамме и различается по светлоте, а
- * насыщенный цвет отдан только флюиду: янтарь — нефть, синий — вода. На разрезе
- * важно с одного взгляда видеть, где что залегает, а не любоваться оттенками
- * глин.
+ * Разница между слоями теперь не только в цвете, но и в плотности, и разложена
+ * она по смыслу. Порода — вмещающий массив, на неё смотреть незачем: приглушена
+ * до дымки, различается светлотой в серой гамме и пропускает сквозь себя
+ * стволы, насосы и перфорацию. Нефтенасыщенная часть коллектора — то, ради чего
+ * разрез и открывают: почти плотный янтарь, читается сквозь всю толщу.
+ * Водонасыщенная — посередине: видна, но не спорит с нефтью, и граница между
+ * ними остаётся тем самым водонефтяным контактом.
+ *
+ * Ровно из-за этого вдоль луча набирается два-три плотных листа вместо
+ * тридцати, и разрез читается с любого ракурса — и во вскрытом виде, и в
+ * сомкнутом блоке.
  */
 const COLOR = {
-  soil: '#7c7160',
-  overburden: '#655e52',
-  aquifer: '#3f6d92',
-  interburden: '#565a5f',
+  soil: '#8a7d68',
+  overburden: '#6f6a60',
+  aquifer: '#4b7ea6',
+  interburden: '#5e6166',
   /** Нефтенасыщенная часть коллектора. */
-  oil: '#c98529',
+  oil: '#e0912b',
   /** Водонасыщенная часть того же коллектора. */
-  water: '#3f6d92',
-  basement: '#2f3138',
+  water: '#4d6f8c',
+  basement: '#3a3d44',
 };
+
+/**
+ * Плотность слоя по тому, чем он насыщен.
+ *
+ * Нефть не доведена до полной: сквозь неё должна просвечивать перфорация и
+ * низ колонны — они лежат внутри коллектора, и работу подземного оборудования
+ * без них не показать. Плотнее всего остального, но не глухая.
+ */
+const OPACITY = {
+  rock: 0.2,
+  water: 0.45,
+  oil: 0.85,
+} as const;
 
 const SUITE_LABEL: Record<Horizon['suite'], string> = {
   aquifer: 'водоносный',
@@ -144,7 +164,7 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
     top: ySoilTop,
     bot: (x, z) => Math.min(ySoilTop(x, z) - 6, absToSceneY(-24)),
     color: COLOR.soil,
-    opacity: 1,
+    opacity: OPACITY.rock,
     phase: 'rock',
     order: order++,
   });
@@ -156,7 +176,7 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
     top: (x, z) => Math.min(ySoilTop(x, z) - 6, absToSceneY(-24)),
     bot: topOf(first),
     color: COLOR.overburden,
-    opacity: 1,
+    opacity: OPACITY.rock,
     phase: 'rock',
     order: order++,
   });
@@ -172,7 +192,7 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
         top: topOf(h),
         bot: botOf(h),
         color: COLOR.aquifer,
-        opacity: 1,
+        opacity: OPACITY.water,
         horizon: h,
         phase: 'water',
         order: step,
@@ -207,7 +227,7 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
             ? owc
             : Math.min(Math.max(horizonBotY(h, x, z), owc), Math.max(horizonTopY(h, x, z), owc)),
         color: COLOR.oil,
-        opacity: 1,
+        opacity: OPACITY.oil,
         horizon: h,
         phase: 'oil',
         order: step,
@@ -220,7 +240,7 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
         top: (x, z) => Math.min(horizonTopY(h, x, z), owc),
         bot: botOf(h),
         color: COLOR.water,
-        opacity: 1,
+        opacity: OPACITY.water,
         horizon: h,
         phase: 'water',
         order: step,
@@ -235,7 +255,7 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
         top: botOf(h),
         bot: topOf(next),
         color: COLOR.interburden,
-        opacity: 1,
+        opacity: OPACITY.rock,
         phase: 'rock',
         order: order++,
       });
@@ -250,7 +270,7 @@ export const FIELD_STRATA: FieldStratum[] = (() => {
     top: botOf(last),
     bot: () => absToSceneY(SECTION_BASE_ABS),
     color: COLOR.basement,
-    opacity: 1,
+    opacity: OPACITY.rock,
     phase: 'rock',
     order: order++,
   });

@@ -259,7 +259,7 @@ export function selectStoryWells(data: FieldDataset): StorySelection {
    * Скважины под них ищутся в реестре по тем же правилам, что и остальные, —
    * нефтяная, в работе, вертикальная, — только рядом со СВОИМ кустом.
    */
-  const satelliteHubs = spreadHubs(data, hub, 20);
+  const satelliteHubs = spreadHubs(data, hub, 12);
 
   for (const h of satelliteHubs.slice(0, 2)) {
     const w = pickNearest(

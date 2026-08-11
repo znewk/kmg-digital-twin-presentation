@@ -30,15 +30,36 @@ export function FullScreenPanel({
   sheet?: boolean;
   children: ReactNode;
 }) {
+  /**
+   * Ограничения по высоте — в процентах от слоя, а не в `vh`.
+   *
+   * Слой интерфейса масштабируется под размер экрана, а `vh` внутри него
+   * продолжает считаться от немасштабированного окна: коробка в 56vh при
+   * двукратном увеличении вышла бы высотой в 112% экрана. Слой занимает ровно
+   * экран, поэтому процент от него честно означает долю экрана при любом
+   * масштабе.
+   */
   const box = sheet
-    ? 'inset-x-10 bottom-24 max-h-[56vh]'
+    ? 'right-10 bottom-24 max-h-[56%]'
     : fit
-      ? 'inset-x-16 top-1/2 max-h-[62vh] -translate-y-1/2'
+      ? 'right-16 top-1/2 max-h-[62%] -translate-y-1/2'
       // Нижняя граница подобрана под компактную строку титров (bottom-12,
       // высота ~3rem): панель кончается ровно над ней, а не за полэкрана до.
-      : 'inset-x-12 top-16 bottom-28';
+      : 'right-12 top-16 bottom-28';
+
+  /**
+   * Левый край отдан переменной. В разборе модуля слева стоит панель раздела, и
+   * полноэкранная панель заезжала под неё: мнемосхема оказывалась наполовину
+   * закрыта, и на экране не было видно ни схемы, ни сцены. Раздел выставляет
+   * отступ, все остальные режимы работают по умолчанию.
+   */
   return (
-    <div className={`panel pointer-events-auto absolute overflow-hidden p-6 ${box}`}>{children}</div>
+    <div
+      className={`panel pointer-events-auto absolute overflow-hidden p-6 ${box}`}
+      style={{ left: `var(--stage-left, ${sheet ? '2.5rem' : fit ? '4rem' : '3rem'})` }}
+    >
+      {children}
+    </div>
   );
 }
 

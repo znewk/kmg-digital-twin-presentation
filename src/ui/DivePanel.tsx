@@ -56,6 +56,23 @@ export function DivePanel() {
    * что и кадр цикла: состояние задаётся целиком по текущему шагу, чтобы
    * возврат назад не оставлял гореть слои предыдущего.
    */
+  /**
+   * Место под панель раздела резервируется для полноэкранных панелей модулей.
+   *
+   * Мнемосхема, карта объектов и модель данных занимают весь кадр и заезжали
+   * под панель раздела: на экране не оставалось ни схемы, ни сцены. Отступ
+   * ставится переменной на корне, а не пробросом пропа: полноэкранные панели
+   * рисуются из общего реестра, и знать про раздел им незачем.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    if (dive) root.style.setProperty('--stage-left', '25.5rem');
+    else root.style.removeProperty('--stage-left');
+    return () => {
+      root.style.removeProperty('--stage-left');
+    };
+  }, [dive]);
+
   useEffect(() => {
     if (!step) return;
     const want = step.setup ?? {};
@@ -94,7 +111,13 @@ export function DivePanel() {
     <>
       {Panel && <Panel />}
 
-      <div className="pointer-events-auto absolute top-24 left-8 flex w-[22rem] flex-col gap-3 rounded border border-[var(--color-line)] bg-[var(--color-bg-panel)]/94 px-4 py-3.5 backdrop-blur">
+      {/*
+        Высота ограничена долей слоя, а не содержимым: досье у разных модулей
+        разной длины, и без ограничения панель уходила за низ экрана вместе с
+        кнопками перехода по шагам. Прокручивается только досье — заголовок,
+        текст шага и навигация остаются на месте.
+      */}
+      <div className="pointer-events-auto absolute top-24 bottom-10 left-8 flex w-[22rem] flex-col gap-3 rounded border border-[var(--color-line)] bg-[var(--color-bg-panel)]/94 px-4 py-3.5 backdrop-blur">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-baseline gap-2">
@@ -169,7 +192,7 @@ export function DivePanel() {
           подставить докладчика под первый же вопрос профильной аудитории.
         */}
         {dossier && (
-          <div className="max-h-[42vh] overflow-y-auto border-t border-[var(--color-line)] pt-3">
+          <div className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--color-line)] pt-3">
             <p className="text-[0.72rem] leading-relaxed">{dossier.purpose}</p>
 
             <DossierList title="Получает" items={dossier.inputs} />

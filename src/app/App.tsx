@@ -10,6 +10,7 @@ import { PanelLayer } from '../ui/panels';
 import { CyclePanel } from '../ui/CyclePanel';
 import { DivePanel } from '../ui/DivePanel';
 import { useKeyboard } from '../hooks/useKeyboard';
+import { useUiScale } from '../hooks/useUiScale';
 import { useShow } from '../store/useShow';
 
 /**
@@ -21,6 +22,7 @@ const CYCLE_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'prod
 
 export function App() {
   useKeyboard();
+  useUiScale();
   const stageId = useShow((s) => s.stageId);
   const dive = useShow((s) => s.dive);
 
@@ -28,8 +30,18 @@ export function App() {
     <>
       <Stage />
 
-      {/* Слой интерфейса поверх канваса. pointer-events включаются точечно. */}
-      <div className="pointer-events-none fixed inset-0 z-10">
+      {/*
+        Слой интерфейса поверх канваса. pointer-events включаются точечно.
+
+        Масштабируется целиком под размер экрана: показ идёт не на том мониторе,
+        на котором собирали, и на экране зала пиксельная вёрстка осталась бы
+        такой же по числу пикселей. Сцена при этом не масштабируется — она и так
+        рисуется в разрешении окна.
+      */}
+      <div
+        className="pointer-events-none fixed inset-0 z-10"
+        style={{ zoom: 'var(--ui-scale, 1)' }}
+      >
         <HeroOverlay />
         <PanelLayer />
 

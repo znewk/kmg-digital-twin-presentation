@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import {
+  absToSceneY,
   makeTerrainSampler,
   toSceneX,
   toSceneZ,
@@ -35,6 +36,40 @@ export function useTerrainReady(): FieldDataset {
   return data;
 }
 
+/**
+ * Гипсометрическая шкала: от низин к возвышенностям.
+ *
+ * Рельеф участка — 64,2…104,9 м, то есть сорок метров перепада на пять
+ * километров. При мягком освещении это почти не даёт светотени, и поверхность
+ * читается однотонной плитой: сам рельеф есть, но увидеть его нельзя.
+ *
+ * Раскраска по высоте — приём топографической карты, и он решает задачу без
+ * вранья: цвет прямо соответствует отметке. Ход от прохладного серо-синего
+ * в понижениях к тёплому песчаному на гривах — так же, как выглядит степь,
+ * где на возвышенностях выдувается песок, а в понижениях держится суглинок.
+ * Насыщенность низкая: рельеф должен читаться, но не спорить с оборудованием.
+ */
+const HYPSO: [number, string][] = [
+  [0, '#42556a'],
+  [0.32, '#516272'],
+  [0.58, '#646d6b'],
+  [0.8, '#77755f'],
+  [1, '#8a8064'],
+];
+
+function hypsoColor(t: number, out: THREE.Color): THREE.Color {
+  const k = Math.min(1, Math.max(0, t));
+  for (let i = 1; i < HYPSO.length; i++) {
+    if (k <= HYPSO[i][0]) {
+      const [t0, c0] = HYPSO[i - 1];
+      const [t1, c1] = HYPSO[i];
+      const f = (k - t0) / (t1 - t0);
+      return out.set(c0).lerp(new THREE.Color(c1), f);
+    }
+  }
+  return out.set(HYPSO[HYPSO.length - 1][1]);
+}
+
 export function RealTerrain() {
   const data = useTerrainReady();
 
@@ -42,11 +77,34 @@ export function RealTerrain() {
     const sample = makeTerrainSampler(data.terrain);
     const g = new THREE.PlaneGeometry(FIELD_W, FIELD_H, SEG_X, SEG_Z);
     g.rotateX(-Math.PI / 2);
+
     const p = g.attributes.position;
     for (let i = 0; i < p.count; i++) {
       p.setY(i, sample(p.getX(i), p.getZ(i)));
     }
     g.computeVertexNormals();
+
+    // Цвет вершины по её отметке плюс притемнение на склонах: крутизна сама
+    // по себе информативна — по ней читаются бровки и промоины, которых на
+    // ровной заливке не видно вовсе.
+    const { zmin, zmax } = data.terrain;
+    const yMin = absToSceneY(zmin);
+    const yMax = absToSceneY(zmax);
+    const n = g.attributes.normal;
+    const colors = new Float32Array(p.count * 3);
+    const c = new THREE.Color();
+
+    for (let i = 0; i < p.count; i++) {
+      hypsoColor((p.getY(i) - yMin) / (yMax - yMin), c);
+      // n.y = 1 на горизонтальной площадке, меньше — на склоне.
+      const slope = 1 - Math.min(1, Math.max(0, n.getY(i)));
+      c.multiplyScalar(1 - slope * 1.6);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+
+    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     return g;
   }, [data]);
 
@@ -64,7 +122,10 @@ export function RealTerrain() {
   return (
     <mesh geometry={geometry} receiveShadow={!utilities} userData={{ id: 's-terrain' }}>
       <meshStandardMaterial
-        color={utilities ? '#3f5164' : '#55697e'}
+        // В режиме коммуникаций гипсометрия гасится: там смотрят на подземное
+        // хозяйство, и пёстрая поверхность поверх него только мешает.
+        vertexColors={!utilities}
+        color={utilities ? '#3f5164' : '#ffffff'}
         roughness={0.97}
         metalness={0}
         transparent={utilities}
@@ -102,8 +163,14 @@ export function TerrainContours() {
   }, [data]);
 
   return (
-    <lineSegments geometry={geometry}>
-      <lineBasicMaterial color="#6f8aa6" transparent opacity={0.22} depthWrite={false} />
+    <lineSegments geometry={geometry} userData={{ id: 's-contours' }}>
+      {/*
+        Горизонтали — 255 линий из чертежа, настоящие. При прежней
+        непрозрачности 0,22 они терялись на заливке, и рельеф читался только по
+        контуру блока. Вместе с гипсометрической раскраской они дают
+        поверхности форму: цвет показывает высоту, изолинии — её изменение.
+      */}
+      <lineBasicMaterial color="#96afc6" transparent opacity={0.42} depthWrite={false} />
     </lineSegments>
   );
 }

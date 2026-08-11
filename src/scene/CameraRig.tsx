@@ -1,15 +1,21 @@
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { progressRef } from '../store/useShow';
+import { progressRef, useShow } from '../store/useShow';
 import { CAMS, FLAT_BEATS, TOTAL_BEATS } from '../data/stages';
+import { focusFrameFor } from './focus';
 
 /**
- * Камера как чистая функция прогресса скролла.
+ * Камера как чистая функция прогресса скролла — плюс приоритетный режим
+ * прицельного наведения на выбранный объект (ТЗ §8.3).
  *
- * Перелёт занимает первые 45% такта, дальше кадр стоит — зрителю нужно время
- * прочитать панель, а не догонять глазами едущую камеру. Ни одного твина с
- * собственным состоянием: только так скролл вверх честно отыгрывает обратно.
+ * Перелёт по таймлайну занимает первые 45% такта, дальше кадр стоит: зрителю
+ * нужно время прочитать панель, а не догонять глазами едущую камеру. Ни одного
+ * твина с собственным состоянием — только так скролл вверх честно отыгрывает
+ * обратно.
+ *
+ * Когда объект выбран, кадр вычисляется под него и камера уходит туда,
+ * игнорируя таймлайн. Возврат — тем же плавным смешиванием.
  */
 
 const TRANSIT = 0.45;
@@ -22,21 +28,28 @@ const _pos = new THREE.Vector3();
 const _tgtFrom = new THREE.Vector3();
 const _tgtTo = new THREE.Vector3();
 const _tgt = new THREE.Vector3();
+const _focusPos = new THREE.Vector3();
+const _focusTgt = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
 
 interface Props {
-  /** Цель орбиты, если пользователь встал на паузу и крутит сцену сам. */
   enabled?: boolean;
 }
 
 export function CameraRig({ enabled = true }: Props) {
-  const { camera } = useThree();
+  const { camera, size } = useThree();
+  const selected = useShow((s) => s.selected);
+
   const smoothed = useRef(new THREE.Vector3());
   const smoothedTarget = useRef(new THREE.Vector3());
   const inited = useRef(false);
+  /** Доля наведения на объект: 0 — таймлайн, 1 — объект. */
+  const focusBlend = useRef(0);
 
   useFrame((_, dt) => {
     if (!enabled) return;
 
+    // ── Кадр по таймлайну ────────────────────────────────────────────────
     const p = THREE.MathUtils.clamp(progressRef.current, 0, 0.999999);
     const raw = p * TOTAL_BEATS;
     const i = Math.min(TOTAL_BEATS - 1, Math.floor(raw));
@@ -56,8 +69,28 @@ export function CameraRig({ enabled = true }: Props) {
 
     // Медленный дрейф после прилёта: кадр остаётся живым, но не мешает читать.
     const hold = THREE.MathUtils.clamp((t - TRANSIT) / (1 - TRANSIT), 0, 1);
-    const drift = Math.sin(hold * Math.PI) * 0.02;
-    _pos.applyAxisAngle(new THREE.Vector3(0, 1, 0), drift);
+    _pos.applyAxisAngle(_up, Math.sin(hold * Math.PI) * 0.02);
+
+    // ── Прицельное наведение на объект ───────────────────────────────────
+    const perspective = camera as THREE.PerspectiveCamera;
+    const frame = selected
+      ? focusFrameFor(selected, perspective.fov ?? 38, size.width / size.height)
+      : null;
+
+    const wanted = frame ? 1 : 0;
+    focusBlend.current += (wanted - focusBlend.current) * (1 - Math.exp(-dt * 3.2));
+
+    if (frame) {
+      _focusPos.set(frame.p[0], frame.p[1], frame.p[2]);
+      _focusTgt.set(frame.t[0], frame.t[1], frame.t[2]);
+      _pos.lerp(_focusPos, focusBlend.current);
+      _tgt.lerp(_focusTgt, focusBlend.current);
+    } else if (focusBlend.current > 0.001) {
+      // Возврат: пока смешивание не догасло, продолжаем тянуть от объекта.
+      // Отдельная ветка нужна, иначе камера прыгает в кадр таймлайна рывком.
+      _pos.lerp(_focusPos, focusBlend.current);
+      _tgt.lerp(_focusTgt, focusBlend.current);
+    }
 
     if (!inited.current) {
       smoothed.current.copy(_pos);
@@ -73,6 +106,19 @@ export function CameraRig({ enabled = true }: Props) {
 
     camera.position.copy(smoothed.current);
     camera.lookAt(smoothedTarget.current);
+
+    if (import.meta.env.DEV) {
+      (globalThis as unknown as { __cam: unknown }).__cam = {
+        px: smoothed.current.x,
+        py: smoothed.current.y,
+        pz: smoothed.current.z,
+        tx: smoothedTarget.current.x,
+        ty: smoothedTarget.current.y,
+        tz: smoothedTarget.current.z,
+        blend: focusBlend.current,
+        fov: perspective.fov,
+      };
+    }
   });
 
   return null;

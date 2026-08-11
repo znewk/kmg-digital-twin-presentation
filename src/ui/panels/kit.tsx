@@ -20,10 +20,23 @@ import type { ReactNode } from 'react';
  * цепочки UPSTREAM занимают треть высоты, и растянутая на весь кадр рама
  * оставляет под ними мёртвое поле.
  */
-export function FullScreenPanel({ fit = false, children }: { fit?: boolean; children: ReactNode }) {
-  const box = fit
-    ? 'inset-x-16 top-1/2 max-h-[62vh] -translate-y-1/2'
-    : 'inset-x-16 top-20 bottom-52';
+export function FullScreenPanel({
+  fit = false,
+  sheet = false,
+  children,
+}: {
+  fit?: boolean;
+  /** Нижняя полка: занимает низ кадра, оставляя верх сцене (глобус, поле). */
+  sheet?: boolean;
+  children: ReactNode;
+}) {
+  const box = sheet
+    ? 'inset-x-10 bottom-24 max-h-[56vh]'
+    : fit
+      ? 'inset-x-16 top-1/2 max-h-[62vh] -translate-y-1/2'
+      // Нижняя граница подобрана под компактную строку титров (bottom-12,
+      // высота ~3rem): панель кончается ровно над ней, а не за полэкрана до.
+      : 'inset-x-12 top-16 bottom-28';
   return (
     <div className={`panel pointer-events-auto absolute overflow-hidden p-6 ${box}`}>{children}</div>
   );

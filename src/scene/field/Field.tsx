@@ -3,6 +3,7 @@ import { perfPoint, surfY, WELLS } from './geology';
 import { DrainageZones, EarthLayers, TopIsolines } from './EarthLayers';
 import { Well } from './Well';
 import { SurfaceFacilities } from './Surface';
+import { Interactive } from './Interactive';
 import { useShow } from '../../store/useShow';
 
 /**
@@ -59,7 +60,9 @@ export function Field({ shadows }: { shadows: boolean }) {
       <DrainageZones points={drainage} />
       <SurfaceFacilities />
       {WELLS.map((w) => (
-        <Well key={w.id} spec={w} groundY={surfY(w.x, w.z)} />
+        <Interactive key={w.id} id={w.id}>
+          <Well spec={w} groundY={surfY(w.x, w.z)} />
+        </Interactive>
       ))}
     </group>
   );

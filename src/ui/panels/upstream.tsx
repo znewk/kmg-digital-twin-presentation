@@ -14,10 +14,12 @@ export function ArchitecturePanel() {
   const t = usePanelProgress();
   const naming = useShow((s) => s.naming);
 
+  // Нижняя полка, а не полный экран: этап идёт поверх глобуса, и планета
+  // должна остаться в кадре — иначе гео-последовательность теряет смысл.
   return (
-    <FullScreen>
-      <div className="flex h-full flex-col gap-4">
-        <div className="shrink-0 border-b border-[var(--color-line)] pb-3">
+    <FullScreen sheet>
+      <div className="flex h-full flex-col gap-3">
+        <div className="shrink-0 border-b border-[var(--color-line)] pb-2">
           <div className="kicker text-[var(--color-nedra)]">
             Единый ЦД Актива · сквозная аналитика, интеграции и AI-агенты на единой платформе
           </div>
@@ -110,8 +112,8 @@ export function UpstreamChainPanel() {
   const t = usePanelProgress();
 
   return (
-    <FullScreen fit>
-      <div className="flex h-full flex-col justify-center gap-8">
+    <FullScreen sheet>
+      <div className="flex flex-col gap-5">
         <div className="kicker">Цепочка создания ценности UPSTREAM</div>
 
         <div className="flex items-stretch gap-2">
@@ -170,15 +172,29 @@ export function ItPatchworkPanel() {
   let seen = 0;
 
   return (
-    <FullScreen fit>
-      <div className="flex flex-col gap-4">
-        <div className="shrink-0">
-          <div className="kicker text-[var(--color-risk)]">
-            Инженерный ИТ-ландшафт цепочки КЦ — КМГИ — ЭМГ сегодня
+    <FullScreen sheet>
+      <div className="flex flex-col gap-3">
+        {/* Цифры проблематики вынесены в шапку: в нижней полке вертикали в
+            обрез, и отдельной строкой внизу они срезались краем кадра. */}
+        <div className="flex shrink-0 items-end gap-8 border-b border-[var(--color-line)] pb-2">
+          <div>
+            <div className="kicker text-[var(--color-risk)]">
+              Инженерный ИТ-ландшафт цепочки КЦ — КМГИ — ЭМГ сегодня
+            </div>
+            <div className="mt-1 text-[0.75rem] text-[var(--color-txt-dim)]">
+              {total} систем на пять этапов. Единого интеграционного слоя нет, обмен идёт через
+              Outlook и Excel.
+            </div>
           </div>
-          <div className="mt-1 text-[0.75rem] text-[var(--color-txt-dim)]">
-            {total} систем на пять этапов. Единого интеграционного слоя нет, обмен идёт через
-            Outlook и Excel.
+          <div className="ml-auto flex gap-6">
+            {LANDSCAPE_FACTS.map((f) => (
+              <div key={f.label} className="flex items-baseline gap-2">
+                <span className="font-mono text-[1.25rem] text-[var(--color-risk)]">{f.value}</span>
+                <span className="max-w-44 text-[0.58rem] leading-tight text-[var(--color-txt-dim)]">
+                  {f.label}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -211,16 +227,6 @@ export function ItPatchworkPanel() {
           ))}
         </div>
 
-        <div className="flex shrink-0 gap-8 border-t border-[var(--color-line)] pt-3">
-          {LANDSCAPE_FACTS.map((f) => (
-            <div key={f.label} className="flex items-baseline gap-2">
-              <span className="font-mono text-[1.3rem] text-[var(--color-risk)]">{f.value}</span>
-              <span className="max-w-56 text-[0.6rem] leading-tight text-[var(--color-txt-dim)]">
-                {f.label}
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
     </FullScreen>
   );

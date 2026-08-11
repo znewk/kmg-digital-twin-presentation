@@ -271,13 +271,19 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
 
   return (
     <group userData={{ id: spec.id }}>
-      {/* Цементное кольцо → обсадная колонна → НКТ */}
+      {/* Цементное кольцо → обсадная колонна → НКТ.
+          Диаметры умеренно преувеличены: настоящая обсадная — 168–245 мм, на
+          промысле в полтора километра это тоньше пикселя. Прототип задавал
+          радиус 11 м, то есть ствол шириной с пятиэтажку, — при клике по
+          скважине (§8.3) камера подходит на тридцать метров и это разрушало
+          кадр. Здесь ~4 м на цементное кольцо: линия видна на разрезе и не
+          выглядит тоннелем вблизи. */}
       <mesh>
-        <tubeGeometry args={[curve, 48, 11, 8, false]} />
+        <tubeGeometry args={[curve, 48, 2, 8, false]} />
         <meshStandardMaterial color="#c9c2b2" roughness={0.8} transparent opacity={0.16} depthWrite={false} />
       </mesh>
       <mesh>
-        <tubeGeometry args={[curve, 48, 8.5, 8, false]} />
+        <tubeGeometry args={[curve, 48, 1.5, 8, false]} />
         <meshStandardMaterial
           color="#9aa7b8"
           metalness={0.7}
@@ -288,7 +294,7 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
         />
       </mesh>
       <mesh>
-        <tubeGeometry args={[curve, 48, 4.2, 7, false]} />
+        <tubeGeometry args={[curve, 48, 0.8, 7, false]} />
         <meshStandardMaterial color="#c8d2e0" metalness={0.7} roughness={0.3} />
       </mesh>
 
@@ -317,13 +323,14 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
       )}
 
       {/* ГНО */}
+      {/* ГНО: реальный ЭЦН — около 100 мм в диаметре и 10–20 м длиной. */}
       {(spec.kind === 'skn' || spec.kind === 'esp') && (
         <mesh position={curve.getPointAt(0.74)}>
-          <cylinderGeometry args={[9, 9, 60, 12]} />
+          <cylinderGeometry args={[1.4, 1.4, 16, 12]} />
           <meshStandardMaterial
             color="#35d0c2"
             emissive="#1e8a80"
-            emissiveIntensity={0.3}
+            emissiveIntensity={0.4}
             metalness={0.6}
             roughness={0.35}
           />
@@ -334,7 +341,7 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
         <group ref={cones}>
           {[0, 1, 2].map((q) => (
             <mesh key={q} rotation={[Math.PI, 0, 0]}>
-              <coneGeometry args={[6, 16, 8]} />
+              <coneGeometry args={[1.6, 5, 8]} />
               <meshBasicMaterial
                 color="#5fa8e8"
                 transparent
@@ -350,7 +357,7 @@ export function Well({ spec, groundY }: { spec: WellSpec; groundY: number }) {
       {/* Долото на забое бурящейся */}
       {spec.kind === 'drill' && (
         <mesh position={curve.getPointAt(0.995)} rotation={[Math.PI, 0, 0]}>
-          <coneGeometry args={[10, 20, 10]} />
+          <coneGeometry args={[1.4, 4, 10]} />
           <meshStandardMaterial
             color="#b8c4d4"
             metalness={0.8}

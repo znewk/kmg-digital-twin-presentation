@@ -1,6 +1,12 @@
 node_modules/
 dist/
+
+# Служебное: инструменты разработки и контрольные скриншоты — в репозитории
+# им делать нечего, весят много и меняются каждый прогон.
 .tools/
+.shots/
 data/_extract/
+tsconfig.tsbuildinfo
+
 *.local
 .DS_Store

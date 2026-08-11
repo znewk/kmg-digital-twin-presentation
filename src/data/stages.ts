@@ -9,11 +9,21 @@
 
 import type { ModuleId } from './modules';
 import type { T } from '../i18n';
+import { lonLatToVec3, orbitAbove, ATYRAU, GLOBE_R, KZ_CENTER, MOLDABEK } from '../scene/geo/projection';
+
+/** Точка на поверхности глобуса — цель камеры на гео-этапах. */
+const surfaceAt = (lon: number, lat: number): [number, number, number] => {
+  const v = lonLatToVec3(lon, lat, GLOBE_R);
+  return [v.x, v.y, v.z];
+};
 
 export type StageId =
   | 'hero'
-  | 'intro'
-  | 'upstream'
+  | 'globe'
+  | 'kazakhstan'
+  | 'atyrau'
+  | 'descend'
+  | 'fieldmap'
   | 'objectmap'
   | 'reservoir'
   | 'surface'
@@ -33,6 +43,20 @@ export interface CamKey {
 
 export const CAMS = {
   hero: { p: [0, 22, 118], t: [0, -5, 0] },
+
+  /**
+   * Гео-последовательность (§3.1). Ракурсы вычисляются от географических
+   * координат, а не подбираются на глаз: иначе камера смотрит мимо страны и
+   * это заметно на первом же прогоне. Всё на одной сфере, поэтому подлёт от
+   * планеты к площадке непрерывен.
+   */
+  // Высоты подобраны так, чтобы объект этапа целиком помещался в кадр 16:9:
+  // планета целиком, затем страна, затем область, затем подлёт к площадке.
+  globeReveal: { p: orbitAbove(...KZ_CENTER, 4.6), t: [0, 0, 0] },
+  globe: { p: orbitAbove(...KZ_CENTER, 3.4), t: [0, 0, 0] },
+  kazakhstan: { p: orbitAbove(...KZ_CENTER, 1.8), t: surfaceAt(...KZ_CENTER) },
+  atyrau: { p: orbitAbove(...ATYRAU, 1.24), t: surfaceAt(...ATYRAU) },
+  descend: { p: orbitAbove(...MOLDABEK, 1.045), t: surfaceAt(...MOLDABEK) },
   overview: { p: [1150, 760, 1250], t: [0, -220, 0] },
   top: { p: [10, 1560, 30], t: [0, -200, 0] },
   section: { p: [1520, 180, 1760], t: [0, -420, 0] },
@@ -74,6 +98,7 @@ export type PanelId =
   | 'architecture'
   | 'upstream-chain'
   | 'it-patchwork'
+  | 'field-map-2d'
   | 'tnavigator'
   | 'numex'
   | 'numex-optimize'
@@ -120,9 +145,11 @@ export const STAGES: Stage[] = [
     beats: [{ id: 'hero', cam: 'hero', title: { ru: '', kk: '' } }],
   },
 
-  // ── 1 ── Блок 1 сценария ───────────────────────────────────────────────────
+  // ── Гео-последовательность (§3.1). Несёт блоки 1–2 сценария оверлеями:
+  //    визуальный носитель меняется, четыре минуты речи остаются на месте.
+
   {
-    id: 'intro',
+    id: 'globe',
     scenarioBlock: 1,
     speaker: { ru: 'Председатель правления КМГ' },
     minutes: 2,
@@ -134,8 +161,18 @@ export const STAGES: Stage[] = [
     twin: null,
     beats: [
       {
+        // Планета без интерфейса: даём кадру состояться прежде, чем на него
+        // ляжет плотная схема на четыре колонки.
+        id: 'planet',
+        cam: 'globeReveal',
+        title: { ru: 'Цифровой двойник актива КазМунайГаз' },
+        body: {
+          ru: 'Развитие ИС ABAI модулями, разработанными внутри КМГ, и донасыщение отсутствующими модулями.',
+        },
+      },
+      {
         id: 'target-view',
-        cam: 'overview',
+        cam: 'globe',
         panel: 'architecture',
         title: { ru: 'Из чего строится цифровой двойник актива' },
         body: {
@@ -145,31 +182,66 @@ export const STAGES: Stage[] = [
     ],
   },
 
-  // ── 2 ── Блок 2, вариант 1 ─────────────────────────────────────────────────
   {
-    id: 'upstream',
+    id: 'kazakhstan',
+    scenarioBlock: 1,
+    minutes: 1,
+    chapter: { ru: 'Периметр программы', kk: 'Бағдарлама периметрі' },
+    title: { ru: 'Казахстан', kk: 'Қазақстан' },
+    lead: {
+      ru: 'В 2027 году — цифровые двойники на ТОП-12 месторождений КМГ. В 2028 — цифровизация 100% добывающих активов.',
+    },
+    twin: null,
+    beats: [
+      {
+        id: 'country',
+        cam: 'kazakhstan',
+        title: { ru: 'Программа охватывает 12 приоритетных активов и 7 ДЗО' },
+        body: {
+          ru: 'Пилот отрабатывается на одном месторождении, чтобы затем тиражироваться из единого центра компетенций без переделки архитектуры.',
+        },
+      },
+    ],
+  },
+
+  {
+    id: 'atyrau',
     scenarioBlock: 2,
     speaker: { ru: 'Председатель правления КМГ' },
-    minutes: 2,
+    minutes: 1,
     chapter: { ru: 'Процесс UPSTREAM', kk: 'UPSTREAM үдерісі' },
-    title: { ru: 'Цепочка создания ценности', kk: 'Құндылық құру тізбегі' },
+    title: { ru: 'Атырауская область', kk: 'Атырау облысы' },
     lead: {
       ru: 'Внедрение ЦД ведётся от процессов: все этапы UPSTREAM нужно связать в единый процесс с передачей данных от этапа к этапу.',
     },
     twin: null,
     beats: [
       {
-        id: 'chain',
-        cam: 'overview',
+        id: 'callout',
+        cam: 'atyrau',
         panel: 'upstream-chain',
         title: { ru: 'Пять этапов, один процесс' },
         body: {
           ru: 'Геология и геологоразведка → Разработка месторождений → Бурение и ВСР → Добыча ← КС и наземная инфраструктура.',
         },
       },
+    ],
+  },
+
+  {
+    id: 'descend',
+    scenarioBlock: 2,
+    minutes: 1,
+    chapter: { ru: 'Проблематика', kk: 'Проблематика' },
+    title: { ru: 'Молдабек Восточный', kk: 'Шығыс Молдабек' },
+    lead: {
+      ru: 'Эмбамунайгаз, НГДУ «Кайнармунайгаз». Пилотный актив программы цифрового двойника.',
+    },
+    twin: null,
+    beats: [
       {
-        id: 'patchwork',
-        cam: 'overview',
+        id: 'approach',
+        cam: 'descend',
         panel: 'it-patchwork',
         title: { ru: 'Что происходит с данными сегодня' },
         body: {
@@ -179,7 +251,32 @@ export const STAGES: Stage[] = [
     ],
   },
 
-  // ── 3 ── Блок 2, вариант 2 ─────────────────────────────────────────────────
+  // ── Шаг 5 гео-последовательности: плоская карта объектов ───────────────────
+  {
+    id: 'fieldmap',
+    scenarioBlock: 2,
+    speaker: { ru: 'Председатель правления КМГ' },
+    minutes: 1,
+    chapter: { ru: 'Карта объектов', kk: 'Нысандар картасы' },
+    title: { ru: 'Объекты месторождения', kk: 'Кен орнының нысандары' },
+    lead: {
+      ru: 'Чтобы создать цифровые копии реальных объектов, нужно оцифровать всю цепочку «промысел — ЭМГ — КМГИ — КЦ».',
+    },
+    twin: null,
+    beats: [
+      {
+        id: 'map2d',
+        cam: 'descend',
+        panel: 'field-map-2d',
+        title: { ru: 'Нефтяной фонд → МФНС → СП → напорный нефтепровод → ЦППН' },
+        body: {
+          ru: 'Скважина ППД → КНС. БРХ, ВЛ, ПС. У каждого объекта свои показатели и свой набор модулей — объекты кликабельны уже здесь.',
+        },
+      },
+    ],
+  },
+
+  // ── Шаг 6: падение в полную 3D-модель ──────────────────────────────────────
   {
     id: 'objectmap',
     scenarioBlock: 2,

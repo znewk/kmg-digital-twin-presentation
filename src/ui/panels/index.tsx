@@ -16,6 +16,7 @@ import {
 } from './kit';
 import { NUMEX_RESERVOIR, OPTIMIZE_RUN, PIPE, POTENTIAL, RTM_PARAMS, WWO_ROWS, NDP_SOURCES } from '../../data/panelData';
 import { ArchitecturePanel, ItPatchworkPanel, UpstreamChainPanel } from './upstream';
+import { FieldMap2DPanel } from './FieldMap2D';
 import {
   AssetTwinPanel,
   EffectsPanel,
@@ -339,6 +340,7 @@ const REGISTRY: Partial<Record<PanelId, () => React.ReactElement>> = {
   architecture: ArchitecturePanel,
   'upstream-chain': UpstreamChainPanel,
   'it-patchwork': ItPatchworkPanel,
+  'field-map-2d': FieldMap2DPanel,
   tnavigator: TNavigatorPanel,
   numex: NumexPanel,
   'numex-optimize': NumexOptimizePanel,

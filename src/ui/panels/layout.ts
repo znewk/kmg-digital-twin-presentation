@@ -11,6 +11,7 @@ const FULL: PanelId[] = [
   'architecture',
   'upstream-chain',
   'it-patchwork',
+  'field-map-2d',
   'mnemoscheme',
   'ndp-model',
   'ndp-map',

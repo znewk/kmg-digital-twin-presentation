@@ -21,6 +21,7 @@ export function StageCaption() {
   const beatIndex = useShow((s) => s.beatIndex);
   const lang = useShow((s) => s.lang);
   const debug = useShow((s) => s.debug);
+  const selected = useShow((s) => s.selected);
 
   const beat = FLAT_BEATS[beatIndex];
   if (beat.stage.id === 'hero') return null;
@@ -28,6 +29,23 @@ export function StageCaption() {
   const accent = beat.stage.twin ? TWIN_COLOR[beat.stage.twin] : 'var(--color-plast)';
   const flag = (v: Parameters<typeof isMissing>[0]) =>
     debug && isMissing(v, lang) ? 'outline outline-1 outline-dashed outline-[var(--color-risk)]' : '';
+
+  // При выбранном объекте развёрнутые титры уходят: слева сейчас стоит сам
+  // объект под приближенной камерой, и блок титров закрывал бы его (§8.3).
+  if (selected) {
+    return (
+      <div className="pointer-events-none absolute bottom-10 left-8 max-w-[26rem]">
+        <div className="panel px-4 py-2">
+          <span className="kicker" style={{ color: accent }}>
+            {t(beat.stage.chapter, lang)}
+          </span>
+          <span className="ml-3 text-[0.8rem] text-[var(--color-txt-dim)]">
+            {t(beat.stage.title, lang)}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   if (isFullPanel(beat.panel)) {
     return (

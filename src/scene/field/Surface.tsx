@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { surfY, HD, HW } from './geology';
 import { Bars, type BarSpec } from './Bars';
+import { Interactive } from './Interactive';
 
 /**
  * Наземная инфраструктура пилота Молдабек Восточный.
@@ -386,24 +387,32 @@ function Pipelines() {
 
   const routes = useMemo(() => {
     type Sys = 'oil' | 'water' | 'chem';
+    // Диаметры. Настоящий нефтесборный коллектор — DN 150–300, то есть на
+    // промысле в полтора километра он тоньше пикселя. Прототип решал это
+    // радиусом 2,4 м, но при клике по объекту (§8.3) камера подходит на
+    // тридцать метров, и труба толщиной с дом рушит всю сцену. Здесь принято
+    // умеренное преувеличение — примерно вдвое от DN 500: на общем плане линия
+    // читается за счёт светящегося потока внутри, вблизи выглядит правдоподобно.
     const spec: { pts: [number, number][]; sys: Sys; r: number; id: string }[] = [
-      { pts: [...KP_POS, [100, -20]], sys: 'oil', r: 2.4, id: 's-neftesbor' },
-      { pts: [[180, -120], [140, -70], [100, -20]], sys: 'oil', r: 2.4, id: 's-pipes' },
-      { pts: [[420, 160], [260, 60], [100, -20]], sys: 'oil', r: 2.4, id: 's-pipes' },
-      { pts: [[60, 300], [80, 140], [100, -20]], sys: 'oil', r: 2.4, id: 's-pipes' },
-      { pts: [[300, -340], [200, -180], [100, -20]], sys: 'oil', r: 2.4, id: 's-pipes' },
-      { pts: [[100, -20], [210, -30], [320, -40]], sys: 'oil', r: 2.6, id: 's-pipes' },
-      { pts: [[320, -40], [460, -50], [562, -56]], sys: 'oil', r: 3.2, id: 's-napor' },
-      { pts: [[-360, 220], [-320, 150], [-280, 80]], sys: 'water', r: 2.2, id: 's-ppd-line' },
-      { pts: [[-360, 220], [-260, -40], [-180, -200], [-120, -320]], sys: 'water', r: 2.2, id: 's-ppd-line' },
-      { pts: [[240, 120], [210, 0], [180, -120]], sys: 'chem', r: 1.5, id: 's-chem' },
-      { pts: [[240, 120], [280, 40], [320, -40]], sys: 'chem', r: 1.5, id: 's-chem' },
+      { pts: [...KP_POS, [100, -20]], sys: 'oil', r: 0.8, id: 's-neftesbor' },
+      { pts: [[180, -120], [140, -70], [100, -20]], sys: 'oil', r: 0.8, id: 's-pipes' },
+      { pts: [[420, 160], [260, 60], [100, -20]], sys: 'oil', r: 0.8, id: 's-pipes' },
+      { pts: [[60, 300], [80, 140], [100, -20]], sys: 'oil', r: 0.8, id: 's-pipes' },
+      { pts: [[300, -340], [200, -180], [100, -20]], sys: 'oil', r: 0.8, id: 's-pipes' },
+      { pts: [[100, -20], [210, -30], [320, -40]], sys: 'oil', r: 0.9, id: 's-pipes' },
+      { pts: [[320, -40], [460, -50], [562, -56]], sys: 'oil', r: 1.1, id: 's-napor' },
+      { pts: [[-360, 220], [-320, 150], [-280, 80]], sys: 'water', r: 0.75, id: 's-ppd-line' },
+      { pts: [[-360, 220], [-260, -40], [-180, -200], [-120, -320]], sys: 'water', r: 0.75, id: 's-ppd-line' },
+      { pts: [[240, 120], [210, 0], [180, -120]], sys: 'chem', r: 0.45, id: 's-chem' },
+      { pts: [[240, 120], [280, 40], [320, -40]], sys: 'chem', r: 0.45, id: 's-chem' },
     ];
     const speeds: Record<Sys, number> = { oil: 0.5, water: 0.32, chem: 0.75 };
     const colors: Record<Sys, string> = { oil: '#7a7466', water: '#5a7490', chem: '#6e8280' };
     return spec.map((s) => {
+      // Высота эстакады тоже уменьшена: труба на четырёхметровых опорах при
+      // диаметре 1,6 м выглядела мостом, а не нефтесбором.
       const curve = new THREE.CatmullRomCurve3(
-        s.pts.map(([x, z]) => new THREE.Vector3(x, surfY(x, z) + 4, z)),
+        s.pts.map(([x, z]) => new THREE.Vector3(x, surfY(x, z) + 1.6, z)),
       );
       const len = curve.getLength();
       return {
@@ -489,21 +498,45 @@ function Terrain() {
 export function SurfaceFacilities() {
   return (
     <group>
+      {/* Рельеф вне интерактива: он подложка, а не объект двойника — иначе
+          любой промах мимо установки выделял бы «поверхность». */}
       <Terrain />
-      {KP_POS.map(([x, z], i) => (
-        <group key={i} userData={{ id: 's-kp' }}>
-          <Pad x={x} z={z} w={90} d={62} />
-        </group>
-      ))}
-      <Pad x={180} z={-120} w={140} d={94} />
-      <Pad x={420} z={160} w={124} d={88} />
-      <Mfns />
-      <SeparationPoint />
-      <Cppn />
-      <Kns />
-      <Brh />
-      <Substation />
-      <PowerLine />
+
+      <Interactive id="s-kp">
+        {KP_POS.map(([x, z], i) => (
+          <Pad key={i} x={x} z={z} w={90} d={62} />
+        ))}
+      </Interactive>
+
+      <Interactive id="s-pad-1">
+        <Pad x={180} z={-120} w={140} d={94} />
+      </Interactive>
+      <Interactive id="s-pad-2">
+        <Pad x={420} z={160} w={124} d={88} />
+      </Interactive>
+
+      <Interactive id="s-mfns">
+        <Mfns />
+      </Interactive>
+      <Interactive id="s-sp">
+        <SeparationPoint />
+      </Interactive>
+      <Interactive id="s-cppn">
+        <Cppn />
+      </Interactive>
+      <Interactive id="s-kns">
+        <Kns />
+      </Interactive>
+      <Interactive id="s-brh">
+        <Brh />
+      </Interactive>
+      <Interactive id="s-ps">
+        <Substation />
+      </Interactive>
+      <Interactive id="s-vl">
+        <PowerLine />
+      </Interactive>
+
       <Pipelines />
     </group>
   );

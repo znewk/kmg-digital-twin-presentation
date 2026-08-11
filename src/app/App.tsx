@@ -1,6 +1,7 @@
 import { Stage } from '../scene/Stage';
 import { ScrollTrack } from './ScrollTrack';
 import { HeroOverlay } from '../ui/HeroOverlay';
+import { ObjectPanel } from '../ui/ObjectPanel';
 import { StageCaption } from '../ui/StageCaption';
 import { Progress } from '../ui/Progress';
 import { DebugHud } from '../ui/DebugHud';
@@ -18,6 +19,7 @@ export function App() {
       <div className="pointer-events-none fixed inset-0 z-10">
         <HeroOverlay />
         <PanelLayer />
+        <ObjectPanel />
         <StageCaption />
         <Progress />
         <DebugHud />

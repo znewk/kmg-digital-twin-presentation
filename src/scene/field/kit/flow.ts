@@ -106,6 +106,13 @@ export function makePulseMaterial(opts: {
   period: number;
   speed: number;
   opacity?: number;
+  /**
+   * Длина штриха, м. Задаётся там, где линия обозначает трассу закопанной
+   * трубы, а не саму трубу: сплошная линия читается как труба, лежащая на
+   * земле, и спорит с тем, что труба на самом деле в грунте. Пунктир — это
+   * разметка, и он не притворяется предметом.
+   */
+  dash?: number;
 }): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     transparent: true,
@@ -117,6 +124,7 @@ export function makePulseMaterial(opts: {
       uPeriod: { value: opts.period },
       uSpeed: { value: opts.speed },
       uOpacity: { value: opts.opacity ?? 0.85 },
+      uDash: { value: opts.dash ?? 0 },
     },
     vertexShader: `
       attribute float aAlong;
@@ -131,10 +139,12 @@ export function makePulseMaterial(opts: {
       uniform float uPeriod;
       uniform float uSpeed;
       uniform float uOpacity;
+      uniform float uDash;
       uniform vec3 uColor;
       uniform vec3 uPulse;
       varying float vAlong;
       void main() {
+        if (uDash > 0.0 && fract(vAlong / uDash) > 0.58) discard;
         float phase = fract(vAlong / uPeriod - uTime * uSpeed / uPeriod);
         float pulse = pow(phase, 14.0);
         vec3 c = mix(uColor, uPulse, pulse);

@@ -9,6 +9,7 @@ import {
 import { NETWORK_STYLE, type NetworkKey } from '../../data/geo/fieldStyle';
 import { makePulseMaterial } from './kit/flow';
 import { surfY } from './geology';
+import { useShow } from '../../store/useShow';
 
 /**
  * Реальные сети промысла (ТЗ §4.1 п.3): нефтесбор, водоводы, газопровод,
@@ -140,6 +141,8 @@ export function RealNetworks() {
               period: s.flow.period,
               speed: s.flow.speed,
               opacity: s.opacity,
+              // Пунктир длиной 22 м: это разметка трассы, а не труба.
+              dash: 22,
             })
           : new THREE.LineBasicMaterial({
               color: s.color,
@@ -151,16 +154,29 @@ export function RealNetworks() {
     [specs],
   );
 
+  /**
+   * В режиме «Коммуникации» разметка трасс убирается.
+   *
+   * Два изображения одного и того же трубопровода — пунктир на поверхности и
+   * настоящая труба под ней — вместе только путают: непонятно, где же он на
+   * самом деле. Поэтому они никогда не показываются одновременно: в обычном
+   * виде — разметка, в режиме коммуникаций — сама труба. Дороги остаются, они
+   * действительно на поверхности.
+   */
+  const utilities = useShow((s) => s.features.utilities);
+
   return (
     <group>
-      {layers.map(({ spec, geometry, material }) => (
-        <lineSegments
-          key={spec.id}
-          geometry={geometry}
-          material={material}
-          userData={{ id: spec.id }}
-        />
-      ))}
+      {layers
+        .filter(({ spec }) => !utilities || !spec.flow)
+        .map(({ spec, geometry, material }) => (
+          <lineSegments
+            key={spec.id}
+            geometry={geometry}
+            material={material}
+            userData={{ id: spec.id }}
+          />
+        ))}
     </group>
   );
 }

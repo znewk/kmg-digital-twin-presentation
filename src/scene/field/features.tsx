@@ -10,6 +10,8 @@ import {
   HW,
   OWC_Y,
 } from './geology';
+import { absToSceneY } from '../../data/geo/fieldData';
+import { SECTION_BASE_ABS } from '../../data/geo/stratigraphy';
 
 /**
  * Дополнительные слои визуализации недр — перенесены из референсного
@@ -44,11 +46,16 @@ export function makeFlowTexture(hex: string): THREE.CanvasTexture {
  */
 export function GgdmGrid() {
   const { lines, cells, colors, count } = useMemo(() => {
-    const NX = 10;
-    const NZ = 8;
+    const NX = 12;
+    const NZ = 10;
     const NY = 3;
-    const RX = 440;
-    const RZ = 340;
+    // Полуразмеры расчётной области, м. Прежние 440 × 340 достались от
+    // выдуманного поля 1400 × 900: на фактическом участке 5352 × 4682 сетка
+    // занимала шестую часть промысла в самом центре и выглядела случайным
+    // пятном. Берётся большая часть площади залежи, но не весь блок — за
+    // контуром нефтеносности расчётной сетки и не бывает.
+    const RX = HW * 0.62;
+    const RZ = HD * 0.62;
 
     const lp: number[] = [];
     const push = (a: THREE.Vector3, b: THREE.Vector3) =>
@@ -165,9 +172,18 @@ export function SeismicSection() {
     return new THREE.CanvasTexture(cv);
   }, []);
 
+  /**
+   * Профиль ставится по фактическому габариту участка и на фактические
+   * глубины разреза. Прежние −460 по высоте и 1360 × 840 по размеру —
+   * наследие выдуманного поля: профиль висел в перекрывающей толще размером
+   * с четверть промысла.
+   */
+  const height = Math.abs(absToSceneY(SECTION_BASE_ABS) - absToSceneY(-60));
+  const midY = (absToSceneY(SECTION_BASE_ABS) + absToSceneY(-60)) / 2;
+
   return (
-    <mesh position={[0, -460, -40]} userData={{ id: 'res-seismic' }}>
-      <planeGeometry args={[1360, 840]} />
+    <mesh position={[0, midY, 0]} userData={{ id: 'res-seismic' }}>
+      <planeGeometry args={[2 * HW * 0.96, height]} />
       <meshBasicMaterial
         map={texture}
         transparent

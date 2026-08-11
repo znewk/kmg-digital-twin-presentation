@@ -13,6 +13,7 @@ import { useShow, type FeatureId } from '../store/useShow';
 const FIELD_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'production', 'outro']);
 
 const FEATURES: { id: FeatureId; label: string }[] = [
+  { id: 'traces', label: 'Трассы сетей' },
   { id: 'utilities', label: 'Коммуникации' },
   { id: 'grid', label: 'Сетка ГГДМ' },
   { id: 'isolines', label: 'Изолинии' },

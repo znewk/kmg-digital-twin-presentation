@@ -20,6 +20,15 @@ import * as THREE from 'three';
 /** Единое время для всех потоков. Пишется одним компонентом раз в кадр. */
 export const flowTime = { value: 0 };
 
+/**
+ * Общий выключатель потока, 0 или 1.
+ *
+ * Тумблер «Поток» до этого не делал ничего: кнопка горела, а волна шла всегда.
+ * Здесь она гасится множителем в шейдере — трубы и провода остаются на месте,
+ * пропадает только движение.
+ */
+export const flowEnabled = { value: 1 };
+
 export interface FlowOptions {
   /** Собственный цвет трубы. */
   color: string;
@@ -54,6 +63,7 @@ export function makeFlowMaterial(opts: FlowOptions): THREE.MeshStandardMaterial 
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = flowTime;
+    shader.uniforms.uFlowOn = flowEnabled;
     shader.uniforms.uFlowColor = { value: flowColor };
     shader.uniforms.uPeriod = { value: opts.period };
     shader.uniforms.uSpeed = { value: opts.speed };
@@ -68,6 +78,7 @@ export function makeFlowMaterial(opts: FlowOptions): THREE.MeshStandardMaterial 
 
     shader.fragmentShader = `
       uniform float uTime;
+      uniform float uFlowOn;
       uniform float uPeriod;
       uniform float uSpeed;
       uniform float uIntensity;
@@ -83,7 +94,7 @@ export function makeFlowMaterial(opts: FlowOptions): THREE.MeshStandardMaterial 
       // стоячей.
       float flowPhase = fract(vAlong / uPeriod - uTime * uSpeed / uPeriod);
       float flowBand = pow(flowPhase, uSharpness);
-      totalEmissiveRadiance += uFlowColor * flowBand * uIntensity;`,
+      totalEmissiveRadiance += uFlowColor * flowBand * uIntensity * uFlowOn;`,
     );
   };
 
@@ -119,6 +130,7 @@ export function makePulseMaterial(opts: {
     depthWrite: false,
     uniforms: {
       uTime: flowTime,
+      uFlowOn: flowEnabled,
       uColor: { value: new THREE.Color(opts.color) },
       uPulse: { value: new THREE.Color(opts.pulseColor) },
       uPeriod: { value: opts.period },
@@ -136,6 +148,7 @@ export function makePulseMaterial(opts: {
     `,
     fragmentShader: `
       uniform float uTime;
+      uniform float uFlowOn;
       uniform float uPeriod;
       uniform float uSpeed;
       uniform float uOpacity;
@@ -146,7 +159,7 @@ export function makePulseMaterial(opts: {
       void main() {
         if (uDash > 0.0 && fract(vAlong / uDash) > 0.58) discard;
         float phase = fract(vAlong / uPeriod - uTime * uSpeed / uPeriod);
-        float pulse = pow(phase, 14.0);
+        float pulse = pow(phase, 14.0) * uFlowOn;
         vec3 c = mix(uColor, uPulse, pulse);
         gl_FragColor = vec4(c, uOpacity + pulse * (1.0 - uOpacity));
       }

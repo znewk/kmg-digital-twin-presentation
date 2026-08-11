@@ -14,7 +14,7 @@ import { BuriedNetworks, FundBores, Manholes, TrenchSection } from './Undergroun
 import { Well, WellHead } from './Well';
 import { WellFarm } from './WellFarm';
 import { Stratum, SURFACE_OFFSET } from './explode';
-import { flowTime } from './kit/flow';
+import { flowEnabled, flowTime } from './kit/flow';
 import { useFieldData } from '../../data/geo/fieldData';
 import { selectStoryWells } from '../../data/geo/storyWells';
 import { useShow } from '../../store/useShow';
@@ -97,6 +97,9 @@ function useClipping(root: React.RefObject<THREE.Group | null>) {
 function FlowClock() {
   useFrame(({ clock }) => {
     flowTime.value = clock.elapsedTime;
+    // Тумблер «Поток» гасит волну множителем в шейдере: трубы и провода
+    // остаются на месте, пропадает только движение.
+    flowEnabled.value = useShow.getState().features.flow ? 1 : 0;
   });
   return null;
 }

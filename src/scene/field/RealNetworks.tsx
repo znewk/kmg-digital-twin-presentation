@@ -6,8 +6,10 @@ import {
   useFieldData,
   type Polyline,
 } from '../../data/geo/fieldData';
-import { NETWORK_STYLE } from '../../data/geo/fieldStyle';
+import { NETWORK_STYLE, type NetworkKey } from '../../data/geo/fieldStyle';
+import { makePulseMaterial } from './kit/flow';
 import { surfY } from './geology';
+import { useShow } from '../../store/useShow';
 
 /**
  * Реальные сети промысла (ТЗ §4.1 п.3): нефтесбор, водоводы, газопровод,
@@ -17,15 +19,6 @@ import { surfY } from './geology';
  * отрисовки на кадр, чего показ не переживёт. Все трассы одного типа
  * сливаются в одну геометрию `LineSegments`: один вызов на тип сети.
  */
-
-interface NetSpec {
-  id: string;
-  lines: Polyline[];
-  color: string;
-  opacity: number;
-  /** Подъём над рельефом, м — чтобы линия не тонула в поверхности. */
-  lift: number;
-}
 
 /**
  * Максимальная длина звена, м.
@@ -98,44 +91,68 @@ export function RealNetworks() {
    * нефтесбора с плоской схемы (§3.1 п.6). Возвращается он режимом
    * «Коммуникации» и разрезом — там, где ему и место.
    */
-  const specs = useMemo<NetSpec[]>(
-    () => [
-      {
-        id: 's-roads',
-        lines: data.networks.road,
+  const roads = useMemo(
+    () => ({
+      geometry: mergeLines(data.networks.road, 0.4),
+      material: new THREE.LineBasicMaterial({
         color: NETWORK_STYLE.road.color,
-        lift: 0.4,
+        transparent: true,
         opacity: 0.5,
-      },
-    ],
+        depthWrite: false,
+      }),
+    }),
     [data],
   );
 
-  const layers = useMemo(
-    () =>
-      specs.map((s) => ({
-        spec: s,
-        geometry: mergeLines(s.lines, s.lift),
-        material: new THREE.LineBasicMaterial({
-          color: s.color,
-          transparent: true,
-          opacity: s.opacity,
-          depthWrite: false,
-        }),
-      })),
-    [specs],
-  );
+  /**
+   * Схема трасс — по тумблеру «Трассы».
+   *
+   * Пунктиром, чтобы разметка не притворялась трубой, и с той же скоростью
+   * волны, что у самой трубы под ней: это одно течение, показанное с двух
+   * сторон. В режиме «Коммуникации» разметка гасится — там видно настоящую
+   * трубу, и два изображения одного трубопровода спорили бы между собой.
+   */
+  const traceLayers = useMemo(() => {
+    const n = data.networks;
+    const specs: [string, NetworkKey, Polyline[], { speed: number; period: number }][] = [
+      ['s-neftesbor', 'oil_pipeline', n.oil_pipeline, { speed: 9, period: 46 }],
+      ['s-ppd-line', 'water_pipeline', n.water_pipeline, { speed: 16, period: 52 }],
+      ['s-gas', 'gas_pipeline', n.gas_pipeline, { speed: 26, period: 60 }],
+    ];
+
+    return specs.map(([id, key, lines, flow]) => ({
+      id,
+      geometry: mergeLines(lines, 0.4),
+      material: makePulseMaterial({
+        color: NETWORK_STYLE[key].color,
+        pulseColor: '#ffffff',
+        period: flow.period,
+        speed: flow.speed,
+        opacity: 0.5,
+        dash: 22,
+      }),
+    }));
+  }, [data]);
+
+  const showTraces = useShow((s) => s.features.traces && !s.features.utilities);
 
   return (
     <group>
-      {layers.map(({ spec, geometry, material }) => (
-        <lineSegments
-          key={spec.id}
-          geometry={geometry}
-          material={material}
-          userData={{ id: spec.id }}
-        />
-      ))}
+      <lineSegments
+        geometry={roads.geometry}
+        material={roads.material}
+        userData={{ id: 's-roads' }}
+      />
+
+      {showTraces &&
+        traceLayers.map((t) => (
+          <lineSegments
+            key={t.id}
+            geometry={t.geometry}
+            material={t.material}
+            userData={{ id: t.id }}
+          />
+        ))}
     </group>
   );
 }

@@ -154,6 +154,14 @@ export interface FrameOptions {
   elevation?: number;
   /** Уводить ли объект из-под правой панели. */
   offsetForPanel?: boolean;
+  /**
+   * Ручной сдвиг объекта по экрану в долях кадра: больше нуля — влево.
+   *
+   * Нужен там, где панели стоят с обеих сторон и свободное место не по центру
+   * экрана. Штатный сдвиг `offsetForPanel` знает только про правую панель и в
+   * такой раскладке загоняет объект под левую.
+   */
+  shift?: number;
 }
 
 /** Общий расчёт положения камеры вокруг точки — один на оба реестра. */
@@ -187,7 +195,7 @@ export function frameAround(
 
   // Сдвиг цели вправо по экрану уводит объект влево — под свободную зону.
   const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
-  const shift = radius * margin * panel * 0.9;
+  const shift = radius * margin * (panel * 0.9 + (opts.shift ?? 0) * 2);
   const target = center.clone().addScaledVector(right, -shift);
 
   return {

@@ -109,6 +109,7 @@ export function FreeLook() {
       data,
       perspective.fov ?? 38,
       size.width / size.height,
+      cycleShot ? 'cycle' : 'dive',
     );
   }, [cycleShot, dive, camera, size.width, size.height]);
 

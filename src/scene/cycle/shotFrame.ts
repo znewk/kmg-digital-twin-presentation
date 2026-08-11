@@ -8,7 +8,12 @@ import {
   toSceneZ,
   type FieldDataset,
 } from '../../data/geo/fieldData';
-import { resolveHorizon } from '../../data/geo/stratigraphy';
+import {
+  resolveHorizon,
+  PRODUCTIVE_TOP_ABS,
+  SECTION_BASE_ABS,
+} from '../../data/geo/stratigraphy';
+import { outlineCentroid, outlineRadius } from '../../data/geo/outline';
 import { makeStoryWell } from '../../data/geo/storyWells';
 import type { CycleRoute, PpdRoute, RoutePoint } from '../../data/cycle/route';
 import type { Framing, ShotTarget } from '../../data/cycle/storyboard';
@@ -48,23 +53,39 @@ const FRAMING: Record<Framing, { margin: number; elevation: number }> = {
 };
 
 /**
- * ПОДЗЕМНЫЕ КАДРЫ СНИМАЮТСЯ ИНАЧЕ.
+ * ПОДЗЕМНЫЕ КАДРЫ СНИМАЮТСЯ СО СТОРОНЫ ВСКРЫТОЙ ГРАНИ.
  *
- * Взгляд сверху-сбоку годится для всего, что стоит на земле, и категорически
- * не годится для того, что под ней: цель лежит на трёхсотметровой глубине, и
- * камера, поднятая на сорок градусов над ней, смотрит снизу вверх в подошву
- * рельефа. Именно поэтому кадр «Геолого-гидродинамическая модель» показывал
- * грунт вместо разреза.
+ * Секущая плоскость оставляет ЗАПАДНУЮ половину блока и срезает восточную —
+ * значит вскрытая грань, на которой видна вся стратиграфия, смотрит на восток.
+ * Камеру нужно ставить туда же. Западный ракурс, который стоял здесь до этого,
+ * показывал целый бок блока: сплошную поверхность верхнего слоя во весь кадр,
+ * без единого признака того, что внутри что-то есть. Ровно это и выглядело
+ * как «нифига не видно на объекте».
  *
- * Пласт нужно снимать почти в уровень — так, как рисуют геологический профиль:
- * слои идут горизонтальными полосами, и видно, что под чем залегает. Небольшой
- * подъём оставлен, чтобы читалась объёмность блока, а не плоская картинка.
+ * Угол — двадцать градусов: достаточно полого, чтобы слои читались полосами,
+ * как на геологическом профиле, и достаточно приподнято, чтобы блок не
+ * выглядел плоской картинкой.
  */
 const SUBSURFACE_ELEVATION: Record<Framing, number> = {
-  detail: 0.12,
-  object: 0.16,
-  context: 0.2,
-  wide: 0.34,
+  detail: 0.2,
+  object: 0.28,
+  context: 0.36,
+  wide: 0.5,
+};
+
+/**
+ * Подземный кадр берётся крупнее наземного.
+ *
+ * Запас в два с половиной габарита оставлял разрез крошечным посреди пустого
+ * неба: блок недр и так вытянут вертикальным преувеличением, и вокруг него
+ * нет ничего, что стоило бы показывать. Здесь запас минимальный — грань
+ * заполняет кадр.
+ */
+const SUBSURFACE_MARGIN: Record<Framing, number> = {
+  detail: 0.9,
+  object: 1.1,
+  context: 1.25,
+  wide: 1.5,
 };
 
 function isSubsurface(target: ShotTarget): boolean {
@@ -225,11 +246,29 @@ export function shotView(
     }
 
     case 'reservoir': {
-      // Разрез смотрим под самой скважиной-героиней: иначе «вот её пласт»
-      // показывается на другом конце месторождения.
-      const h = resolveHorizon(route.well.hor);
-      const y = absToSceneY(h ? (h.topAbs + h.botAbs) / 2 : -300);
-      return { center: new THREE.Vector3(wellX, y, wellZ), radius: 700 };
+      /**
+       * Кадр строится по ВСКРЫТОЙ ГРАНИ блока, а не по скважине.
+       *
+       * Наводка на скважину давала центр где-то в толще: половина стратиграфии
+       * уходила за верх кадра, половина за низ, а по горизонтали в кадр
+       * попадала случайная часть блока. Смотреть на разрез имеет смысл целиком —
+       * иначе непонятно, что это разрез.
+       *
+       * Габарит берётся по фактической высоте продуктивного разреза с учётом
+       * вертикального преувеличения и по ширине снятой площади, а не задаётся
+       * числом: при правке стратиграфии или контура кадр обязан подстроиться
+       * сам.
+       */
+      const [cx, cz] = outlineCentroid();
+      const top = absToSceneY(PRODUCTIVE_TOP_ABS + 60);
+      const bottom = absToSceneY(SECTION_BASE_ABS);
+      const halfHeight = Math.abs(top - bottom) / 2;
+      const halfWidth = outlineRadius(Math.PI / 2);
+
+      return {
+        center: new THREE.Vector3(cx, (top + bottom) / 2, cz),
+        radius: Math.max(halfHeight, halfWidth * 0.75),
+      };
     }
 
     case 'field': {
@@ -259,6 +298,15 @@ export function shotFrame(
   data: FieldDataset,
   fovDeg: number,
   aspect: number,
+  /**
+   * Раскладка панелей вокруг кадра.
+   *
+   * В полном цикле панель одна и лежит снизу — свободное место по центру. В
+   * разборе модуля панели стоят слева и справа, и свободная полоса смещена
+   * влево от центра экрана: объект, поставленный по центру, уходит под правую
+   * панель. Это ровно то, что было видно на разрезе.
+   */
+  layout: 'cycle' | 'dive' = 'cycle',
 ): FocusFrame | null {
   const view = shotView(shot.look, route, ppd, data);
   if (!view) return null;
@@ -281,11 +329,13 @@ export function shotFrame(
   let h = 0;
   for (let i = 0; i < shot.id.length; i++) h = (h * 31 + shot.id.charCodeAt(i)) >>> 0;
   const spread = (h % 100) / 100;
-  const azimuth = under ? -2.5 + spread * 0.7 : 0.4 + spread * 1.8;
+  // Восток — сторона вскрытой грани; разброс узкий, чтобы не уйти за неё.
+  const azimuth = under ? 1.25 + spread * 0.6 : 0.4 + spread * 1.8;
 
   return frameAround(view.center, view.radius, azimuth, fovDeg, aspect, {
-    margin: f.margin,
+    margin: under ? SUBSURFACE_MARGIN[shot.framing] : f.margin,
     elevation: under ? SUBSURFACE_ELEVATION[shot.framing] : f.elevation,
+    shift: layout === 'dive' ? 0.1 : 0,
     /**
      * Смещать объект из-под правой панели больше не нужно.
      *

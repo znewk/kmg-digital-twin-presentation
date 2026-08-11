@@ -138,15 +138,28 @@ export function makePulseMaterial(opts: {
       uOpacity: { value: opts.opacity ?? 0.85 },
       uDash: { value: opts.dash ?? 0 },
     },
+    /**
+     * Логарифмическая глубина обязательна и в собственных шейдерах.
+     *
+     * Рендерер включает её на всю сцену, и встроенные материалы пишут глубину
+     * по логарифмической шкале. Шейдер, написанный вручную и не знающий об
+     * этом, пишет её по обычной — и объект начинает перекрываться с остальной
+     * сценой неправильно: провод то тонет в земле, то висит поверх установки.
+     */
     vertexShader: `
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
       attribute float aAlong;
       varying float vAlong;
       void main() {
         vAlong = aAlong;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        #include <logdepthbuf_vertex>
       }
     `,
     fragmentShader: `
+      #include <common>
+      #include <logdepthbuf_pars_fragment>
       uniform float uTime;
       uniform float uFlowOn;
       uniform float uPeriod;
@@ -157,6 +170,7 @@ export function makePulseMaterial(opts: {
       uniform vec3 uPulse;
       varying float vAlong;
       void main() {
+        #include <logdepthbuf_fragment>
         if (uDash > 0.0 && fract(vAlong / uDash) > 0.58) discard;
         float phase = fract(vAlong / uPeriod - uTime * uSpeed / uPeriod);
         float pulse = pow(phase, 14.0) * uFlowOn;

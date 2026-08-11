@@ -109,6 +109,8 @@ function Flame({ y }: { y: number }) {
         blending: THREE.AdditiveBlending,
         uniforms: { uTime: { value: 0 } },
         vertexShader: `
+          #include <common>
+          #include <logdepthbuf_pars_vertex>
           uniform float uTime;
           varying float vH;
           void main() {
@@ -120,11 +122,15 @@ function Flame({ y }: { y: number }) {
             float pulse = 1.0 + 0.16 * sin(uTime * 7.0 + position.y * 1.4);
             p.xz *= pulse * (1.0 - vH * 0.55);
             gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+            #include <logdepthbuf_vertex>
           }
         `,
         fragmentShader: `
+          #include <common>
+          #include <logdepthbuf_pars_fragment>
           varying float vH;
           void main() {
+            #include <logdepthbuf_fragment>
             // Снизу вверх: белое ядро, жёлтый, оранжевый, к срыву — красный.
             vec3 core = vec3(1.0, 0.95, 0.78);
             vec3 mid = vec3(0.98, 0.66, 0.18);
@@ -176,6 +182,8 @@ function Smoke({ y }: { y: number }) {
       depthWrite: false,
       uniforms: { uTime: { value: 0 } },
       vertexShader: `
+        #include <common>
+        #include <logdepthbuf_pars_vertex>
         uniform float uTime;
         attribute float aSeed;
         varying float vLife;
@@ -198,12 +206,16 @@ function Smoke({ y }: { y: number }) {
           vec3 center = (modelViewMatrix * vec4(offset, 1.0)).xyz;
           vec3 p = center + vec3(position.x, position.y, 0.0) * spread;
           gl_Position = projectionMatrix * vec4(p, 1.0);
+          #include <logdepthbuf_vertex>
         }
       `,
       fragmentShader: `
+        #include <common>
+        #include <logdepthbuf_pars_fragment>
         varying float vLife;
         varying vec2 vUv;
         void main() {
+          #include <logdepthbuf_fragment>
           float d = length(vUv - 0.5) * 2.0;
           float soft = smoothstep(1.0, 0.15, d);
           // Появляется быстро, тает долго.

@@ -24,6 +24,7 @@ import {
 import { strataOffset, Stratum } from './explode';
 import { Interactive } from './Interactive';
 import { useShow } from '../../store/useShow';
+import { useFieldData } from '../../data/geo/fieldData';
 
 /**
  * Разрез недр Восточного Молдабека (ТЗ §4.3).
@@ -126,10 +127,11 @@ function useOwcContour() {
  * секущей плоскости. На обзорном плане они висели бы поверх промысла, подписывая
  * то, чего не видно.
  */
-function HorizonLabels() {
-  const exploded = useShow((s) => s.exploded);
-  const clip = useShow((s) => s.clip);
-  if (!exploded && !clip) return null;
+function HorizonLabels({ open }: { open: boolean }) {
+  // Число скважин на горизонт — из сводки реестра фонда. Оно и делает подпись
+  // содержательной: видно не только имя пласта, но и сколько на него пробурено.
+  const WELL_COUNT = useFieldData().well_stats.by_horizon;
+  if (!open) return null;
 
   return (
     <group>
@@ -137,21 +139,37 @@ function HorizonLabels() {
         const mid = absToSceneY((h.topAbs + h.botAbs) / 2);
         const strat = FIELD_STRATA.find((s) => s.horizon === h);
         const offset = strat ? strataOffset(strat.order) : 0;
+        const wells = WELL_COUNT[h.name] ?? 0;
 
         return (
           <Html
             key={h.id}
-            position={[-HW - 60, mid + offset, -HD * 0.55]}
-            center
-            distanceFactor={900}
-            zIndexRange={[5, 0]}
+            // На западной грани блока и чуть за ней: подпись стоит у самого
+            // среза, а не висит в стороне от него.
+            position={[-HW - 40, mid + offset, -HD * 0.5]}
+            zIndexRange={[8, 0]}
             style={{ pointerEvents: 'none' }}
           >
-            <div className="whitespace-nowrap font-mono text-[13px] leading-tight">
-              <span style={{ color: h.productive ? '#f0ae4a' : '#5fa8e8' }}>{h.name}</span>
-              <span className="ml-2 text-[10px] text-[var(--color-txt-faint)]">
+            {/*
+              Размер экранный, а не мировой. С привязкой к расстоянию подпись
+              на обзорном ракурсе съёживалась в точку, а вблизи разрасталась на
+              полэкрана — прочитать её удавалось ровно на одной дистанции.
+            */}
+            <div className="-translate-y-1/2 whitespace-nowrap font-mono text-[10px] leading-tight">
+              <span
+                className="tracking-[0.08em]"
+                style={{ color: h.productive ? '#f0ae4a' : '#5fa8e8' }}
+              >
+                {h.name}
+              </span>
+              <span className="ml-2 text-[9px] text-[var(--color-txt-dim)]">
                 {h.topAbs.toFixed(0)} м абс.
               </span>
+              {wells > 0 && (
+                <span className="ml-2 text-[9px] text-[var(--color-txt-faint)]">
+                  {wells} скв.
+                </span>
+              )}
             </div>
           </Html>
         );
@@ -168,36 +186,55 @@ export function EarthLayers() {
 
   const owcContour = useOwcContour();
 
+  /**
+   * Разрез считается вскрытым при разнесении слоёв или секущей плоскости.
+   *
+   * От этого зависит не только показ подписей, но и кликабельность толщ. Пока
+   * разрез закрыт, толщи ловить курсор не должны: это плиты во весь промысел,
+   * они лежат под всем и при каждом повороте камеры перехватывали клик,
+   * подменяя кадр видом на почвенный слой. Выбирать пласт имеет смысл тогда,
+   * когда он виден, — то есть в разрезе.
+   */
+  const sectionOpen = useShow((s) => s.exploded || s.clip);
+
   return (
     <group>
-      {strata.map((s) => (
-        <Stratum key={s.spec.id} id={s.spec.id} offset={strataOffset(s.spec.order)}>
-          <Interactive id={s.spec.id}>
-            <mesh geometry={s.geometry} castShadow receiveShadow userData={{ id: s.spec.id }}>
-              {/*
-                Непрозрачно и односторонне. Двусторонний материал на слое
-                разреза удваивает работу растеризатора без единого выигрыша:
-                изнутри толщи зритель видит стенки блока, а они у слоя есть.
-              */}
-              <meshStandardMaterial
-                color={s.spec.color}
-                roughness={0.94}
-                metalness={0.03}
-                emissive={s.spec.phase === 'oil' ? '#3a2408' : '#000000'}
-                emissiveIntensity={s.spec.phase === 'oil' ? 0.5 : 0}
-              />
-            </mesh>
-          </Interactive>
-        </Stratum>
-      ))}
+      {strata.map((s) => {
+        const body = (
+          <mesh geometry={s.geometry} castShadow receiveShadow userData={{ id: s.spec.id }}>
+            {/*
+              Непрозрачно и односторонне. Двусторонний материал на слое
+              разреза удваивает работу растеризатора без единого выигрыша:
+              изнутри толщи зритель видит стенки блока, а они у слоя есть.
+            */}
+            <meshStandardMaterial
+              color={s.spec.color}
+              roughness={0.94}
+              metalness={0.03}
+              emissive={s.spec.phase === 'oil' ? '#3a2408' : '#000000'}
+              emissiveIntensity={s.spec.phase === 'oil' ? 0.5 : 0}
+            />
+          </mesh>
+        );
+
+        return (
+          <Stratum key={s.spec.id} id={s.spec.id} offset={strataOffset(s.spec.order)}>
+            {sectionOpen ? <Interactive id={s.spec.id}>{body}</Interactive> : body}
+          </Stratum>
+        );
+      })}
 
       {/* Разломы живут вне слоёв: они их и разрывают, а не принадлежат одному */}
       <Stratum id="res-faults" offset={0}>
-        {FAULTS.map((f) => (
-          <Interactive key={f.id} id={`res-fault-${f.id}`}>
-            <FaultPlane fault={f} />
-          </Interactive>
-        ))}
+        {FAULTS.map((f) =>
+          sectionOpen ? (
+            <Interactive key={f.id} id={`res-fault-${f.id}`}>
+              <FaultPlane fault={f} />
+            </Interactive>
+          ) : (
+            <FaultPlane key={f.id} fault={f} />
+          ),
+        )}
       </Stratum>
 
       {/* Контур нефтеносности опорного горизонта */}
@@ -210,7 +247,7 @@ export function EarthLayers() {
         </Stratum>
       )}
 
-      <HorizonLabels />
+      <HorizonLabels open={sectionOpen} />
     </group>
   );
 }

@@ -279,10 +279,30 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
  */
 function TreeFarm({ items, id }: { items: Placed[]; id: string }) {
   const body = useRef<THREE.InstancedMesh>(null);
+  const pad = useRef<THREE.InstancedMesh>(null);
 
   const compose = useMemo(
     () => (p: Placed, m: THREE.Matrix4, t: Tmp) => {
       t.p.set(p.x, p.y + 2.2 * EQUIPMENT_SCALE, p.z);
+      t.e.set(0, p.yaw, 0);
+      t.q.setFromEuler(t.e);
+      t.s.setScalar(EQUIPMENT_SCALE);
+      m.compose(t.p, t.q, t.s);
+    },
+    [],
+  );
+
+  /**
+   * Бетонное основание под устьем.
+   *
+   * Раньше площадки рисовались отдельным слоем поверх земли — и это было
+   * лишней сущностью: у станка-качалки, ГЗУ, КНС и сборного пункта основание
+   * входит в саму модель, а слой поверх него только дублировал габарит. Теперь
+   * основание есть у каждого объекта и принадлежит ему, а не лежит рядом.
+   */
+  const composePad = useMemo(
+    () => (p: Placed, m: THREE.Matrix4, t: Tmp) => {
+      t.p.set(p.x, p.y + 0.12 * EQUIPMENT_SCALE, p.z);
       t.e.set(0, p.yaw, 0);
       t.q.setFromEuler(t.e);
       t.s.setScalar(EQUIPMENT_SCALE);
@@ -297,19 +317,22 @@ function TreeFarm({ items, id }: { items: Placed[]; id: string }) {
   );
 
   useStaticInstances(body, items, compose, color);
+  useStaticInstances(pad, items, composePad);
 
   if (items.length === 0) return null;
 
   return (
-    <instancedMesh
-      ref={body}
-      args={[undefined, undefined, items.length]}
-      castShadow
-      userData={{ id }}
-    >
-      <cylinderGeometry args={[0.75, 0.9, 4.4, 8]} />
-      <meshStandardMaterial metalness={0.65} roughness={0.4} />
-    </instancedMesh>
+    <group userData={{ id }}>
+      <instancedMesh ref={pad} args={[undefined, undefined, items.length]} receiveShadow>
+        <boxGeometry args={[4.6, 0.24, 4.6]} />
+        <meshStandardMaterial color="#4f4c42" roughness={0.98} metalness={0} />
+      </instancedMesh>
+
+      <instancedMesh ref={body} args={[undefined, undefined, items.length]} castShadow>
+        <cylinderGeometry args={[0.75, 0.9, 4.4, 8]} />
+        <meshStandardMaterial metalness={0.65} roughness={0.4} />
+      </instancedMesh>
+    </group>
   );
 }
 

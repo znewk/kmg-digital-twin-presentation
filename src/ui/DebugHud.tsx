@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { progressRef, useShow } from '../store/useShow';
+import { renderStats } from '../scene/stats';
 import { FLAT_BEATS } from '../data/stages';
 
 /**
@@ -17,6 +18,8 @@ export function DebugHud() {
 
   const fpsEl = useRef<HTMLSpanElement>(null);
   const progEl = useRef<HTMLSpanElement>(null);
+  const callsEl = useRef<HTMLSpanElement>(null);
+  const trisEl = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (!debug) return;
@@ -30,6 +33,12 @@ export function DebugHud() {
       if (now - last >= 500) {
         const fps = Math.round((frames * 1000) / (now - last));
         if (fpsEl.current) fpsEl.current.textContent = String(fps);
+        // Вызовы и треугольники обновляются вместе с частотой, а не каждый
+        // кадр: они скачут, и мельтешащее число невозможно прочитать.
+        if (callsEl.current) callsEl.current.textContent = String(renderStats.calls);
+        if (trisEl.current) {
+          trisEl.current.textContent = `${(renderStats.triangles / 1000).toFixed(0)}к`;
+        }
         frames = 0;
         last = now;
       }
@@ -49,6 +58,10 @@ export function DebugHud() {
         fps <span ref={fpsEl} className="text-[var(--color-dob)]">—</span>
         {'  '}tier <span className="text-[var(--color-plast)]">{tier}</span>
         {locked && <span className="text-[var(--color-risk)]"> locked</span>}
+      </div>
+      <div>
+        вызовов <span ref={callsEl} className="text-[var(--color-skv)]">—</span>
+        {'  '}треуг. <span ref={trisEl} className="text-[var(--color-skv)]">—</span>
       </div>
       <div>
         progress <span ref={progEl}>0</span>

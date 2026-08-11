@@ -14,6 +14,7 @@ import { makeFlowMaterial } from './kit/flow';
 import { box, cyl, pipe, sphere, type Part } from './kit/parts';
 import { EQUIPMENT_SCALE } from './kit/scale';
 import { surfY } from './geology';
+import { useShow, type QualityTier } from '../../store/useShow';
 
 /**
  * Окружение промысла: внешние узлы цепочки и степная растительность.
@@ -196,8 +197,14 @@ export function ExternalNodes() {
 
 // ── Степная растительность ──────────────────────────────────────────────────
 
-/** Сколько кустиков раскидывается по участку. */
-const SHRUB_COUNT = 2600;
+/**
+ * Сколько кустиков раскидывается по участку — по тиру качества.
+ *
+ * Растительность первой идёт под нож при деградации: она чистая фактура, без
+ * неё сцена теряет ощущение масштаба, но не теряет ни одного смыслового
+ * объекта. Отдавать кадры за неё в ущерб оборудованию нельзя.
+ */
+const SHRUB_COUNT: Record<QualityTier, number> = { high: 2600, mid: 1300, low: 450 };
 
 /**
  * Полынь и солянка — то, чем покрыта прикаспийская степь.
@@ -212,6 +219,7 @@ const SHRUB_COUNT = 2600;
  */
 export function Vegetation() {
   const ref = useRef<THREE.InstancedMesh>(null);
+  const tier = useShow((s) => s.tier);
 
   const spots = useMemo(() => {
     // Линейный конгруэнтный генератор с фиксированным зерном.
@@ -222,7 +230,7 @@ export function Vegetation() {
     };
 
     const out: { x: number; z: number; y: number; s: number; rot: number }[] = [];
-    for (let i = 0; i < SHRUB_COUNT; i++) {
+    for (let i = 0; i < SHRUB_COUNT[tier]; i++) {
       const x = (rnd() - 0.5) * FIELD_W;
       const z = (rnd() - 0.5) * FIELD_H;
       out.push({
@@ -235,7 +243,7 @@ export function Vegetation() {
       });
     }
     return out;
-  }, []);
+  }, [tier]);
 
   useLayoutEffect(() => {
     const mesh = ref.current;
@@ -261,7 +269,7 @@ export function Vegetation() {
   }, [spots]);
 
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, spots.length]} receiveShadow>
+    <instancedMesh ref={ref} args={[undefined, undefined, Math.max(1, spots.length)]} receiveShadow>
       {/* Восьмигранник вместо сферы: кустик размером в метр, и лишние
           треугольники здесь умножаются на две с половиной тысячи. */}
       <icosahedronGeometry args={[1, 0]} />

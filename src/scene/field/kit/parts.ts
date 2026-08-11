@@ -268,6 +268,79 @@ export function railing(
   return out;
 }
 
+/**
+ * Ограждение площадки с воротами и КПП.
+ *
+ * Промысловые объекты с нефтесодержащей средой огораживаются по нормам, и
+ * ограждение — не декорация: по нему читается граница площадки, а без него
+ * установка выглядит поставленной в чистом поле. Ворота с будкой КПП делают
+ * очевидным, где въезд.
+ *
+ * `gateSide` — сторона въезда: 'z-' ставит ворота в торце со стороны −Z.
+ */
+export function fence(
+  w: number,
+  d: number,
+  opts: { height?: number; gate?: boolean; guard?: boolean } = {},
+): Part[] {
+  const out: Part[] = [];
+  const h = opts.height ?? 2.2;
+  const hw = w / 2;
+  const hd = d / 2;
+  const STEP = 3;
+
+  /** Пролёт ограждения: стойки и сетчатое полотно между ними. */
+  const run = (
+    ax: number,
+    az: number,
+    bx: number,
+    bz: number,
+    skip?: [number, number],
+  ) => {
+    const len = Math.hypot(bx - ax, bz - az);
+    const n = Math.max(1, Math.round(len / STEP));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      if (skip && t > skip[0] && t < skip[1]) continue;
+      out.push(box('steel', 0.12, h, 0.12, ax + (bx - ax) * t, h / 2, az + (bz - az) * t));
+    }
+    // Полотно двумя нитками поверху и понизу — сетку решёткой рисовать незачем,
+    // на промысловых расстояниях она всё равно не читается.
+    for (const level of [h * 0.92, h * 0.45]) {
+      if (skip) {
+        out.push(pipe('steel', 0.04, [ax, level, az], [ax + (bx - ax) * skip[0], level, az + (bz - az) * skip[0]], 4));
+        out.push(pipe('steel', 0.04, [ax + (bx - ax) * skip[1], level, az + (bz - az) * skip[1]], [bx, level, bz], 4));
+      } else {
+        out.push(pipe('steel', 0.04, [ax, level, az], [bx, level, bz], 4));
+      }
+    }
+  };
+
+  const gate = opts.gate ?? true;
+  run(-hw, -hd, hw, -hd, gate ? [0.42, 0.58] : undefined);
+  run(hw, -hd, hw, hd);
+  run(hw, hd, -hw, hd);
+  run(-hw, hd, -hw, -hd);
+
+  if (gate) {
+    // Створки ворот, приоткрытые внутрь площадки
+    for (const s of [-1, 1]) {
+      out.push(box('steelDark', w * 0.08, h * 0.95, 0.1, s * w * 0.05, h * 0.48, -hd + 0.5, 0, 0));
+      out.push(box('steel', 0.14, h + 0.4, 0.14, s * w * 0.08, (h + 0.4) / 2, -hd));
+    }
+  }
+
+  if (opts.guard ?? true) {
+    // Будка КПП снаружи, у ворот
+    out.push(box('painted', 2.6, 2.5, 2.4, -hw * 0.36, 1.25, -hd - 1.8));
+    out.push(box('steel', 2.9, 0.12, 2.7, -hw * 0.36, 2.56, -hd - 1.8));
+    out.push(box('glass', 1.6, 0.9, 0.08, -hw * 0.36, 1.8, -hd - 0.58));
+    out.push(box('steelDark', 0.8, 1.9, 0.08, -hw * 0.36 + 1.0, 0.95, -hd - 0.58));
+  }
+
+  return out;
+}
+
 /** Двускатная кровля блок-бокса — два наклонных ската и два фронтона. */
 export function gableRoof(
   mat: MatKey,

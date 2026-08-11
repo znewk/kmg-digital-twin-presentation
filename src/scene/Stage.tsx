@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer } from '@react-three/drei';
 import { EffectComposer, Bloom, SMAA, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
@@ -10,6 +10,7 @@ import { FreeLook } from './FreeLook';
 import { FieldShowcase } from './hero/FieldShowcase';
 import { Globe } from './geo/Globe';
 import { Field } from './field/Field';
+import { renderStats } from './stats';
 
 /**
  * Сцена целиком. Всё офлайн: ни одного внешнего запроса — окружение для PBR
@@ -66,6 +67,23 @@ function SkyDome() {
   );
 }
 
+/**
+ * Съём показателей кадра. Ставится последним в дереве сцены, чтобы попасть в
+ * конец очереди кадра и прочитать уже накопленные за него значения.
+ */
+function RenderStats() {
+  const { gl } = useThree();
+  useFrame(() => {
+    const r = gl.info.render;
+    renderStats.calls = r.calls;
+    renderStats.triangles = r.triangles;
+    renderStats.geometries = gl.info.memory.geometries;
+    renderStats.textures = gl.info.memory.textures;
+    renderStats.programs = gl.info.programs?.length ?? 0;
+  });
+  return null;
+}
+
 function SceneContents() {
   usePerfTier();
   const tier = useShow((s) => s.tier);
@@ -85,6 +103,8 @@ function SceneContents() {
         <Globe />
         <Field shadows={settings.shadows} />
       </Suspense>
+
+      <RenderStats />
 
       {settings.bloom && (
         <EffectComposer enableNormalPass={false} multisampling={0}>

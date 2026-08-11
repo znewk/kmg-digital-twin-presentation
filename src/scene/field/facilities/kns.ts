@@ -1,5 +1,6 @@
 import {
   box,
+  fence,
   cone,
   cyl,
   flange,
@@ -144,6 +145,9 @@ export function buildKns(): Part[] {
   // Щит управления и кабельный лоток вдоль стены зала
   out.push(box('painted', 2.4, 2.2, 0.9, 7.6, hallY + 1.1, 4.2));
   out.push(box('steelDark', 0.4, 0.12, 9.0, -2, hallY + 3.4, 6.0));
+
+  // Ограждение с воротами: КНС — объект ППД под высоким давлением
+  out.push(...fence(PAD_W + 5, PAD_D + 5, { guard: false }));
 
   // Мачта освещения
   out.push(cyl('steel', 0.11, 8.5, -12.5, 4.65, -6.2, 0, 0, 0, 8));

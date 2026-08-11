@@ -1,5 +1,6 @@
 import {
   box,
+  fence,
   cone,
   cyl,
   flange,
@@ -167,6 +168,10 @@ export function buildSp(): Part[] {
   }
   out.push(box('steelDark', 0.95, 2.1, 0.1, -9.9, 1.45, 6.36));
   out.push(box('steel', 2.0, 0.08, 1.2, -9.9, 0.44, 5.7));
+
+  // Ограждение площадки с воротами и КПП: сборный пункт — объект с
+  // нефтесодержащей средой, он огораживается по нормам.
+  out.push(...fence(PAD_W + 6, PAD_D + 6));
 
   // Мачты освещения по углам площадки
   for (const [mx, mz] of [

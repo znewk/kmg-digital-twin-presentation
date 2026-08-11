@@ -12,7 +12,7 @@ import {
 } from '../../data/geo/fieldData';
 import { setTerrainSampler } from './geology';
 import { useShow } from '../../store/useShow';
-import { setFieldOutline } from '../../data/geo/outline';
+import { insideOutline, setFieldOutline } from '../../data/geo/outline';
 
 /**
  * Рельеф промысла по реальной высотной сетке (ТЗ §4.1 п.2).
@@ -90,13 +90,49 @@ export function RealTerrain() {
 
   const geometry = useMemo(() => {
     const sample = makeTerrainSampler(data.terrain);
-    const g = new THREE.PlaneGeometry(FIELD_W, FIELD_H, SEG_X, SEG_Z);
-    g.rotateX(-Math.PI / 2);
 
-    const p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      p.setY(i, sample(p.getX(i), p.getZ(i)));
+    /**
+     * Рельеф строится по той же границе, что и блок недр.
+     *
+     * Плоскость габарита оставляла поверхность прямоугольной, тогда как блок
+     * под ней уже шёл по контуру снятой площади: сверху лежала плита, из-под
+     * которой торчали углы, — и это первое, что бросалось в глаза сбоку.
+     *
+     * Сетка при этом остаётся прямоугольной и частой: полярная дала бы у края
+     * шаг в сотню метров и потеряла бы мелкие складки. Вместо этого
+     * выбрасываются ячейки, чей центр вне контура. Край получается ступенчатым
+     * по размеру ячейки — тридцать пять метров на пяти километрах, на глаз не
+     * различимо.
+     */
+    const nx = SEG_X + 1;
+    const nz = SEG_Z + 1;
+    const pos = new Float32Array(nx * nz * 3);
+
+    for (let j = 0; j < nz; j++) {
+      for (let i = 0; i < nx; i++) {
+        const x = -FIELD_W / 2 + (FIELD_W * i) / SEG_X;
+        const z = -FIELD_H / 2 + (FIELD_H * j) / SEG_Z;
+        const k = (j * nx + i) * 3;
+        pos[k] = x;
+        pos[k + 1] = sample(x, z);
+        pos[k + 2] = z;
+      }
     }
+
+    const index: number[] = [];
+    for (let j = 0; j < SEG_Z; j++) {
+      for (let i = 0; i < SEG_X; i++) {
+        const cx = -FIELD_W / 2 + (FIELD_W * (i + 0.5)) / SEG_X;
+        const cz = -FIELD_H / 2 + (FIELD_H * (j + 0.5)) / SEG_Z;
+        if (!insideOutline(cx, cz)) continue;
+        const a = j * nx + i;
+        index.push(a, a + nx, a + 1, a + 1, a + nx, a + nx + 1);
+      }
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setIndex(index);
     g.computeVertexNormals();
 
     // Цвет вершины по её отметке плюс притемнение на склонах: крутизна сама
@@ -105,6 +141,7 @@ export function RealTerrain() {
     const { zmin, zmax } = data.terrain;
     const yMin = absToSceneY(zmin);
     const yMax = absToSceneY(zmax);
+    const p = g.attributes.position;
     const n = g.attributes.normal;
     const colors = new Float32Array(p.count * 3);
     const c = new THREE.Color();

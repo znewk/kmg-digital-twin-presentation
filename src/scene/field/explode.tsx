@@ -49,9 +49,20 @@ export const EXPLODE_OFFSET: Record<string, number> = {
   surface: SURFACE_OFFSET,
 };
 
-/** Во сколько раз гасится непрозрачность породы в разнесённом виде. */
-const EXPLODED_OPACITY = 0.42;
-
+/**
+ * Слой разреза — только положение, ничего больше.
+ *
+ * Раньше здесь же гасилась непрозрачность породы: группа обходила поддерево,
+ * запоминала материалы и правила им opacity в кадре. Это молча ломалось.
+ * Карта материалов снималась один раз, а React пересоздаёт материал при любом
+ * ре-рендере поддерева — после первого же переключения режима в карте лежали
+ * мёртвые ссылки, и новые материалы оставались глухими. Разнесённый разрез
+ * выглядел непрозрачным, хотя код «делал» его прозрачным.
+ *
+ * Прозрачность теперь задаётся там, где создаётся материал, — обычным пропом,
+ * зависящим от состояния. Соответствие режима и внешнего вида проверяется
+ * глазами по коду компонента, а не сбором ссылок на живые объекты сцены.
+ */
 export function Stratum({
   id,
   offset,
@@ -63,9 +74,6 @@ export function Stratum({
   children: ReactNode;
 }) {
   const ref = useRef<THREE.Group>(null);
-  /** Базовая непрозрачность материалов, снятая при первом кадре. */
-  const base = useRef<Map<THREE.Material, number> | null>(null);
-  const blend = useRef(0);
 
   // Целевое смещение читается из стора напрямую в кадре: подписка через
   // селектор дала бы ре-рендер поддерева на каждое переключение, а здесь
@@ -76,34 +84,7 @@ export function Stratum({
     const exploded = useShow.getState().exploded;
 
     const target = exploded ? (offset ?? EXPLODE_OFFSET[id] ?? 0) : 0;
-    const k = 1 - Math.exp(-dt * 3);
-    g.position.y += (target - g.position.y) * k;
-
-    // Поверхность остаётся плотной: сквозь промысел смотреть незачем, а вот
-    // породу нужно приглушить, иначе стволы и фронт заводнения видны только в
-    // зазорах между толщами, а внутри них теряются.
-    if (id === 'surface') return;
-
-    if (!base.current) {
-      base.current = new Map();
-      g.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (!mesh.material) return;
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        for (const m of mats) base.current!.set(m, m.opacity);
-      });
-    }
-
-    blend.current += ((exploded ? 1 : 0) - blend.current) * k;
-    if (blend.current < 0.002 && !exploded) return;
-
-    for (const [m, b] of base.current) {
-      const wanted = b * (1 - blend.current) + b * EXPLODED_OPACITY * blend.current;
-      if (Math.abs(m.opacity - wanted) < 0.002) continue;
-      m.opacity = wanted;
-      m.transparent = true;
-      m.depthWrite = wanted > 0.9;
-    }
+    g.position.y += (target - g.position.y) * (1 - Math.exp(-dt * 3));
   });
 
   return <group ref={ref}>{children}</group>;

@@ -11,6 +11,7 @@ import {
   REFERENCE_HORIZON,
 } from './geology';
 import { absToSceneY } from '../../data/geo/fieldData';
+import { insideOutline } from '../../data/geo/outline';
 import {
   faultTraceAt,
   owcAbs,
@@ -56,16 +57,25 @@ function FaultPlane({ fault }: { fault: Fault }) {
     const pos: number[] = [];
     const idx: number[] = [];
     const topAbs = PRODUCTIVE_TOP_ABS + 120;
+    const zAt = (i: number) => -HD + (2 * HD * i) / nz;
+    const absAt = (j: number) => topAbs + ((SECTION_BASE_ABS - topAbs) * j) / nd;
 
     for (let j = 0; j <= nd; j++) {
       for (let i = 0; i <= nz; i++) {
-        const z = -HD + (2 * HD * i) / nz;
-        const abs = topAbs + ((SECTION_BASE_ABS - topAbs) * j) / nd;
+        const z = zAt(i);
+        const abs = absAt(j);
         pos.push(faultTraceAt(fault, z, abs), absToSceneY(abs), z);
       }
     }
     for (let j = 0; j < nd; j++) {
       for (let i = 0; i < nz; i++) {
+        // Плоскость строится на полный габарит, а блок обрезан по контуру
+        // снятой площади — за его краем нарушение выходило наружу
+        // прямоугольным языком, висящим в пустоте. Ячейки за контуром просто
+        // не выпускаются: разлом обрывается там же, где кончается порода.
+        const zc = (zAt(i) + zAt(i + 1)) / 2;
+        const absC = (absAt(j) + absAt(j + 1)) / 2;
+        if (!insideOutline(faultTraceAt(fault, zc, absC), zc)) continue;
         const a = j * (nz + 1) + i;
         idx.push(a, a + nz + 1, a + 1, a + 1, a + nz + 1, a + nz + 2);
       }
@@ -198,6 +208,7 @@ export function EarthLayers() {
    * подменяя кадр видом на почвенный слой. Выбирать пласт имеет смысл тогда,
    * когда он виден, — то есть в разрезе.
    */
+  const exploded = useShow((s) => s.exploded);
   const sectionOpen = useShow((s) => s.exploded || s.clip);
 
   return (
@@ -206,9 +217,22 @@ export function EarthLayers() {
         const body = (
           <mesh geometry={s.geometry} castShadow receiveShadow userData={{ id: s.spec.id }}>
             {/*
-              Непрозрачно и односторонне. Двусторонний материал на слое
-              разреза удваивает работу растеризатора без единого выигрыша:
-              изнутри толщи зритель видит стенки блока, а они у слоя есть.
+              Односторонне всегда, полупрозрачно — только во вскрытом разрезе.
+
+              Двусторонний материал на слое разреза удваивает работу
+              растеризатора без единого выигрыша: изнутри толщи зритель видит
+              стенки блока, а они у слоя есть.
+
+              Прозрачность вернулась туда, где она несёт смысл. На обзорном
+              плане просвечивать нечему — там смотрят на промысел, а земля под
+              ним непрозрачна; двадцать пять полупрозрачных плит во весь экран
+              съедали кадр целиком именно в этом режиме. Во вскрытом разрезе
+              наоборот: сквозь верхние пласты должны читаться нижние, иначе
+              ближняя толща закрывает собой всю остальную стратиграфию.
+
+              Запись в буфер глубины оставлена включённой. Она даёт неточности
+              на самопересечениях, но обрезает перерисовку скрытого — без неё
+              вскрытый разрез проседает так же, как проседал общий план.
             */}
             <meshStandardMaterial
               color={s.spec.color}
@@ -216,6 +240,8 @@ export function EarthLayers() {
               metalness={0.03}
               emissive={s.spec.phase === 'oil' ? '#3a2408' : '#000000'}
               emissiveIntensity={s.spec.phase === 'oil' ? 0.5 : 0}
+              transparent={sectionOpen}
+              opacity={sectionOpen ? 0.62 : 1}
             />
           </mesh>
         );
@@ -227,17 +253,26 @@ export function EarthLayers() {
         );
       })}
 
-      {/* Разломы живут вне слоёв: они их и разрывают, а не принадлежат одному */}
+      {/*
+        Разломы живут вне слоёв: они их и разрывают, а не принадлежат одному.
+
+        При разнесении слоёв они скрываются. Разлом имеет смысл ровно как
+        поверхность, вдоль которой смещены блоки породы; когда пласты
+        растащены по вертикали, смещать нечего — и плоскость превращается в
+        полотно, висящее между разъехавшимися толщами и ни к чему не
+        относящееся. В сомкнутом блоке и в секущей плоскости она на месте.
+      */}
       <Stratum id="res-faults" offset={0}>
-        {FAULTS.map((f) =>
-          sectionOpen ? (
-            <Interactive key={f.id} id={`res-fault-${f.id}`}>
-              <FaultPlane fault={f} />
-            </Interactive>
-          ) : (
-            <FaultPlane key={f.id} fault={f} />
-          ),
-        )}
+        {!exploded &&
+          FAULTS.map((f) =>
+            sectionOpen ? (
+              <Interactive key={f.id} id={`res-fault-${f.id}`}>
+                <FaultPlane fault={f} />
+              </Interactive>
+            ) : (
+              <FaultPlane key={f.id} fault={f} />
+            ),
+          )}
       </Stratum>
 
       {/* Контур нефтеносности опорного горизонта */}

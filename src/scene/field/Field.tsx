@@ -13,6 +13,7 @@ import { Tanks } from './Tanks';
 import { BuriedNetworks, FundBores, Manholes, TrenchSection } from './Underground';
 import { Well, WellHead } from './Well';
 import { WellFarm } from './WellFarm';
+import { CommMast, Roads, Traffic } from './SiteLife';
 import { Stratum, SURFACE_OFFSET } from './explode';
 import { flowEnabled, flowTime } from './kit/flow';
 import { useFieldData } from '../../data/geo/fieldData';
@@ -161,6 +162,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
         <RealTerrain />
         <TerrainContours />
         <RealNetworks />
+        <Roads />
         <HubPads />
         <Facilities />
         <Tanks />
@@ -169,6 +171,8 @@ function FieldContents({ shadows }: { shadows: boolean }) {
         <Manholes />
         <BuriedNetworks />
         <TrenchSection near={story.focus} />
+        <CommMast />
+        <Traffic />
 
         {/* Весь остальной фонд — инстансами, но живой: работающие качалки
             качаются, у каждой своя фаза. Сюжетные исключены, у них полные

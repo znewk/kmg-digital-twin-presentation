@@ -163,7 +163,18 @@ export function RealNetworks() {
 }
 
 /** Запас отсыпки за крайними устьями куста, м. */
-const PAD_MARGIN = 14;
+const PAD_MARGIN = 11;
+
+/**
+ * На каком расстоянии две скважины считаются стоящими на одной площадке, м.
+ *
+ * На кусте устья отстоят на 20–40 м, между разными кустами — сотни метров.
+ * Сорок пять метров разделяют эти два случая с запасом в обе стороны.
+ */
+const PAD_LINK = 45;
+
+/** Больше этого площадка быть не может — значит, скопление слиплось в цепочку. */
+const PAD_MAX = 220;
 
 /**
  * Кустовые площадки — по фактическому пятну скважин.
@@ -187,19 +198,72 @@ export function WellPads() {
   const ref = useRef<THREE.InstancedMesh>(null);
 
   const pads = useMemo(() => {
-    const byHub = new Map<number, { x: number; z: number }[]>();
-    for (const w of data.wells) {
-      if (w.hub === null) continue;
-      const spot = { x: toSceneX(w.p[0]), z: toSceneZ(w.p[1]) };
-      const bucket = byHub.get(w.hub);
-      if (bucket) bucket.push(spot);
-      else byHub.set(w.hub, [spot]);
+    /**
+     * Скопления устьев ищутся по фактическому расстоянию между ними, а не по
+     * привязке к узлу сбора.
+     *
+     * Привязка `hub` в датасете идёт по ближайшему узлу, и в один узел попадают
+     * скважины, разнесённые на сотни метров: узел собирает свою ветку сети, а не
+     * стоит на площадке. Пятно такой группы накрывало пол-промысла — отсюда и
+     * гигантские отсыпки.
+     *
+     * Здесь скважины связываются в группу, если стоят ближе PAD_LINK друг к
+     * другу, обходом в ширину по сеточному индексу. Это и есть куст: несколько
+     * устьев на одной отсыпке.
+     */
+    const spots = data.wells.map((w) => ({
+      x: toSceneX(w.p[0]),
+      z: toSceneZ(w.p[1]),
+    }));
+
+    const grid = new Map<string, number[]>();
+    const key = (x: number, z: number) =>
+      `${Math.floor(x / PAD_LINK)}:${Math.floor(z / PAD_LINK)}`;
+    spots.forEach((s, i) => {
+      const k = key(s.x, s.z);
+      const bucket = grid.get(k);
+      if (bucket) bucket.push(i);
+      else grid.set(k, [i]);
+    });
+
+    const seen = new Uint8Array(spots.length);
+    const clusters: { x: number; z: number }[][] = [];
+
+    for (let start = 0; start < spots.length; start++) {
+      if (seen[start]) continue;
+      seen[start] = 1;
+
+      const queue = [start];
+      const group: { x: number; z: number }[] = [];
+
+      while (queue.length) {
+        const i = queue.pop()!;
+        const s = spots[i];
+        group.push(s);
+
+        const cx = Math.floor(s.x / PAD_LINK);
+        const cz = Math.floor(s.z / PAD_LINK);
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            const bucket = grid.get(`${cx + dx}:${cz + dz}`);
+            if (!bucket) continue;
+            for (const j of bucket) {
+              if (seen[j]) continue;
+              const t = spots[j];
+              if ((t.x - s.x) ** 2 + (t.z - s.z) ** 2 > PAD_LINK * PAD_LINK) continue;
+              seen[j] = 1;
+              queue.push(j);
+            }
+          }
+        }
+      }
+
+      if (group.length >= 2) clusters.push(group);
     }
 
     const out: { x: number; y: number; z: number; yaw: number; w: number; d: number }[] = [];
 
-    for (const pts of byHub.values()) {
-      if (pts.length < 2) continue;
+    for (const pts of clusters) {
 
       const mx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
       const mz = pts.reduce((a, p) => a + p.z, 0) / pts.length;
@@ -229,14 +293,13 @@ export function WellPads() {
         halfB = Math.max(halfB, Math.abs(-dx * az + dz * ax));
       }
 
-      out.push({
-        x: mx,
-        y: surfY(mx, mz),
-        z: mz,
-        yaw: Math.atan2(-az, ax),
-        w: halfA * 2 + PAD_MARGIN * 2,
-        d: halfB * 2 + PAD_MARGIN * 2,
-      });
+      const w = halfA * 2 + PAD_MARGIN * 2;
+      const d = halfB * 2 + PAD_MARGIN * 2;
+      // Слишком крупное скопление — не площадка, а слипшаяся цепочка устьев
+      // вдоль трассы. Отсыпки под такое не бывает.
+      if (w > PAD_MAX || d > PAD_MAX) continue;
+
+      out.push({ x: mx, y: surfY(mx, mz), z: mz, yaw: Math.atan2(-az, ax), w, d });
     }
 
     return out;

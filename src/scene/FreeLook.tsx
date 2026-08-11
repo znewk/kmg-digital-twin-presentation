@@ -1,11 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { useShow } from '../store/useShow';
 import { CAMS, FLAT_BEATS } from '../data/stages';
-import { focusFrameFor } from './focus';
+import { focusFrameFor, type FocusFrame } from './focus';
+import { shotFrame } from './cycle/shotFrame';
+import { cycleRoutes } from '../data/cycle/route';
+import { SHOT_BY_ID } from '../data/cycle/storyboard';
+import { getFieldData } from '../data/geo/fieldData';
 
 /**
  * Свободный осмотр сцены.
@@ -58,6 +62,68 @@ export function FreeLook() {
     controls.target.set(frame.t[0], frame.t[1], frame.t[2]);
     controls.update();
   }, [selected, paused, camera, size.width, size.height]);
+
+  /**
+   * Подлёт камеры к текущему переделу цепочки.
+   *
+   * Не мгновенная перестановка, как при клике по объекту, а перелёт: цепочка
+   * идёт сама, и рывок кадра каждые несколько секунд читался бы как склейка
+   * видео, а не как обход промысла. Заодно по движению видно, КУДА переехали, —
+   * связь между соседними переделами и есть то, ради чего цепочка сквозная.
+   *
+   * Управление возвращается пользователю, как только камера пришла: дальше
+   * орбита слушается мыши, и разглядеть передел можно с любой стороны. Пока
+   * держим цель силой — мышь не работает, и это было бы хуже цепочки без
+   * камеры вовсе.
+   */
+  const cycleShot = useShow((s) => s.cycleShot);
+  const flight = useRef<FocusFrame | null>(null);
+
+  useEffect(() => {
+    if (!cycleShot) {
+      flight.current = null;
+      return;
+    }
+    const data = getFieldData();
+    const shot = SHOT_BY_ID.get(cycleShot);
+    if (!data || !shot) return;
+
+    const { oil, ppd } = cycleRoutes(data);
+    if (!oil) return;
+
+    const perspective = camera as THREE.PerspectiveCamera;
+    flight.current = shotFrame(
+      shot,
+      oil,
+      ppd,
+      data,
+      perspective.fov ?? 38,
+      size.width / size.height,
+    );
+  }, [cycleShot, camera, size.width, size.height]);
+
+  const wantPos = useRef(new THREE.Vector3());
+  const wantTarget = useRef(new THREE.Vector3());
+
+  useFrame((_, dt) => {
+    const frame = flight.current;
+    const controls = ref.current;
+    if (!frame || !controls) return;
+
+    wantPos.current.set(frame.p[0], frame.p[1], frame.p[2]);
+    wantTarget.current.set(frame.t[0], frame.t[1], frame.t[2]);
+
+    const k = 1 - Math.exp(-dt * 2.2);
+    camera.position.lerp(wantPos.current, k);
+    controls.target.lerp(wantTarget.current, k);
+    controls.update();
+
+    // Пришли — отпускаем. Порог в метрах от габарита кадра: у шага на весь
+    // промысел «пришли» это сотня метров, у отдельной установки — метр.
+    if (camera.position.distanceTo(wantPos.current) < frame.radius * 0.02) {
+      flight.current = null;
+    }
+  });
 
   return (
     <OrbitControls

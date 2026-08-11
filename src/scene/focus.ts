@@ -147,33 +147,47 @@ function dataObjectFrame(id: string, fovDeg: number, aspect: number): FocusFrame
   return frameAround(center, radius, DEFAULT_AZIMUTH, fovDeg, aspect);
 }
 
+export interface FrameOptions {
+  /** Запас вокруг объекта. Меньше — крупнее план. */
+  margin?: number;
+  /** Угол возвышения, рад. Пологий — для машин, крутой — для планов сверху. */
+  elevation?: number;
+  /** Уводить ли объект из-под правой панели. */
+  offsetForPanel?: boolean;
+}
+
 /** Общий расчёт положения камеры вокруг точки — один на оба реестра. */
-function frameAround(
+export function frameAround(
   center: THREE.Vector3,
   radius: number,
   azimuth: number,
   fovDeg: number,
   aspect: number,
+  opts: FrameOptions = {},
 ): FocusFrame {
+  const margin = opts.margin ?? MARGIN;
+  const elevation = opts.elevation ?? ELEVATION;
+  const panel = opts.offsetForPanel === false ? 0 : PANEL_FRACTION;
+
   // Дистанция из габарита и угла обзора. Панель съедает часть кадра по
   // ширине, поэтому эффективный горизонтальный угол меньше — учитываем это,
   // иначе объект «вылезает» из свободной зоны.
   const vFov = (fovDeg * Math.PI) / 180;
-  const usableAspect = aspect * (1 - PANEL_FRACTION);
+  const usableAspect = aspect * (1 - panel);
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * usableAspect);
   const limiting = Math.min(vFov, hFov);
-  const distance = (radius * MARGIN) / Math.tan(limiting / 2);
+  const distance = (radius * margin) / Math.tan(limiting / 2);
 
   const dir = new THREE.Vector3(
-    Math.cos(ELEVATION) * Math.sin(azimuth),
-    Math.sin(ELEVATION),
-    Math.cos(ELEVATION) * Math.cos(azimuth),
+    Math.cos(elevation) * Math.sin(azimuth),
+    Math.sin(elevation),
+    Math.cos(elevation) * Math.cos(azimuth),
   );
   const position = center.clone().addScaledVector(dir, distance);
 
   // Сдвиг цели вправо по экрану уводит объект влево — под свободную зону.
   const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
-  const shift = radius * MARGIN * PANEL_FRACTION * 0.9;
+  const shift = radius * margin * panel * 0.9;
   const target = center.clone().addScaledVector(right, -shift);
 
   return {

@@ -7,7 +7,7 @@ import { StageCaption } from '../ui/StageCaption';
 import { Progress } from '../ui/Progress';
 import { DebugHud } from '../ui/DebugHud';
 import { PanelLayer } from '../ui/panels';
-import { CycleTrack } from '../ui/CycleTrack';
+import { CyclePanel } from '../ui/CyclePanel';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { useShow } from '../store/useShow';
 
@@ -33,7 +33,7 @@ export function App() {
         <SceneControls />
         <ObjectPanel />
         <StageCaption />
-        {CYCLE_STAGES.has(stageId) && <CycleTrack />}
+        {CYCLE_STAGES.has(stageId) && <CyclePanel />}
         <Progress />
         <DebugHud />
       </div>

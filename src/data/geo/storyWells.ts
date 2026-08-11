@@ -86,6 +86,18 @@ function toeOf(w: WellRecord): number {
   return absToSceneY(h.botAbs - 6);
 }
 
+/**
+ * Обёртка записи реестра в сюжетную скважину.
+ *
+ * Экспортируется ради полного цикла: скважина-героиня показа выбирается по
+ * связности сети сбора, а не по близости к узлу детализации, и ей нужны те же
+ * полные модели — ствол, ГНО, перфорация, приток. Без этого камера в кадре
+ * «как нефть попадает в скважину» подлетала бы к инстансу без подземной части.
+ */
+export function makeStoryWell(w: WellRecord, kind: WellKind): StoryWell {
+  return toStory(w, kind);
+}
+
 function toStory(w: WellRecord, kind: WellKind): StoryWell {
   return {
     id: `well:${w.uwi}`,

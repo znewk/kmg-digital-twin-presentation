@@ -20,7 +20,9 @@ import { flowEnabled, flowTime } from './kit/flow';
 import { useFieldData } from '../../data/geo/fieldData';
 import { selectStoryWells } from '../../data/geo/storyWells';
 import { useShow } from '../../store/useShow';
-import { CycleChain } from '../cycle/CycleChain';
+import { CyclePlayer } from '../cycle/CyclePlayer';
+import { cycleRoutes } from '../../data/cycle/route';
+import { makeStoryWell } from '../../data/geo/storyWells';
 
 /**
  * Месторождение целиком — на реальных геоданных исполнительного топоплана
@@ -123,7 +125,27 @@ function FieldContents({ shadows }: { shadows: boolean }) {
    */
   const story = useMemo(() => selectStoryWells(data), [data]);
 
-  const storyUwis = useMemo(() => new Set(story.wells.map((w) => w.uwi)), [story]);
+  /**
+   * Скважина-героиня полного цикла и её нагнетательная пара.
+   *
+   * Выбираются не по близости к узлу детализации, как остальные сюжетные, а по
+   * СВЯЗНОСТИ сети сбора: показ ведёт зрителя от этой скважины через её
+   * замерную установку до сборного пункта по фактическим трассам. Им нужны
+   * полные модели — ствол, ГНО, перфорация, приток, — иначе кадр «как нефть
+   * попадает в скважину» подлетал бы к инстансу без подземной части.
+   */
+  const cycleWells = useMemo(() => {
+    const { oil, ppd } = cycleRoutes(data);
+    const out = [];
+    if (oil) out.push(makeStoryWell(oil.well, 'skn'));
+    if (ppd) out.push(makeStoryWell(ppd.injector, 'inj'));
+    return out;
+  }, [data]);
+
+  const storyUwis = useMemo(
+    () => new Set([...story.wells, ...cycleWells].map((w) => w.uwi)),
+    [story, cycleWells],
+  );
 
   return (
     <group ref={root}>
@@ -177,16 +199,16 @@ function FieldContents({ shadows }: { shadows: boolean }) {
             модели. */}
         <WellFarm exclude={storyUwis} />
 
-        {story.wells.map((w) => (
+        {[...story.wells, ...cycleWells].map((w) => (
           <WellHead key={`${w.id}:head`} spec={w} groundY={surfY(w.x, w.z)} />
         ))}
       </Stratum>
 
-      {/* Сквозная цепочка цикла — поверх живущего промысла, а не вместо него */}
-      <CycleChain />
+      {/* Полный цикл — поверх живущего промысла, а не вместо него */}
+      <CyclePlayer />
 
       {/* Стволы — вне группы поверхности, на своих фактических отметках */}
-      {story.wells.map((w) => (
+      {[...story.wells, ...cycleWells].map((w) => (
         <Well key={w.id} spec={w} />
       ))}
       <FundBores exclude={storyUwis} near={story.focus} clusters={story.satellites} />

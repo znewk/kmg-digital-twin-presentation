@@ -81,7 +81,7 @@ interface ShowState {
    * же вставке шага в середину цепочки, и сломался бы молча: подсветка ушла бы
    * на соседний передел, а понять это можно только глазами.
    */
-  cycleStep: string | null;
+  cycleShot: string | null;
   /** Цепочка идёт сама, без прокрутки. */
   cyclePlaying: boolean;
 
@@ -109,7 +109,7 @@ interface ShowState {
   toggleFeature: (f: FeatureId) => void;
   toggleLabels: () => void;
 
-  setCycleStep: (id: string | null) => void;
+  setCycleShot: (id: string | null) => void;
   toggleCyclePlay: () => void;
 }
 
@@ -158,7 +158,7 @@ export const useShow = create<ShowState>((set, get) => ({
   },
   labels: true,
 
-  cycleStep: null,
+  cycleShot: null,
   cyclePlaying: false,
 
   debug: params.has('debug'),
@@ -223,8 +223,17 @@ export const useShow = create<ShowState>((set, get) => ({
     set((s) => ({ features: { ...s.features, [f]: !s.features[f] } })),
   toggleLabels: () => set((s) => ({ labels: !s.labels })),
 
-  setCycleStep: (cycleStep) => set({ cycleStep }),
+  /**
+   * Цепочка забирает камеру, а значит требует свободного осмотра.
+   *
+   * Иначе за камеру одновременно тянут двое: таймлайн ведёт её по ракурсам
+   * прокрутки, а цепочка — к текущему переделу. Побеждает тот, кто пишет
+   * последним, и кадр дёргается между двумя точками. Ровно это и выглядело как
+   * «камера идёт невпопад».
+   */
+  setCycleShot: (cycleShot) => set({ cycleShot, paused: cycleShot ? true : get().paused }),
   // Остановка не сбрасывает шаг: цепочку ставят на паузу, чтобы рассмотреть
   // передел, на котором она стоит, а не чтобы вернуться в начало.
-  toggleCyclePlay: () => set((s) => ({ cyclePlaying: !s.cyclePlaying })),
+  toggleCyclePlay: () =>
+    set((s) => ({ cyclePlaying: !s.cyclePlaying, paused: s.cyclePlaying ? s.paused : true })),
 }));

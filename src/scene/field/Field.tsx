@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { perfPoint, surfY } from './geology';
+import { surfY } from './geology';
 import { DrainageZones, EarthLayers, TopIsolines } from './EarthLayers';
 import { FloodFront, GgdmGrid, SeismicSection, WaterCone } from './features';
 import { RealTerrain, TerrainContours, useTerrainReady } from './RealTerrain';
@@ -122,11 +122,6 @@ function FieldContents({ shadows }: { shadows: boolean }) {
    */
   const story = useMemo(() => selectStoryWells(data), [data]);
 
-  const drainage = useMemo(
-    () => story.wells.filter((w) => ['skn', 'esp', 'frac'].includes(w.kind)).map(perfPoint),
-    [story],
-  );
-
   const storyUwis = useMemo(() => new Set(story.wells.map((w) => w.uwi)), [story]);
 
   return (
@@ -142,7 +137,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
       {features.seismic && <SeismicSection />}
       {features.flood && <FloodFront wells={story.wells} />}
       {features.cone && <WaterCone wells={story.wells} />}
-      {features.drainage && <DrainageZones points={drainage} />}
+      {features.drainage && <DrainageZones wells={story.wells} />}
 
       {/*
         КАЖДЫЙ ОБЪЕКТ ЕДЕТ СО СВОИМ СЛОЁМ.

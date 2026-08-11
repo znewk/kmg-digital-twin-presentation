@@ -406,23 +406,28 @@ export function wellCurve(w: WellGeom): THREE.CatmullRomCurve3 {
   ]);
 }
 
-/** Середина интервала перфорации — к ней крепятся линии тока и зоны дренирования. */
+/**
+ * Доля длины ствола, на которой лежит середина интервала перфорации.
+ *
+ * Перфорация вскрывается у забоя, а забой каждой скважины посажен на подошву
+ * ЕЁ СОБСТВЕННОГО продуктивного горизонта из реестра. Поэтому доля пути и есть
+ * правильная привязка: она автоматически попадает в нужный пласт, будь он
+ * меловой на трёхстах метрах или юрский на шестистах.
+ *
+ * Раньше точка искалась по кровле опорного горизонта М-I-А — одного для всех.
+ * У скважины, работающей на Ю-IV, перфорация оказывалась на двести метров выше
+ * её пласта, в чужой толще.
+ */
+export const PERF_FRACTION = 0.93;
+
+/** Доля пути до перфорации с учётом исполнения скважины. */
+export function perfFraction(kind: WellKind): number {
+  return kind === 'horiz' ? 0.82 : PERF_FRACTION;
+}
+
+/** Середина интервала перфорации — к ней крепятся линии тока и дренирование. */
 export function perfPoint(w: WellGeom): THREE.Vector3 {
   const curve = wellCurve(w);
-  const pts = curve.getPoints(200);
-  if (w.kind === 'horiz') return pts[Math.round(pts.length * 0.82)].clone();
-
-  const px = w.x + w.drift * 0.85;
-  const pz = w.z + w.drift * 0.6;
-  const target = resTopY(px, pz) - 12;
-  let best = pts[0];
-  let bd = Infinity;
-  for (const p of pts) {
-    const d = Math.abs(p.y - target);
-    if (d < bd) {
-      bd = d;
-      best = p;
-    }
-  }
-  return best.clone();
+  // У горизонтальной перфорирован сам горизонтальный участок, а не забой.
+  return curve.getPointAt(w.kind === 'horiz' ? 0.82 : PERF_FRACTION).clone();
 }

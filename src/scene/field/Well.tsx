@@ -2,7 +2,10 @@ import { useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import * as THREE from 'three';
-import { perfPoint, wellCurve, resTopY } from './geology';
+import { perfFraction, perfPoint, wellCurve, resTopY } from './geology';
+import { absToSceneY } from '../../data/geo/fieldData';
+import { resolveHorizon } from '../../data/geo/stratigraphy';
+import { makeFlowMaterial, makePulseMaterial } from './kit/flow';
 import { useShow } from '../../store/useShow';
 import type { StoryWell } from '../../data/geo/storyWells';
 import { Assembly, type Placement } from './kit/Assembly';
@@ -195,6 +198,130 @@ function ChristmasTree({ y, cableEntry = false }: { y: number; cableEntry?: bool
       )}
     </group>
   );
+}
+
+// ── Движение флюида ─────────────────────────────────────────────────────────
+
+/**
+ * Приток к забою (ТЗ §4.4.1, шаг 1).
+ *
+ * Того, ради чего вся модель и строится, в сцене не было вовсе: нефть не шла
+ * из пласта в скважину. Показывается сходящимися к перфорации лучами внутри
+ * продуктивного прослоя — именно внутри, по толщине своего горизонта, а не
+ * произвольным облаком в толще.
+ *
+ * У нагнетательной всё наоборот: лучи расходятся от ствола, потому что вода
+ * идёт из скважины в пласт. Это не косметика — направление и есть смысл
+ * объекта, и перепутать нагнетание с отбором нельзя.
+ */
+function ReservoirFlow({ spec }: { spec: StoryWell }) {
+  const injecting = spec.kind === 'inj' || spec.kind === 'water';
+
+  const geometry = useMemo(() => {
+    const perf = perfPoint(spec);
+    const horizon = resolveHorizon(spec.record.hor);
+    // Полутолщина пласта: лучи расходятся по его мощности, а не по случайной
+    // высоте — приток идёт из всей вскрытой толщины.
+    const half = horizon
+      ? Math.abs(absToSceneY(horizon.topAbs) - absToSceneY(horizon.botAbs)) / 2
+      : 20;
+
+    const R = 165;
+    const RAYS = 16;
+    const STEPS = 12;
+    const pos: number[] = [];
+    const along: number[] = [];
+
+    for (let r = 0; r < RAYS; r++) {
+      const a = (r / RAYS) * Math.PI * 2;
+      const level = ((r % 3) - 1) * half * 0.6;
+      const sx = perf.x + Math.cos(a) * R;
+      const sz = perf.z + Math.sin(a) * R;
+      const sy = perf.y + level;
+
+      for (let s = 0; s < STEPS; s++) {
+        for (const t of [s / STEPS, (s + 1) / STEPS]) {
+          pos.push(sx + (perf.x - sx) * t, sy + (perf.y - sy) * t, sz + (perf.z - sz) * t);
+          // Волна бежит в сторону роста продольной координаты: у добывающей она
+          // растёт к забою, у нагнетательной — от него.
+          along.push(injecting ? R * (1 - t) : R * t);
+        }
+      }
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('aAlong', new THREE.Float32BufferAttribute(along, 1));
+    g.computeBoundingSphere();
+    return g;
+  }, [spec, injecting]);
+
+  const material = useMemo(
+    () =>
+      makePulseMaterial({
+        color: injecting ? '#5fa8e8' : '#f0ae4a',
+        pulseColor: '#ffffff',
+        period: 52,
+        speed: injecting ? 16 : 9,
+        opacity: 0.22,
+      }),
+    [injecting],
+  );
+
+  return <lineSegments geometry={geometry} material={material} userData={{ id: `${spec.id}:inflow` }} />;
+}
+
+/**
+ * Подъём флюида по НКТ (ТЗ §4.4.1, шаг 2).
+ *
+ * Столб внутри колонны от перфорации до устья. Направление задаётся тем, с
+ * какого конца отсчитывается продольная координата: у добывающей она растёт
+ * вверх, и волна идёт к устью, у нагнетательной — вниз.
+ */
+function LiftFlow({ spec }: { spec: StoryWell }) {
+  const injecting = spec.kind === 'inj' || spec.kind === 'water';
+
+  const geometry = useMemo(() => {
+    const curve = wellCurve(spec);
+    const end = perfFraction(spec.kind);
+    const N = 48;
+
+    // Ствол от устья до перфорации, точками по кривой.
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= N; i++) pts.push(curve.getPointAt((end * i) / N));
+
+    const path = new THREE.CatmullRomCurve3(pts);
+    const RADIAL = 6;
+    const g = new THREE.TubeGeometry(path, N, 0.55, RADIAL, false);
+
+    // Продольная координата по кольцам трубы: вершины идут кольцами вдоль пути.
+    const count = g.attributes.position.count;
+    const along = new Float32Array(count);
+    const total = path.getLength();
+    for (let i = 0; i < count; i++) {
+      const ring = Math.floor(i / (RADIAL + 1));
+      const t = ring / N;
+      along[i] = injecting ? total * t : total * (1 - t);
+    }
+    g.setAttribute('aAlong', new THREE.BufferAttribute(along, 1));
+    return g;
+  }, [spec, injecting]);
+
+  const material = useMemo(
+    () =>
+      makeFlowMaterial({
+        color: injecting ? '#3f6f96' : '#6b4a1c',
+        flowColor: injecting ? '#9fd0ff' : '#ffd08a',
+        period: 34,
+        speed: injecting ? 22 : 13,
+        intensity: 2.2,
+        metalness: 0.3,
+        roughness: 0.5,
+      }),
+    [injecting],
+  );
+
+  return <mesh geometry={geometry} material={material} userData={{ id: `${spec.id}:lift` }} />;
 }
 
 // ── Скважина целиком ────────────────────────────────────────────────────────
@@ -489,6 +616,14 @@ export function Well({ spec }: { spec: StoryWell }) {
             </mesh>
           ))}
         </group>
+      )}
+
+      {/* Приток к забою и подъём по колонне — процесс добычи, а не обозначение */}
+      {spec.kind !== "drill" && (
+        <>
+          <ReservoirFlow spec={spec} />
+          <LiftFlow spec={spec} />
+        </>
       )}
 
       {/* Долото на забое бурящейся */}

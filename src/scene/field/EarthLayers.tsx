@@ -25,6 +25,9 @@ import { strataOffset, Stratum } from './explode';
 import { Interactive } from './Interactive';
 import { useShow } from '../../store/useShow';
 import { useFieldData } from '../../data/geo/fieldData';
+import { perfPoint } from './geology';
+import { resolveHorizon } from '../../data/geo/stratigraphy';
+import type { StoryWell } from '../../data/geo/storyWells';
 
 /**
  * Разрез недр Восточного Молдабека (ТЗ §4.3).
@@ -252,14 +255,40 @@ export function EarthLayers() {
   );
 }
 
-/** Зоны дренирования вокруг интервалов перфорации добывающих скважин. */
-export function DrainageZones({ points }: { points: THREE.Vector3[] }) {
+/**
+ * Зоны дренирования вокруг интервалов перфорации.
+ *
+ * Область пласта, из которой скважина реально отбирает. Прежде она была
+ * блином фиксированной высоты, посаженным на опорный горизонт М-I-А для всех
+ * скважин разом, — при том что в реестре у каждой свой пласт, и между меловым
+ * и юрским двести метров разреза. Зона висела в чужой толще.
+ *
+ * Теперь высота линзы равна мощности СВОЕГО прослоя: дренирование идёт по
+ * вскрытой толщине, не выше кровли и не ниже подошвы. Тонкий пласт даёт
+ * тонкую линзу, и это видно.
+ */
+export function DrainageZones({ wells }: { wells: StoryWell[] }) {
+  const zones = useMemo(
+    () =>
+      wells
+        .filter((w) => ['skn', 'esp', 'frac', 'horiz'].includes(w.kind))
+        .map((w) => {
+          const p = perfPoint(w);
+          const h = resolveHorizon(w.record.hor);
+          const half = h
+            ? Math.abs(absToSceneY(h.topAbs) - absToSceneY(h.botAbs)) / 2
+            : 18;
+          return { id: w.id, p, half };
+        }),
+    [wells],
+  );
+
   return (
     <group userData={{ id: 'res-drainage' }}>
-      {points.map((p, i) => (
-        <mesh key={i} position={p} scale={[130, 26, 130]}>
+      {zones.map((z) => (
+        <mesh key={z.id} position={z.p} scale={[150, Math.max(6, z.half), 150]}>
           <sphereGeometry args={[1, 18, 12]} />
-          <meshBasicMaterial color="#f0ae4a" transparent opacity={0.12} depthWrite={false} />
+          <meshBasicMaterial color="#f0ae4a" transparent opacity={0.14} depthWrite={false} />
         </mesh>
       ))}
     </group>

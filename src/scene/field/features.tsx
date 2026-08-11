@@ -11,7 +11,7 @@ import {
   OWC_Y,
 } from './geology';
 import { absToSceneY } from '../../data/geo/fieldData';
-import { SECTION_BASE_ABS } from '../../data/geo/stratigraphy';
+import { owcAbs, resolveHorizon, SECTION_BASE_ABS } from '../../data/geo/stratigraphy';
 
 /**
  * Дополнительные слои визуализации недр — перенесены из референсного
@@ -290,7 +290,18 @@ export function FloodFront({ wells }: { wells: StoryWell[] }) {
   );
 }
 
-/** Конус обводнения под добывающей Д-1 — подтягивание воды от ВНК к перфорации. */
+/**
+ * Конус обводнения — подтягивание воды от водонефтяного контакта к перфорации.
+ *
+ * Физика простая: при отборе давление у забоя падает, и вода из-под контакта
+ * поднимается конусом вслед за нефтью. Чем выше отбор, тем выше конус; когда
+ * он доходит до перфорации, скважина начинает давать воду. Это и есть основная
+ * причина роста обводнённости, вокруг которой строится проблемный сюжет §4.4.5.
+ *
+ * Строится от ВНК ТОГО горизонта, на котором работает скважина, а не от
+ * опорного пласта: раньше конус у скважины, вскрывшей юрский горизонт, рос от
+ * мелового контакта на двести метров выше — то есть в чужой толще.
+ */
 export function WaterCone({ wells }: { wells: StoryWell[] }) {
   const geometry = useMemo(() => {
     const profile = [
@@ -307,8 +318,17 @@ export function WaterCone({ wells }: { wells: StoryWell[] }) {
     // Конус обводнения растёт под добывающей с механизированной добычей —
     // именно у неё форсированный отбор подтягивает воду снизу.
     const w = wells.find((x) => x.kind === 'skn') ?? wells.find((x) => x.kind === 'esp');
-    const p = w ? perfPoint(w) : new THREE.Vector3(200, OWC_Y, -90);
-    return new THREE.Vector3(p.x, OWC_Y - 10, p.z);
+    if (w) {
+      const h = resolveHorizon(w.record.hor);
+      const p = perfPoint(w);
+      // Основание конуса — на контакте своего горизонта, вершина тянется к
+      // перфорации.
+      const base = h ? absToSceneY(owcAbs(h)) : OWC_Y;
+      return new THREE.Vector3(p.x, base - 8, p.z);
+    }
+    // Механизированной добычи среди сюжетных не нашлось — конусу расти не от
+    // чего, ставим его на опорный контакт, чтобы объект не исчез молча.
+    return new THREE.Vector3(200, OWC_Y - 10, -90);
   }, [wells]);
 
   return (

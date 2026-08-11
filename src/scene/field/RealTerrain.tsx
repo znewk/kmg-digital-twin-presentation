@@ -12,6 +12,7 @@ import {
 } from '../../data/geo/fieldData';
 import { setTerrainSampler } from './geology';
 import { useShow } from '../../store/useShow';
+import { setFieldOutline } from '../../data/geo/outline';
 
 /**
  * Рельеф промысла по реальной высотной сетке (ТЗ §4.1 п.2).
@@ -32,7 +33,12 @@ export function useTerrainReady(): FieldDataset {
   const data = useFieldData();
   // Сэмплер ставится до первого рендера потомков: на него завязана посадка
   // всех наземных объектов, и подставлять его позже нельзя.
-  useMemo(() => setTerrainSampler(makeTerrainSampler(data.terrain)), [data]);
+  useMemo(() => {
+    setTerrainSampler(makeTerrainSampler(data.terrain));
+    // Контур снятой площади считается там же и один раз: по нему строится
+    // форма блока недр, и он обязан быть готов до первого слоя.
+    setFieldOutline(data);
+  }, [data]);
   return data;
 }
 

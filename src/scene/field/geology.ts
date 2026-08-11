@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { absToSceneY, FIELD_H, FIELD_W } from '../../data/geo/fieldData';
 import type { WellKind } from '../../data/geo/storyWells';
+import { outlineCentroid, outlineRadius } from '../../data/geo/outline';
 import {
   HORIZONS,
   SECTION_BASE_ABS,
@@ -87,16 +88,29 @@ export interface FieldStratum {
   order: number;
 }
 
+/**
+ * Палитра разреза.
+ *
+ * Светлее прежней намеренно. Когда слои стали непрозрачными, выяснилось, что
+ * они были рассчитаны на просвет: сквозь полупрозрачную толщу пробивался свет
+ * соседних, и разрез читался за счёт этого. Плотные слои того же цвета слились
+ * в тёмное пятно.
+ *
+ * Порода держится в серо-коричневой гамме и различается по светлоте, а
+ * насыщенный цвет отдан только флюиду: янтарь — нефть, синий — вода. На разрезе
+ * важно с одного взгляда видеть, где что залегает, а не любоваться оттенками
+ * глин.
+ */
 const COLOR = {
-  soil: '#5c5448',
-  overburden: '#44423e',
-  aquifer: '#2b4a63',
-  interburden: '#3a3d42',
+  soil: '#7c7160',
+  overburden: '#655e52',
+  aquifer: '#3f6d92',
+  interburden: '#565a5f',
   /** Нефтенасыщенная часть коллектора. */
-  oil: '#7d5320',
+  oil: '#c98529',
   /** Водонасыщенная часть того же коллектора. */
-  water: '#2e4a5e',
-  basement: '#191c24',
+  water: '#3f6d92',
+  basement: '#2f3138',
 };
 
 const SUITE_LABEL: Record<Horizon['suite'], string> = {
@@ -269,39 +283,70 @@ export const OWC_Y = absToSceneY(owcAbs(REFERENCE_HORIZON));
  * умножаются на тридцать один. Свод и разломы читаются и на такой сетке —
  * рельефа в подземной части нет, формы гладкие.
  */
-export function makeFieldLayer(topFn: Fn, botFn: Fn, segX = 48, segZ = 34): THREE.BufferGeometry {
-  const nx = segX + 1;
-  const nz = segZ + 1;
+export function makeFieldLayer(topFn: Fn, botFn: Fn, rays = 72, rings = 16): THREE.BufferGeometry {
+  const [cx, cz] = outlineCentroid();
+
+  // Луч наружу под каждым углом: длина берётся от контура снятой площади,
+  // поэтому слой повторяет её форму, а не рамку габарита.
+  const reach: number[] = [];
+  for (let r = 0; r < rays; r++) {
+    reach.push(outlineRadius((r / rays) * Math.PI * 2));
+  }
+
   const pos: number[] = [];
   const idx: number[] = [];
 
+  /** Вершины: сначала кровля, затем подошва. Порядок — центр, потом кольца. */
   for (let pass = 0; pass < 2; pass++) {
     const fn = pass === 0 ? topFn : botFn;
-    for (let j = 0; j < nz; j++) {
-      for (let i = 0; i < nx; i++) {
-        const x = -HW + (2 * HW * i) / segX;
-        const z = -HD + (2 * HD * j) / segZ;
+    pos.push(cx, fn(cx, cz), cz);
+
+    for (let ring = 1; ring <= rings; ring++) {
+      const k = ring / rings;
+      for (let r = 0; r < rays; r++) {
+        const a = (r / rays) * Math.PI * 2;
+        const x = cx + Math.cos(a) * reach[r] * k;
+        const z = cz + Math.sin(a) * reach[r] * k;
         pos.push(x, fn(x, z), z);
       }
     }
   }
 
-  const T = (i: number, j: number) => j * nx + i;
-  const B = (i: number, j: number) => nx * nz + j * nx + i;
+  const perSurface = 1 + rings * rays;
+  /** Номер вершины: кольцо 0 — центр, дальше по лучам. */
+  const V = (surface: number, ring: number, ray: number) =>
+    surface * perSurface + (ring === 0 ? 0 : 1 + (ring - 1) * rays + (ray % rays));
 
-  for (let j = 0; j < segZ; j++) {
-    for (let i = 0; i < segX; i++) {
-      idx.push(T(i, j), T(i, j + 1), T(i + 1, j), T(i + 1, j), T(i, j + 1), T(i + 1, j + 1));
-      idx.push(B(i, j), B(i + 1, j), B(i, j + 1), B(i + 1, j), B(i + 1, j + 1), B(i, j + 1));
+  for (let surface = 0; surface < 2; surface++) {
+    // Обход снизу разворачивается, иначе подошва смотрит внутрь толщи.
+    const flip = surface === 1;
+
+    for (let r = 0; r < rays; r++) {
+      const a = V(surface, 0, 0);
+      const b = V(surface, 1, r);
+      const c = V(surface, 1, r + 1);
+      idx.push(a, flip ? c : b, flip ? b : c);
+    }
+
+    for (let ring = 1; ring < rings; ring++) {
+      for (let r = 0; r < rays; r++) {
+        const a = V(surface, ring, r);
+        const b = V(surface, ring, r + 1);
+        const c = V(surface, ring + 1, r);
+        const d = V(surface, ring + 1, r + 1);
+        if (flip) idx.push(a, b, c, b, d, c);
+        else idx.push(a, c, b, b, c, d);
+      }
     }
   }
-  for (let i = 0; i < segX; i++) {
-    idx.push(T(i, 0), T(i + 1, 0), B(i, 0), T(i + 1, 0), B(i + 1, 0), B(i, 0));
-    idx.push(T(i, segZ), B(i, segZ), T(i + 1, segZ), T(i + 1, segZ), B(i, segZ), B(i + 1, segZ));
-  }
-  for (let j = 0; j < segZ; j++) {
-    idx.push(T(0, j), B(0, j), T(0, j + 1), T(0, j + 1), B(0, j), B(0, j + 1));
-    idx.push(T(segX, j), T(segX, j + 1), B(segX, j), T(segX, j + 1), B(segX, j + 1), B(segX, j));
+
+  // Боковая стенка по краю контура — то, что и видно на срезе блока.
+  for (let r = 0; r < rays; r++) {
+    const t0 = V(0, rings, r);
+    const t1 = V(0, rings, r + 1);
+    const b0 = V(1, rings, r);
+    const b1 = V(1, rings, r + 1);
+    idx.push(t0, b0, t1, t1, b0, b1);
   }
 
   const g = new THREE.BufferGeometry();

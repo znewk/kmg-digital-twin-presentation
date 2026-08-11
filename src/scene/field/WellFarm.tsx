@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { toSceneX, toSceneZ, useFieldData, type WellRecord } from '../../data/geo/fieldData';
 import { WELL_CATEGORY, WELL_STATUS } from '../../data/geo/fieldStyle';
@@ -18,6 +18,7 @@ import {
   PIVOT_Y,
 } from './facilities/pumpjack';
 import { surfY } from './geology';
+import { useShow } from '../../store/useShow';
 
 /**
  * Фонд промысла целиком — 1101 скважина, и все они живут (ТЗ §4.4).
@@ -155,10 +156,52 @@ interface Tmp {
 }
 
 /**
+ * Выбор скважины по клику в инстансированный фонд.
+ *
+ * Все меши одной группы — станина, стойка, балансир, кривошип — расставлены по
+ * одному и тому же списку и в одном порядке, поэтому номер экземпляра из
+ * события указывает на скважину независимо от того, в какую именно деталь
+ * попал курсор. Обработчик поэтому один, на всю группу.
+ *
+ * Идентификатор тот же, что на плоской схеме: клик по скважине в 3D и клик по
+ * ней же на карте объектов обязаны открывать одну карточку.
+ */
+function useWellPick(items: Placed[]) {
+  return useMemo(() => {
+    const idOf = (e: { instanceId?: number }) => {
+      const item = e.instanceId !== undefined ? items[e.instanceId] : undefined;
+      return item ? `well:${item.well.uwi}` : null;
+    };
+
+    return {
+      onClick: (e: ThreeEvent<MouseEvent>) => {
+        const id = idOf(e);
+        if (!id) return;
+        e.stopPropagation();
+        const { selected, select } = useShow.getState();
+        select(selected === id ? null : id);
+      },
+      onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+        const id = idOf(e);
+        if (!id) return;
+        e.stopPropagation();
+        useShow.getState().hover(id);
+        document.body.style.cursor = 'pointer';
+      },
+      onPointerOut: () => {
+        useShow.getState().hover(null);
+        document.body.style.cursor = '';
+      },
+    };
+  }, [items]);
+}
+
+/**
  * Станки-качалки всего промысла. Три инстансированных меша: станина, стойка,
  * балансир. Качается только балансир.
  */
 function PumpjackFarm({ items }: { items: Placed[] }) {
+  const pick = useWellPick(items);
   const beam = useRef<THREE.InstancedMesh>(null);
   const crank = useRef<THREE.InstancedMesh>(null);
   const pitman = useRef<THREE.InstancedMesh>(null);
@@ -248,7 +291,7 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
   if (items.length === 0) return null;
 
   return (
-    <group userData={{ id: 'fund-pumpjacks' }}>
+    <group userData={{ id: "fund-pumpjacks" }} {...pick}>
       <Assembly build={buildPumpjackStatic} placements={placements} id="pumpjack-static" />
 
       <instancedMesh
@@ -287,6 +330,7 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
  * на плоской схеме: 2D и 3D обязаны совпадать по обозначениям.
  */
 function TreeFarm({ items, id }: { items: Placed[]; id: string }) {
+  const pick = useWellPick(items);
   const body = useRef<THREE.InstancedMesh>(null);
   const pad = useRef<THREE.InstancedMesh>(null);
 
@@ -331,7 +375,7 @@ function TreeFarm({ items, id }: { items: Placed[]; id: string }) {
   if (items.length === 0) return null;
 
   return (
-    <group userData={{ id }}>
+    <group userData={{ id }} {...pick}>
       <instancedMesh ref={pad} args={[undefined, undefined, items.length]} receiveShadow>
         <boxGeometry args={[4.6, 0.24, 4.6]} />
         <meshStandardMaterial color="#4f4c42" roughness={0.98} metalness={0} />
@@ -354,6 +398,7 @@ function TreeFarm({ items, id }: { items: Placed[]; id: string }) {
  * выраженное высотой и материалом.
  */
 function IdleFarm({ items }: { items: Placed[] }) {
+  const pick = useWellPick(items);
   const body = useRef<THREE.InstancedMesh>(null);
 
   const compose = useMemo(
@@ -385,7 +430,8 @@ function IdleFarm({ items }: { items: Placed[] }) {
       ref={body}
       args={[undefined, undefined, items.length]}
       receiveShadow
-      userData={{ id: 'fund-idle' }}
+      userData={{ id: "fund-idle" }}
+      {...pick}
     >
       <cylinderGeometry args={[0.85, 0.85, 1.4, 6]} />
       <meshStandardMaterial metalness={0.3} roughness={0.8} />

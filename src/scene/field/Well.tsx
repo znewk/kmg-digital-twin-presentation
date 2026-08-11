@@ -1,8 +1,9 @@
 import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { perfPoint, wellCurve, resTopY } from './geology';
+import { useShow } from '../../store/useShow';
 import type { StoryWell } from '../../data/geo/storyWells';
 import { Assembly, type Placement } from './kit/Assembly';
 import { EQUIPMENT_SCALE } from './kit/scale';
@@ -207,15 +208,46 @@ function ChristmasTree({ y, cableEntry = false }: { y: number; cableEntry?: bool
  * своих отметках: ради этого разнесение и нужно, под приподнятым грунтом
  * открывается колонна, ГНО и перфорация.
  */
+/** Обработчики выбора объекта — общие для устья и ствола сюжетной скважины. */
+function useSelect(id: string) {
+  return useMemo(
+    () => ({
+      onClick: (e: ThreeEvent<MouseEvent>) => {
+        e.stopPropagation();
+        const { selected, select } = useShow.getState();
+        select(selected === id ? null : id);
+      },
+      onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+        e.stopPropagation();
+        useShow.getState().hover(id);
+        document.body.style.cursor = 'pointer';
+      },
+      onPointerOut: () => {
+        useShow.getState().hover(null);
+        document.body.style.cursor = '';
+      },
+    }),
+    [id],
+  );
+}
+
 export function WellHead({ spec, groundY }: { spec: StoryWell; groundY: number }) {
+  const pick = useSelect(spec.id);
+
   return (
     // Отметка земли вынесена в положение группы, а масштаб — в саму группу:
     // если оставить её внутри, коэффициент умножит и высоту посадки, и устье
     // повиснет над землёй ровно во столько же раз.
+    //
+    // Идентификатор клика — сама скважина, а не «устье скважины»: зритель
+    // тычет в качалку, а узнать хочет про скважину под ней.
     <group
       position={[spec.x, groundY, spec.z]}
       scale={EQUIPMENT_SCALE}
-      userData={{ id: `${spec.id}:head` }}
+      onClick={pick.onClick}
+      onPointerOver={pick.onPointerOver}
+      onPointerOut={pick.onPointerOut}
+      userData={{ id: spec.id }}
     >
       {spec.kind === 'skn' && <PumpjackHead y={0} />}
       {spec.kind === 'drill' && <DerrickHead y={0} />}
@@ -313,8 +345,15 @@ export function Well({ spec }: { spec: StoryWell }) {
 
   const TRACE_COLOR = spec.kind === 'inj' ? '#5fa8e8' : '#8fbaf0';
 
+  const pick = useSelect(spec.id);
+
   return (
-    <group userData={{ id: spec.id }}>
+    <group
+      userData={{ id: spec.id }}
+      onClick={pick.onClick}
+      onPointerOver={pick.onPointerOver}
+      onPointerOut={pick.onPointerOut}
+    >
       {/* Экранная трасса ствола постоянной толщины.
           Геометрический диаметр колонны честный — около четырёх метров, и на
           обзорном плане с полутора километров это тоньше пикселя: разнесёшь

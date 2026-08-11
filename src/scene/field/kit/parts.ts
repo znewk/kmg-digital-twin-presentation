@@ -328,7 +328,7 @@ export function mergeParts(parts: Part[]): Map<MatKey, THREE.BufferGeometry> {
  * нужен ровно один частный случай — position и normal, — и он занимает меньше
  * места, чем обход этой проблемы через настройку сборки.
  */
-function mergeIndexed(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
+export function mergeIndexed(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
   let vertexCount = 0;
   let indexCount = 0;
 

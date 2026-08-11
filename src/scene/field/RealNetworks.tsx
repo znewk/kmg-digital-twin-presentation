@@ -69,25 +69,36 @@ function mergeLines(lines: Polyline[], lift: number): THREE.BufferGeometry {
 export function RealNetworks() {
   const data = useFieldData();
 
-  // Цвет и подъём над рельефом берутся из общего словаря обозначений: плоская
-  // схема и сцена обязаны совпадать по цвету, иначе переход «карта поднимается
-  // в 3D» читается как подмена картинки (ТЗ §3.1 п.6).
+  /**
+   * Здесь остаётся ТОЛЬКО поверхностное обозначение трасс.
+   *
+   * Сами подземные трубопроводы теперь лежат в земле на глубине заложения
+   * (см. `Underground.tsx`) — раньше они рисовались линиями над рельефом, и это
+   * противоречило `meta.buried_note`. Но убрать их с поверхности совсем нельзя
+   * по двум причинам: §3.1 п.6 требует, чтобы 3D читалась как продолжение
+   * плоской схемы с теми же трассами, и в натуре подземный трубопровод
+   * действительно обозначен на поверхности — расчищенной полосой отвода и
+   * знаками. Поэтому здесь тонкая приглушённая нитка-обозначение, а объём —
+   * под землёй.
+   *
+   * Цвет берётся из общего словаря: плоская схема и сцена обязаны совпадать по
+   * обозначениям, иначе переход «карта поднимается в 3D» читается как подмена
+   * картинки.
+   */
   const specs = useMemo<NetSpec[]>(() => {
     const n = data.networks;
     const spec = (id: string, key: NetworkKey, lines: Polyline[], opacity: number): NetSpec => ({
       id,
       lines,
       color: NETWORK_STYLE[key].color,
-      lift: NETWORK_STYLE[key].lift,
+      lift: 0.4,
       opacity,
     });
     return [
-      spec('s-neftesbor', 'oil_pipeline', n.oil_pipeline, 0.85),
-      spec('s-ppd-line', 'water_pipeline', n.water_pipeline, 0.8),
-      spec('s-gas', 'gas_pipeline', n.gas_pipeline, 0.75),
-      spec('s-vl10', 'power_10kv', n.power_10kv, 0.55),
-      spec('s-vl04', 'power_04kv', n.power_04kv, 0.35),
-      spec('s-roads', 'road', n.road, 0.4),
+      spec('s-neftesbor', 'oil_pipeline', n.oil_pipeline, 0.4),
+      spec('s-ppd-line', 'water_pipeline', n.water_pipeline, 0.35),
+      spec('s-gas', 'gas_pipeline', n.gas_pipeline, 0.3),
+      spec('s-roads', 'road', n.road, 0.45),
     ];
   }, [data]);
 

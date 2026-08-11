@@ -7,6 +7,7 @@ import { FloodFront, GgdmGrid, SeismicSection, WaterCone } from './features';
 import { RealTerrain, TerrainContours, useTerrainReady } from './RealTerrain';
 import { HubPads, RealNetworks } from './RealNetworks';
 import { Facilities } from './Facilities';
+import { BuriedNetworks, FundBores, Manholes, TrenchSection } from './Underground';
 import { Well } from './Well';
 import { WellFarm } from './WellFarm';
 import { Stratum } from './explode';
@@ -130,6 +131,15 @@ function FieldContents({ shadows }: { shadows: boolean }) {
         <Well key={w.id} spec={w} groundY={surfY(w.x, w.z)} />
       ))}
 
+      {/*
+        Подземное хозяйство — вне группы поверхности по той же причине, что и
+        стволы: при разнесении слоёв поверхность поднимается, и под ней должны
+        открыться трубы, кабели и колонны, а не уехать вместе с ней.
+      */}
+      <BuriedNetworks />
+      <FundBores exclude={storyUwis} />
+      <TrenchSection near={story.focus} />
+
       {/* Поверхность промысла по фактическим координатам съёмки */}
       <Stratum id="surface">
         <RealTerrain />
@@ -137,6 +147,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
         <RealNetworks />
         <HubPads />
         <Facilities />
+        <Manholes />
         {/* Весь остальной фонд — инстансами, но живой: работающие качалки
             качаются, у каждой своя фаза. Сюжетные исключены, они уже
             отрисованы полными моделями выше. */}

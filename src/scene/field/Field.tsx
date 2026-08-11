@@ -21,6 +21,7 @@ import { useFieldData } from '../../data/geo/fieldData';
 import { selectStoryWells } from '../../data/geo/storyWells';
 import { useShow } from '../../store/useShow';
 import { CyclePlayer } from '../cycle/CyclePlayer';
+import { ModuleFocus } from '../cycle/ModuleFocus';
 import { cycleRoutes } from '../../data/cycle/route';
 import { makeStoryWell } from '../../data/geo/storyWells';
 
@@ -206,6 +207,9 @@ function FieldContents({ shadows }: { shadows: boolean }) {
 
       {/* Полный цикл — поверх живущего промысла, а не вместо него */}
       <CyclePlayer />
+
+      {/* Объекты, которыми управляет разбираемый модуль */}
+      <ModuleFocus />
 
       {/* Стволы — вне группы поверхности, на своих фактических отметках */}
       {[...story.wells, ...cycleWells].map((w) => (

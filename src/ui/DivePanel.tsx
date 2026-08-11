@@ -1,8 +1,37 @@
 import { useEffect } from 'react';
 import { DIVE_BY_ID } from '../data/dives';
 import { moduleName, MODULES, SOURCE_META } from '../data/modules';
+import { DOSSIER } from '../data/moduleDossier';
 import { useShow } from '../store/useShow';
 import { REGISTRY } from './panels';
+
+/** Раздел досье: заголовок и список. Пустые разделы не рисуются вовсе. */
+function DossierList({
+  title,
+  items,
+  accent,
+}: {
+  title: string;
+  items: string[];
+  accent?: string;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <div
+        className="font-mono text-[8.5px] tracking-[0.12em] uppercase"
+        style={{ color: accent ?? 'var(--color-txt-faint)' }}
+      >
+        {title}
+      </div>
+      <ul className="mt-1 ml-3 list-disc text-[0.68rem] leading-snug text-[var(--color-txt-dim)]">
+        {items.map((i) => (
+          <li key={i}>{i}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 /**
  * Раздел контура: разбор модуля на объекте Молдабека.
@@ -53,6 +82,13 @@ export function DivePanel() {
 
   const Panel = step.panel ? REGISTRY[step.panel] : null;
   const accent = d.twin ? `var(--color-${d.twin})` : 'var(--color-nedra)';
+
+  /**
+   * Досье берётся по ПЕРВОМУ модулю шага — тому, вокруг которого шаг и
+   * построен. Остальные перечислены бейджами: показывать три досье подряд
+   * значит превратить панель в справочник, который на показе никто не читает.
+   */
+  const dossier = step.modules?.map((id) => DOSSIER[id]).find(Boolean) ?? null;
 
   return (
     <>
@@ -121,6 +157,63 @@ export function DivePanel() {
             </p>
           )}
         </div>
+
+        {/*
+          Досье модуля: что получает, как обрабатывает, что отдаёт и чего пока
+          не умеет. Собрано из отчёта об обследовании, сценария демо и
+          официальной документации продукта — ничего не дописано «для полноты».
+
+          Ограничения показаны наравне с возможностями и не смягчены: отчёт
+          прямо фиксирует, что у переданной ГДМ не оценена прогнозная
+          способность, — показывать модуль так, будто этого нет, значит
+          подставить докладчика под первый же вопрос профильной аудитории.
+        */}
+        {dossier && (
+          <div className="max-h-[42vh] overflow-y-auto border-t border-[var(--color-line)] pt-3">
+            <p className="text-[0.72rem] leading-relaxed">{dossier.purpose}</p>
+
+            <DossierList title="Получает" items={dossier.inputs} />
+            <DossierList title="Обрабатывает" items={dossier.processing} />
+            <DossierList title="Отдаёт" items={dossier.outputs} accent={accent} />
+
+            {dossier.objects && dossier.objects.length > 0 && (
+              <div className="mt-3">
+                <div className="font-mono text-[8.5px] tracking-[0.12em] text-[var(--color-txt-faint)] uppercase">
+                  Объекты Молдабека
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {dossier.objects.map((o) => (
+                    <span
+                      key={o}
+                      className="rounded border border-[var(--color-line)] px-1.5 py-0.5 text-[9.5px] text-[var(--color-txt-dim)]"
+                    >
+                      {o}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {dossier.limits && dossier.limits.length > 0 && (
+              <div className="mt-3 border-l-2 border-[var(--color-warn,#d08b3a)] pl-2.5">
+                <div className="font-mono text-[8.5px] tracking-[0.12em] text-[var(--color-txt-faint)] uppercase">
+                  Ограничения на сегодня
+                </div>
+                <ul className="mt-1 ml-3 list-disc text-[0.68rem] leading-snug text-[var(--color-txt-dim)]">
+                  {dossier.limits.map((l) => (
+                    <li key={l}>{l}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {dossier.mapping && (
+              <div className="mt-3 font-mono text-[8.5px] tracking-[0.08em] text-[var(--color-txt-faint)]">
+                в терминах ABAI — {dossier.mapping}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-1.5 border-t border-[var(--color-line)] pt-2.5">
           <button

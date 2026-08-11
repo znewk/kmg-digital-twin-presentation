@@ -1,5 +1,6 @@
 import type { ModuleId } from './modules';
 import type { PanelId } from './stages';
+import type { AnchorSpec } from './cycle/chain';
 import type { Framing, SceneSetup, ShotTarget } from './cycle/storyboard';
 
 /**
@@ -36,6 +37,20 @@ export interface DiveStep {
   setup?: SceneSetup;
   /** В теле есть иллюстративные величины (§7). */
   illustrative?: boolean;
+  /**
+   * Объекты промысла, которыми модуль занимается на этом шаге, — подсвечиваются
+   * в сцене.
+   *
+   * Привязка не выдумана: карта на стр. 12 отчёта об обследовании прямо
+   * сопоставляет модули объектам — «Трубопроводы» напорному нефтепроводу,
+   * «КНС и ППД» кустовым насосным станциям, «Химизация» БРХ. Показать модуль
+   * и не показать, чем он управляет, — значит оставить зрителя с названием
+   * продукта вместо понимания.
+   *
+   * Правило поиска, а не координаты: подсветка встаёт на фактические объекты
+   * датасета, и выдумать среди них лишний технически невозможно.
+   */
+  highlight?: AnchorSpec[];
 }
 
 export interface Dive {
@@ -68,6 +83,7 @@ export const DIVES: Dive[] = [
         body: 'Сейсморазведка и обработка данных, построение геологических моделей. Инструменты — t-Navigator и Petrel, те же, что уже используются на пласте. На Молдабеке этот контур пока представлен только исходной геологией разреза.',
         look: { at: 'reservoir' },
         framing: 'context',
+        highlight: [{ source: 'subsurface' }],
         setup: { clip: true, features: { seismic: true } },
       },
     ],
@@ -89,6 +105,7 @@ export const DIVES: Dive[] = [
         modules: ['tNavigator', 'abaiKp'],
         look: { at: 'reservoir' },
         framing: 'context',
+        highlight: [{ source: 'subsurface' }],
         setup: { clip: true, features: { grid: true, isolines: true } },
       },
       {
@@ -99,6 +116,7 @@ export const DIVES: Dive[] = [
         modules: ['numex', 'abaiCrns', 'abaiPdim'],
         look: { at: 'reservoir' },
         framing: 'context',
+        highlight: [{ source: 'wells', cat: 'oil', st: 'active' }],
         setup: { clip: true, features: { drainage: true, isolines: true } },
         illustrative: true,
       },
@@ -110,6 +128,10 @@ export const DIVES: Dive[] = [
         modules: ['numexOptimize', 'abaiUz'],
         look: { at: 'reservoir' },
         framing: 'context',
+        highlight: [
+          { source: 'wells', cat: 'inj', st: 'active' },
+          { source: 'facility', kind: 'kns' },
+        ],
         setup: { clip: true, features: { flood: true, cone: true } },
         illustrative: true,
       },
@@ -132,6 +154,7 @@ export const DIVES: Dive[] = [
         modules: ['rtm'],
         look: { at: 'wellhead' },
         framing: 'object',
+        highlight: [{ source: 'wells', cat: 'oil', st: 'idle' }],
         setup: { features: { traces: true } },
         illustrative: true,
       },
@@ -143,6 +166,7 @@ export const DIVES: Dive[] = [
         modules: ['wwo', 'sapToro'],
         look: { at: 'pad' },
         framing: 'context',
+        highlight: [{ source: 'wells', cat: 'oil', st: 'inactive' }],
         setup: { features: { traces: true } },
         illustrative: true,
       },
@@ -153,6 +177,7 @@ export const DIVES: Dive[] = [
         modules: ['abaiPgno', 'abaiTr'],
         look: { at: 'bore' },
         framing: 'object',
+        highlight: [{ source: 'wells', cat: 'oil', st: 'active' }],
         setup: { clip: true },
       },
     ],
@@ -174,6 +199,10 @@ export const DIVES: Dive[] = [
         modules: ['infraplan'],
         look: { at: 'collector' },
         framing: 'wide',
+        highlight: [
+          { source: 'network', key: 'oil_pipeline' },
+          { source: 'facility', kind: 'gzu' },
+        ],
         setup: { features: { traces: true } },
         illustrative: true,
       },
@@ -185,6 +214,7 @@ export const DIVES: Dive[] = [
         modules: ['digitalTwinPipe'],
         look: { at: 'external', id: 's-cppn' },
         framing: 'wide',
+        highlight: [{ source: 'external', id: 's-cppn' }, { source: 'facility', kind: 'sp' }],
         setup: { features: { traces: true } },
         illustrative: true,
       },
@@ -196,6 +226,10 @@ export const DIVES: Dive[] = [
         modules: ['digitalTwin', 'abaiTr', 'abaiPdim'],
         look: { at: 'sp' },
         framing: 'object',
+        highlight: [
+          { source: 'facility', kind: 'sp' },
+          { source: 'facility', kind: 'kns' },
+        ],
         setup: { features: { traces: true } },
         illustrative: true,
       },
@@ -207,6 +241,7 @@ export const DIVES: Dive[] = [
         modules: ['digitalTwin'],
         look: { at: 'pad' },
         framing: 'context',
+        highlight: [{ source: 'wells', cat: 'oil', st: 'active' }],
         setup: { features: { traces: true } },
         illustrative: true,
       },
@@ -217,6 +252,7 @@ export const DIVES: Dive[] = [
         modules: ['smartField'],
         look: { at: 'field' },
         framing: 'wide',
+        highlight: [{ source: 'hubs' }],
         setup: { features: { traces: true } },
       },
     ],
@@ -238,6 +274,7 @@ export const DIVES: Dive[] = [
         modules: ['nedraData'],
         look: { at: 'field' },
         framing: 'wide',
+        highlight: [{ source: 'facility', kind: 'gzu' }],
       },
       {
         id: 'data-model',
@@ -247,6 +284,7 @@ export const DIVES: Dive[] = [
         modules: ['nedraData'],
         look: { at: 'field' },
         framing: 'wide',
+        highlight: [{ source: 'hubs' }],
       },
       {
         id: 'data-asset',
@@ -256,6 +294,7 @@ export const DIVES: Dive[] = [
         modules: ['aiAgents', 'nedraData'],
         look: { at: 'field' },
         framing: 'wide',
+        highlight: [{ source: 'facility', kind: 'sp' }, { source: 'facility', kind: 'kns' }],
         illustrative: true,
       },
     ],

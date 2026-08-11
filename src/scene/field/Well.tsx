@@ -6,6 +6,18 @@ import { perfPoint, wellCurve, resTopY } from './geology';
 import type { StoryWell } from '../../data/geo/storyWells';
 import { Assembly, type Placement } from './kit/Assembly';
 import { EQUIPMENT_SCALE } from './kit/scale';
+import {
+  buildPumpjackBeam,
+  buildPumpjackCrank,
+  buildPumpjackPitman,
+  buildPumpjackStatic,
+  mergeSingle,
+  pumpjackPose,
+  CRANK_X,
+  CRANK_Y,
+  PIVOT_X,
+  PIVOT_Y,
+} from './facilities/pumpjack';
 import { buildRigStatic } from './facilities/rig';
 import { buildWorkoverStatic } from './facilities/workover';
 import { Bars, type BarSpec } from './Bars';
@@ -30,56 +42,48 @@ const UNIT = { color: '#7e8ca0', metalness: 0.7, roughness: 0.35 } as const;
 
 // ── Устья ───────────────────────────────────────────────────────────────────
 
-/** Станок-качалка, размеры настоящие: балансир 9,2 м, высота стойки 6 м. */
+/**
+ * Станок-качалка сюжетной скважины. Модель та же самая, что у всего фонда, —
+ * иначе одна и та же машина выглядела бы по-разному в зависимости от того,
+ * попала она в сюжет или нет.
+ */
 function PumpjackHead({ y }: { y: number }) {
-  const beam = useRef<THREE.Group>(null);
-  const crank = useRef<THREE.Group>(null);
+  const beam = useRef<THREE.Mesh>(null);
+  const crank = useRef<THREE.Mesh>(null);
+  const pitman = useRef<THREE.Mesh>(null);
+
+  const geometry = useMemo(
+    () => ({
+      beam: mergeSingle(buildPumpjackBeam()),
+      crank: mergeSingle(buildPumpjackCrank()),
+      pitman: mergeSingle(buildPumpjackPitman()),
+    }),
+    [],
+  );
 
   useFrame(({ clock }) => {
-    const phase = (clock.elapsedTime * Math.PI * 2) / 8;
-    if (beam.current) beam.current.rotation.z = Math.sin(phase) * 0.17;
-    if (crank.current) crank.current.rotation.z = phase;
+    const pose = pumpjackPose((clock.elapsedTime * Math.PI * 2) / 8);
+    if (beam.current) beam.current.rotation.z = pose.beamAngle;
+    if (crank.current) crank.current.rotation.z = pose.crankAngle;
+    if (pitman.current) {
+      pitman.current.position.copy(pose.pitmanMid);
+      pitman.current.quaternion.copy(pose.pitmanQuat);
+      pitman.current.scale.set(1, pose.pitmanLength, 1);
+    }
   });
-
-  const legs = useMemo<BarSpec[]>(() => {
-    const top = new THREE.Vector3(0.4, 6, 0);
-    return (
-      [
-        [-1, -1.1],
-        [-1, 1.1],
-        [1.8, -1.1],
-        [1.8, 1.1],
-      ] as [number, number][]
-    ).map(([x, z]) => [new THREE.Vector3(x, 0.5, z), top, 0.16] as BarSpec);
-  }, []);
 
   return (
     <group position={[0, y, 0]}>
-      <mesh position={[0, 0.3, 0]} castShadow>
-        <boxGeometry args={[7.8, 0.6, 2.8]} />
+      <Assembly build={buildPumpjackStatic} placements={ORIGIN} id="pumpjack-static-story" scale={1} />
+      <mesh ref={beam} geometry={geometry.beam} position={[PIVOT_X, PIVOT_Y, 0]} castShadow>
+        <meshStandardMaterial {...STEEL} />
+      </mesh>
+      <mesh ref={crank} geometry={geometry.crank} position={[CRANK_X, CRANK_Y, 0]} castShadow>
         <meshStandardMaterial {...STEEL_DARK} />
       </mesh>
-      <Bars bars={legs} material={STEEL} />
-      <group ref={beam} position={[0.4, 6, 0]}>
-        <mesh castShadow>
-          <boxGeometry args={[9.2, 0.6, 0.7]} />
-          <meshStandardMaterial {...STEEL} />
-        </mesh>
-        <mesh position={[-4.6, -0.6, 0]} castShadow>
-          <boxGeometry args={[1, 2.4, 1.4]} />
-          <meshStandardMaterial {...STEEL} />
-        </mesh>
-      </group>
-      <group ref={crank} position={[3.4, 1.8, 0]}>
-        <mesh position={[0, 1.1, 0]} castShadow>
-          <boxGeometry args={[0.48, 3.2, 0.56]} />
-          <meshStandardMaterial {...STEEL_DARK} />
-        </mesh>
-        <mesh position={[0, 2.3, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[1.05, 1.05, 0.7, 14]} />
-          <meshStandardMaterial {...STEEL_DARK} />
-        </mesh>
-      </group>
+      <mesh ref={pitman} geometry={geometry.pitman} castShadow>
+        <meshStandardMaterial {...STEEL} />
+      </mesh>
     </group>
   );
 }

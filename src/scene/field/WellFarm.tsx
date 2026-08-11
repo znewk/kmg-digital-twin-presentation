@@ -3,7 +3,20 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { toSceneX, toSceneZ, useFieldData, type WellRecord } from '../../data/geo/fieldData';
 import { WELL_CATEGORY, WELL_STATUS } from '../../data/geo/fieldStyle';
+import { Assembly, type Placement } from './kit/Assembly';
 import { EQUIPMENT_SCALE } from './kit/scale';
+import {
+  buildPumpjackBeam,
+  buildPumpjackCrank,
+  buildPumpjackPitman,
+  buildPumpjackStatic,
+  mergeSingle,
+  pumpjackPose,
+  CRANK_X,
+  CRANK_Y,
+  PIVOT_X,
+  PIVOT_Y,
+} from './facilities/pumpjack';
 import { surfY } from './geology';
 
 /**
@@ -137,83 +150,122 @@ interface Tmp {
  * балансир. Качается только балансир.
  */
 function PumpjackFarm({ items }: { items: Placed[] }) {
-  const base = useRef<THREE.InstancedMesh>(null);
-  const post = useRef<THREE.InstancedMesh>(null);
   const beam = useRef<THREE.InstancedMesh>(null);
+  const crank = useRef<THREE.InstancedMesh>(null);
+  const pitman = useRef<THREE.InstancedMesh>(null);
 
-  const composeBase = useMemo(
-    () => (p: Placed, m: THREE.Matrix4, t: Tmp) => {
-      t.p.set(p.x, p.y + 0.3 * EQUIPMENT_SCALE, p.z);
-      t.e.set(0, p.yaw, 0);
-      t.q.setFromEuler(t.e);
-      t.s.setScalar(EQUIPMENT_SCALE);
-      m.compose(t.p, t.q, t.s);
-    },
+  /**
+   * Геометрия подвижных узлов собирается один раз на весь фонд. Балансир с
+   * головкой, кривошип с противовесом и шатун — по одному инстансированному
+   * мешу; неподвижная часть идёт отдельной сборкой.
+   */
+  const geometry = useMemo(
+    () => ({
+      beam: mergeSingle(buildPumpjackBeam()),
+      crank: mergeSingle(buildPumpjackCrank()),
+      pitman: mergeSingle(buildPumpjackPitman()),
+    }),
     [],
   );
 
-  const composePost = useMemo(
-    () => (p: Placed, m: THREE.Matrix4, t: Tmp) => {
-      t.p.set(p.x, p.y + 3.1 * EQUIPMENT_SCALE, p.z);
-      t.e.set(0, p.yaw, 0);
-      t.q.setFromEuler(t.e);
-      t.s.setScalar(EQUIPMENT_SCALE);
-      m.compose(t.p, t.q, t.s);
-    },
-    [],
+  const placements = useMemo<Placement[]>(
+    () => items.map((it) => ({ x: it.x, y: it.y, z: it.z, yaw: it.yaw })),
+    [items],
   );
 
-  useStaticInstances(base, items, composeBase);
-  useStaticInstances(post, items, composePost);
-
-  // Балансир: единственное, что переписывается каждый кадр.
   const scratch = useMemo(
     () => ({
       m: new THREE.Matrix4(),
       p: new THREE.Vector3(),
       q: new THREE.Quaternion(),
-      s: new THREE.Vector3().setScalar(EQUIPMENT_SCALE),
+      qy: new THREE.Quaternion(),
+      s: new THREE.Vector3(),
       e: new THREE.Euler(),
+      off: new THREE.Vector3(),
     }),
     [],
   );
 
   useFrame(({ clock }) => {
-    const mesh = beam.current;
-    if (!mesh) return;
-    const base2 = (clock.elapsedTime * Math.PI * 2) / STROKE_PERIOD;
-    const { m, p, q, s, e } = scratch;
+    if (!beam.current || !crank.current || !pitman.current) return;
+    const S = EQUIPMENT_SCALE;
+    const base = (clock.elapsedTime * Math.PI * 2) / STROKE_PERIOD;
+    const { m, p, q, qy, s, e, off } = scratch;
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      const tilt = Math.sin(base2 + it.phase * Math.PI * 2) * 0.17;
-      p.set(it.x, it.y + 6 * EQUIPMENT_SCALE, it.z);
-      e.set(0, it.yaw, tilt);
+      const pose = pumpjackPose(base + it.phase * Math.PI * 2);
+
+      // Разворот станка вокруг вертикали — общий для всех его узлов.
+      e.set(0, it.yaw, 0);
+      qy.setFromEuler(e);
+
+      /** Точка узла в системе станка → мировые координаты. */
+      const place = (lx: number, ly: number, lz: number) => {
+        off.set(lx * S, ly * S, lz * S).applyQuaternion(qy);
+        p.set(it.x + off.x, it.y + off.y, it.z + off.z);
+      };
+
+      // Балансир качается вокруг оси на вершине стойки.
+      place(PIVOT_X, PIVOT_Y, 0);
+      e.set(0, it.yaw, pose.beamAngle);
+      q.setFromEuler(e);
+      s.setScalar(S);
+      m.compose(p, q, s);
+      beam.current.setMatrixAt(i, m);
+
+      // Кривошип вращается вокруг вала редуктора.
+      place(CRANK_X, CRANK_Y, 0);
+      e.set(0, it.yaw, pose.crankAngle);
       q.setFromEuler(e);
       m.compose(p, q, s);
-      mesh.setMatrixAt(i, m);
+      crank.current.setMatrixAt(i, m);
+
+      // Шатун: положение и длина считаются из фактических положений пальца
+      // кривошипа и хвоста балансира, поэтому он не отрывается ни от одного.
+      place(pose.pitmanMid.x, pose.pitmanMid.y, pose.pitmanMid.z);
+      q.multiplyQuaternions(qy, pose.pitmanQuat);
+      s.set(S, pose.pitmanLength * S, S);
+      m.compose(p, q, s);
+      pitman.current.setMatrixAt(i, m);
     }
 
-    mesh.count = items.length;
-    mesh.instanceMatrix.needsUpdate = true;
+    for (const mesh of [beam.current, crank.current, pitman.current]) {
+      mesh.count = items.length;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   });
 
   if (items.length === 0) return null;
 
   return (
     <group userData={{ id: 'fund-pumpjacks' }}>
-      <instancedMesh ref={base} args={[undefined, undefined, items.length]} castShadow receiveShadow>
-        <boxGeometry args={[7.8, 0.6, 2.8]} />
-        <meshStandardMaterial {...STEEL_DARK} />
-      </instancedMesh>
+      <Assembly build={buildPumpjackStatic} placements={placements} id="pumpjack-static" />
 
-      <instancedMesh ref={post} args={[undefined, undefined, items.length]} castShadow>
-        <boxGeometry args={[1.1, 5.6, 1.1]} />
+      <instancedMesh
+        ref={beam}
+        args={[geometry.beam, undefined, items.length]}
+        castShadow
+        frustumCulled={false}
+      >
         <meshStandardMaterial {...STEEL} />
       </instancedMesh>
 
-      <instancedMesh ref={beam} args={[undefined, undefined, items.length]} castShadow>
-        <boxGeometry args={[9.2, 0.6, 0.7]} />
+      <instancedMesh
+        ref={crank}
+        args={[geometry.crank, undefined, items.length]}
+        castShadow
+        frustumCulled={false}
+      >
+        <meshStandardMaterial {...STEEL_DARK} />
+      </instancedMesh>
+
+      <instancedMesh
+        ref={pitman}
+        args={[geometry.pitman, undefined, items.length]}
+        castShadow
+        frustumCulled={false}
+      >
         <meshStandardMaterial {...STEEL} />
       </instancedMesh>
     </group>

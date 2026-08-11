@@ -308,12 +308,16 @@ export const useShow = create<ShowState>((set, get) => ({
     const at = FLAT_BEATS.findIndex((b) => b.stage.id === 'reservoir');
     if (at >= 0) jumpToBeat(at, set);
 
-    // Раздел, цикл и свободный осмотр — один режим на троих.
+    // Раздел, цикл и свободный осмотр — один режим на троих. Выделение и
+    // наведение сбрасываются: сцена в разборе курсор не ловит, и оставшаяся
+    // от прошлого клика подсветка висела бы до самого выхода.
     set({
       dive: { id, step: 0, from, wasPaused },
       paused: true,
       cycleShot: null,
       cyclePlaying: false,
+      selected: null,
+      hovered: null,
     });
   },
 

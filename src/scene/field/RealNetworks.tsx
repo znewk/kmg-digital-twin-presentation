@@ -6,6 +6,7 @@ import {
   useFieldData,
   type Polyline,
 } from '../../data/geo/fieldData';
+import { NETWORK_STYLE, type NetworkKey } from '../../data/geo/fieldStyle';
 import { surfY } from './geology';
 
 /**
@@ -68,15 +69,25 @@ function mergeLines(lines: Polyline[], lift: number): THREE.BufferGeometry {
 export function RealNetworks() {
   const data = useFieldData();
 
+  // Цвет и подъём над рельефом берутся из общего словаря обозначений: плоская
+  // схема и сцена обязаны совпадать по цвету, иначе переход «карта поднимается
+  // в 3D» читается как подмена картинки (ТЗ §3.1 п.6).
   const specs = useMemo<NetSpec[]>(() => {
     const n = data.networks;
+    const spec = (id: string, key: NetworkKey, lines: Polyline[], opacity: number): NetSpec => ({
+      id,
+      lines,
+      color: NETWORK_STYLE[key].color,
+      lift: NETWORK_STYLE[key].lift,
+      opacity,
+    });
     return [
-      { id: 's-neftesbor', lines: n.oil_pipeline, color: '#f0ae4a', opacity: 0.85, lift: 2.5 },
-      { id: 's-ppd-line', lines: n.water_pipeline, color: '#5fa8e8', opacity: 0.8, lift: 2 },
-      { id: 's-gas', lines: n.gas_pipeline, color: '#35d0c2', opacity: 0.75, lift: 3 },
-      { id: 's-vl10', lines: n.power_10kv, color: '#9b7be8', opacity: 0.55, lift: 6 },
-      { id: 's-vl04', lines: n.power_04kv, color: '#7c8da6', opacity: 0.35, lift: 4 },
-      { id: 's-roads', lines: n.road, color: '#8a99a8', opacity: 0.4, lift: 1 },
+      spec('s-neftesbor', 'oil_pipeline', n.oil_pipeline, 0.85),
+      spec('s-ppd-line', 'water_pipeline', n.water_pipeline, 0.8),
+      spec('s-gas', 'gas_pipeline', n.gas_pipeline, 0.75),
+      spec('s-vl10', 'power_10kv', n.power_10kv, 0.55),
+      spec('s-vl04', 'power_04kv', n.power_04kv, 0.35),
+      spec('s-roads', 'road', n.road, 0.4),
     ];
   }, [data]);
 

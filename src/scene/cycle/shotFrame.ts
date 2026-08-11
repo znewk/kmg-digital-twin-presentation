@@ -11,7 +11,7 @@ import {
 import { resolveHorizon } from '../../data/geo/stratigraphy';
 import { makeStoryWell } from '../../data/geo/storyWells';
 import type { CycleRoute, PpdRoute, RoutePoint } from '../../data/cycle/route';
-import type { Framing, Shot, ShotTarget } from '../../data/cycle/storyboard';
+import type { Framing, ShotTarget } from '../../data/cycle/storyboard';
 import { perfPoint, surfY } from '../field/geology';
 import { EQUIPMENT_SCALE } from '../field/kit/scale';
 import { frameAround, type FocusFrame } from '../focus';
@@ -215,8 +215,21 @@ export function shotView(
   }
 }
 
+/**
+ * Минимум, нужный постановке кадра.
+ *
+ * Не `Shot` целиком: тем же механизмом ставятся кадры разделов по контурам, а
+ * у них нет ни нитки, ни длительности, ни узла индикатора. Требовать от них
+ * заполнять эти поля пустышками значило бы врать о том, чем они являются.
+ */
+export interface Framed {
+  id: string;
+  look: ShotTarget;
+  framing: Framing;
+}
+
 export function shotFrame(
-  shot: Shot,
+  shot: Framed,
   route: CycleRoute,
   ppd: PpdRoute | null,
   data: FieldDataset,

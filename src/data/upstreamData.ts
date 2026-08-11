@@ -19,12 +19,20 @@ export interface TwinContour {
   blocks: { title: string; items: string[]; modules: ModuleId[] }[];
   /** Контур ресурсной базы вынесен в 2027 год и показывается приглушённым. */
   future?: boolean;
+  /**
+   * Раздел, в который проваливается клик по контуру.
+   *
+   * Связь по идентификатору, а не по порядку в списке: колонки на экране и
+   * разделы — разные списки, и совпадение их порядка держалось бы на удаче.
+   */
+  dive?: string;
 }
 
 export const CONTOURS: TwinContour[] = [
   {
     no: '—',
     name: 'ЦД ресурсной базы',
+    dive: 'base',
     claim: 'Цифровая геологическая модель, восполняемость и конверсия запасов',
     effects: [{ value: '−15%', label: 'полный цикл ГРР' }],
     future: true,
@@ -39,6 +47,7 @@ export const CONTOURS: TwinContour[] = [
   {
     no: '1',
     name: 'ЦД пласта',
+    dive: 'plast',
     claim: 'Цифровая гидродинамическая модель и приоритизация ГТМ по экономике',
     effects: [{ value: '−5%', label: 'снижение CAPEX' }],
     blocks: [
@@ -66,6 +75,7 @@ export const CONTOURS: TwinContour[] = [
   {
     no: '2',
     name: 'ЦД скважины',
+    dive: 'skv',
     claim: 'Сквозное планирование ТКРС и снижение простоев бригад',
     effects: [{ value: '−3%', label: 'сроки вывода на режим' }],
     blocks: [
@@ -89,6 +99,7 @@ export const CONTOURS: TwinContour[] = [
   {
     no: '3',
     name: 'ЦД добычи и наземной инфраструктуры',
+    dive: 'dob',
     claim:
       'Оптимальное управление режимом фонда, минимизация потерь добычи за счёт предиктивной аналитики отказов',
     effects: [

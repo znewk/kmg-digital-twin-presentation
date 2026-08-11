@@ -112,6 +112,18 @@ interface ShowState {
   setCycleShot: (id: string | null) => void;
   toggleCyclePlay: () => void;
   exitCycle: () => void;
+
+  /**
+   * Открытый раздел контура и номер шага в нём.
+   *
+   * Разделы больше не идут подряд в прокрутке — в них проваливаются с экрана
+   * архитектуры по клику на контур. Поэтому это состояние, а не позиция
+   * скролла: выйти из раздела нужно туда же, откуда вошли.
+   */
+  dive: { id: string; step: number } | null;
+  openDive: (id: string) => void;
+  setDiveStep: (n: number) => void;
+  closeDive: () => void;
 }
 
 const params = new URLSearchParams(globalThis.location?.search ?? '');
@@ -161,6 +173,7 @@ export const useShow = create<ShowState>((set, get) => ({
 
   cycleShot: null,
   cyclePlaying: false,
+  dive: null,
 
   debug: params.has('debug'),
 
@@ -186,7 +199,7 @@ export const useShow = create<ShowState>((set, get) => ({
   // Свободный осмотр гасит цикл: за камеру нельзя тянуть вдвоём, и если
   // пользователь взялся за неё сам — раскадровка отступает.
   togglePaused: () =>
-    set((s) => ({ paused: !s.paused, cycleShot: null, cyclePlaying: false })),
+    set((s) => ({ paused: !s.paused, cycleShot: null, cyclePlaying: false, dive: null })),
   select: (selected) => set({ selected }),
   hover: (hovered) => set({ hovered }),
 
@@ -238,7 +251,8 @@ export const useShow = create<ShowState>((set, get) => ({
    * перебивает кадр) и выключает орбиту (иначе мышь дерётся с подлётом).
    * Свободный осмотр, наоборот, гасит цикл: пользователь взял камеру себе.
    */
-  setCycleShot: (cycleShot) => set({ cycleShot, paused: cycleShot ? true : get().paused }),
+  setCycleShot: (cycleShot) =>
+    set({ cycleShot, paused: cycleShot ? true : get().paused, dive: cycleShot ? null : get().dive }),
 
   // Остановка не сбрасывает кадр: цикл ставят на паузу, чтобы рассмотреть
   // передел, на котором он стоит, а не чтобы вернуться в начало.
@@ -247,4 +261,32 @@ export const useShow = create<ShowState>((set, get) => ({
 
   /** Выход из цикла целиком — камера возвращается пользователю. */
   exitCycle: () => set({ cycleShot: null, cyclePlaying: false }),
+
+  /**
+   * Вход в раздел контура.
+   *
+   * Раздел разбирает модуль НА ОБЪЕКТЕ, а объекты живут в 3D-модели промысла —
+   * значит показ обязан сначала туда попасть. Экран архитектуры идёт поверх
+   * глобуса, где поля в сцене ещё нет вовсе.
+   *
+   * Прокрутка двигается вместе с тактом, а не только состояние: иначе позиция
+   * страницы остаётся на глобусе, и первое же движение колеса выбрасывает
+   * зрителя обратно.
+   */
+  openDive: (id) => {
+    const at = FLAT_BEATS.findIndex((b) => b.stage.id === 'reservoir');
+    if (at >= 0) {
+      const doc = document.documentElement;
+      globalThis.scrollTo({
+        top: ((at + 0.5) / TOTAL_BEATS) * (doc.scrollHeight - globalThis.innerHeight),
+        behavior: 'auto',
+      });
+      set({ beatIndex: at, stageId: FLAT_BEATS[at].stage.id });
+    }
+    // Раздел, цикл и свободный осмотр — один режим на троих.
+    set({ dive: { id, step: 0 }, paused: true, cycleShot: null, cyclePlaying: false });
+  },
+
+  setDiveStep: (n) => set((s) => (s.dive ? { dive: { ...s.dive, step: n } } : s)),
+  closeDive: () => set({ dive: null }),
 }));

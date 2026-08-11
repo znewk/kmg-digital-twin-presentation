@@ -9,6 +9,7 @@ import { focusFrameFor, type FocusFrame } from './focus';
 import { shotFrame } from './cycle/shotFrame';
 import { cycleRoutes } from '../data/cycle/route';
 import { SHOT_BY_ID } from '../data/cycle/storyboard';
+import { DIVE_BY_ID } from '../data/dives';
 import { getFieldData } from '../data/geo/fieldData';
 
 /**
@@ -77,16 +78,25 @@ export function FreeLook() {
    * камеры вовсе.
    */
   const cycleShot = useShow((s) => s.cycleShot);
+  const dive = useShow((s) => s.dive);
   const flight = useRef<FocusFrame | null>(null);
 
   useEffect(() => {
-    if (!cycleShot) {
+    // Кадр берётся либо из раскадровки цикла, либо из шага раздела: механизм
+    // постановки один, источник разный.
+    const framed = cycleShot
+      ? SHOT_BY_ID.get(cycleShot)
+      : dive
+        ? DIVE_BY_ID.get(dive.id)?.steps[dive.step]
+        : null;
+
+    if (!framed) {
       flight.current = null;
       return;
     }
     const data = getFieldData();
-    const shot = SHOT_BY_ID.get(cycleShot);
-    if (!data || !shot) return;
+    const shot = framed;
+    if (!data) return;
 
     const { oil, ppd } = cycleRoutes(data);
     if (!oil) return;
@@ -100,7 +110,7 @@ export function FreeLook() {
       perspective.fov ?? 38,
       size.width / size.height,
     );
-  }, [cycleShot, camera, size.width, size.height]);
+  }, [cycleShot, dive, camera, size.width, size.height]);
 
   const wantPos = useRef(new THREE.Vector3());
   const wantTarget = useRef(new THREE.Vector3());
@@ -131,7 +141,7 @@ export function FreeLook() {
       // В режиме полного цикла орбита выключена: камерой владеет раскадровка,
       // и мышь, дерущаяся с подлётом, не даст ни того ни другого. Сам объект
       // контролов при этом жив — через него раскадровка и ведёт камеру.
-      enabled={paused && !cycleShot}
+      enabled={paused && !cycleShot && !dive}
       enableDamping
       dampingFactor={0.08}
       // Под землю пускаем: разглядывать стволы и залежь нужно именно снизу.

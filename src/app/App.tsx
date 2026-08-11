@@ -8,6 +8,7 @@ import { Progress } from '../ui/Progress';
 import { DebugHud } from '../ui/DebugHud';
 import { PanelLayer } from '../ui/panels';
 import { CyclePanel } from '../ui/CyclePanel';
+import { DivePanel } from '../ui/DivePanel';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { useShow } from '../store/useShow';
 
@@ -21,6 +22,7 @@ const CYCLE_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'prod
 export function App() {
   useKeyboard();
   const stageId = useShow((s) => s.stageId);
+  const dive = useShow((s) => s.dive);
 
   return (
     <>
@@ -33,7 +35,10 @@ export function App() {
         <SceneControls />
         <ObjectPanel />
         <StageCaption />
-        {CYCLE_STAGES.has(stageId) && <CyclePanel />}
+        {/* Раздел контура перекрывает и цикл, и обычные подписи: это отдельный
+            режим, в который вошли осознанно, кликнув по контуру. */}
+        <DivePanel />
+        {!dive && CYCLE_STAGES.has(stageId) && <CyclePanel />}
         <Progress />
         <DebugHud />
       </div>

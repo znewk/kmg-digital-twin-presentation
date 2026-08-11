@@ -13,6 +13,7 @@ import { FullScreenPanel as FullScreen } from './kit';
 export function ArchitecturePanel() {
   const t = usePanelProgress();
   const naming = useShow((s) => s.naming);
+  const openDive = useShow((s) => s.openDive);
 
   // Нижняя полка, а не полный экран: этап идёт поверх глобуса, и планета
   // должна остаться в кадре — иначе гео-последовательность теряет смысл.
@@ -32,13 +33,23 @@ export function ArchitecturePanel() {
           {CONTOURS.map((c, ci) => {
             const shown = t > ci * 0.16;
             return (
+              /*
+                Контур кликабелен: отсюда проваливаются в его раздел.
+                Пятнадцать экранов разбора модулей больше не идут подряд в
+                прокрутке — зритель сначала видит, из чего состоит двойник
+                актива, и сам выбирает, во что углубиться.
+              */
               <div
                 key={c.name}
-                className="flex min-h-0 flex-col border-t-2 transition-opacity duration-500"
+                role={c.dive ? 'button' : undefined}
+                tabIndex={c.dive ? 0 : undefined}
+                onClick={c.dive ? () => openDive(c.dive!) : undefined}
+                className="pointer-events-auto flex min-h-0 flex-col border-t-2 transition-all duration-500 hover:brightness-125"
                 style={{
                   borderColor: c.future ? 'var(--color-txt-faint)' : 'var(--color-abai)',
                   opacity: shown ? (c.future ? 0.45 : 1) : 0,
                   background: 'oklch(22% 0.02 250 / 0.4)',
+                  cursor: c.dive ? 'pointer' : undefined,
                 }}
               >
                 <div className="flex items-baseline gap-2 px-3 pt-2.5">
@@ -82,6 +93,15 @@ export function ArchitecturePanel() {
                     </div>
                   ))}
                 </div>
+
+                {c.dive && (
+                  <div
+                    className="px-3 pb-1 font-mono text-[8.5px] tracking-[0.12em] uppercase"
+                    style={{ color: 'var(--color-accent)' }}
+                  >
+                    Открыть раздел →
+                  </div>
+                )}
 
                 <div className="flex flex-wrap gap-1 border-t border-[var(--color-line)] px-3 py-2">
                   {c.effects.map((e) => (

@@ -336,7 +336,7 @@ function Placeholder({ panel }: { panel: PanelId }) {
   );
 }
 
-const REGISTRY: Partial<Record<PanelId, () => React.ReactElement>> = {
+export const REGISTRY: Partial<Record<PanelId, () => React.ReactElement>> = {
   architecture: ArchitecturePanel,
   'upstream-chain': UpstreamChainPanel,
   'it-patchwork': ItPatchworkPanel,

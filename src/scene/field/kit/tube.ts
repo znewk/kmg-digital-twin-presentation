@@ -60,6 +60,48 @@ function densify(line: Polyline): [number, number][] {
   return out;
 }
 
+/**
+ * Линейное представление трассы — отрезки с продольной координатой.
+ *
+ * Нужно там, где объём трубы физически невидим: диаметр нефтесборной трубы
+ * 114–219 мм, и на промысле шириной 5,3 км она тоньше пикселя с любого
+ * ракурса, кроме вплотную. Линия рисуется постоянной толщиной в пикселях и
+ * читается с любого расстояния — поэтому подземная схема показывается и
+ * трубами, и линиями сразу: линии дают общую картину, трубы — правду вблизи.
+ */
+export function buildTraceLines(
+  lines: Polyline[],
+  opts: { offset: number; elevation: (x: number, z: number) => number },
+): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const along: number[] = [];
+
+  for (const line of lines) {
+    const pts = densify(line);
+    if (pts.length < 2) continue;
+
+    let traveled = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x1, z1] = pts[i];
+      const [x2, z2] = pts[i + 1];
+      const len = Math.hypot(x2 - x1, z2 - z1);
+
+      pos.push(x1, opts.elevation(x1, z1) + opts.offset, z1);
+      along.push(traveled);
+      pos.push(x2, opts.elevation(x2, z2) + opts.offset, z2);
+      along.push(traveled + len);
+
+      traveled += len;
+    }
+  }
+
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('aAlong', new THREE.Float32BufferAttribute(along, 1));
+  g.computeBoundingSphere();
+  return g;
+}
+
 export function buildTubes(lines: Polyline[], opts: TubeOptions): THREE.BufferGeometry {
   const { radius, offset, elevation } = opts;
   const R = opts.radialSegments ?? 6;

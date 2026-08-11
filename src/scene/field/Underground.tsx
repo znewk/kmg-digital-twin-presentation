@@ -5,13 +5,14 @@ import {
   toSceneX,
   toSceneZ,
   useFieldData,
+  VERTICAL_EXAGGERATION,
   type Polyline,
 } from '../../data/geo/fieldData';
 import { BURIED_DEPTH, NETWORK_STYLE, type NetworkKey } from '../../data/geo/fieldStyle';
 import { resolveHorizon } from '../../data/geo/stratigraphy';
 import { Assembly } from './kit/Assembly';
-import { makeFlowMaterial } from './kit/flow';
-import { buildTubes } from './kit/tube';
+import { makeFlowMaterial, makePulseMaterial } from './kit/flow';
+import { buildTraceLines, buildTubes } from './kit/tube';
 import { buildTrench } from './facilities/trench';
 import { surfY } from './geology';
 
@@ -32,13 +33,24 @@ import { surfY } from './geology';
  * геологической моделью.
  */
 
-/** Диаметры труб по системам, м. Условные, паспортов в материалах нет. */
+/**
+ * Радиусы труб, м — ПРЕУВЕЛИЧЕНЫ, и это неустранимо.
+ *
+ * Настоящий промысловый нефтесбор — 114–219 мм по диаметру. На участке
+ * 5352 × 4682 м такая труба тоньше пикселя с любого ракурса, кроме вплотную:
+ * в истинном масштабе подземных коммуникаций для зрителя не существует.
+ * Здесь радиус около метра — примерно десятикратно, того же порядка, что
+ * преувеличение обсадной колонны и ГНО в стволе скважины.
+ *
+ * Соотношение диаметров между системами сохранено: нефтесбор толще водовода,
+ * водовод толще газопровода, кабели тоньше всех.
+ */
 const RADIUS: Partial<Record<NetworkKey, number>> = {
-  oil_pipeline: 0.16,
-  water_pipeline: 0.14,
-  gas_pipeline: 0.12,
-  comm_cable: 0.05,
-  lv_cable: 0.05,
+  oil_pipeline: 1.1,
+  water_pipeline: 0.95,
+  gas_pipeline: 0.8,
+  comm_cable: 0.35,
+  lv_cable: 0.35,
 };
 
 const BURIED_KEYS: NetworkKey[] = [
@@ -74,15 +86,27 @@ function BuriedSystem({
   networkKey: NetworkKey;
   depth: number;
 }) {
+  const radius = RADIUS[networkKey] ?? 0.8;
+
   const geometry = useMemo(
     () =>
       buildTubes(lines, {
-        radius: RADIUS[networkKey] ?? 0.12,
+        radius,
         offset: -depth,
         elevation: surfY,
         radialSegments: 6,
       }),
-    [lines, networkKey, depth],
+    [lines, radius, depth],
+  );
+
+  /**
+   * Та же трасса линиями. Труба даёт правду вблизи, но с обзорного ракурса
+   * она сама по себе невидима, и вся подземная схема пропадает. Линия
+   * рисуется постоянной толщиной в пикселях и читается с любого расстояния.
+   */
+  const traceGeometry = useMemo(
+    () => buildTraceLines(lines, { offset: -depth, elevation: surfY }),
+    [lines, depth],
   );
 
   const style = NETWORK_STYLE[networkKey];
@@ -106,13 +130,23 @@ function BuriedSystem({
     [style.color, flow],
   );
 
+  const traceMaterial = useMemo(
+    () =>
+      makePulseMaterial({
+        color: style.color,
+        pulseColor: '#ffffff',
+        period: flow?.period ?? 60,
+        speed: flow?.speed ?? 0,
+        opacity: 0.75,
+      }),
+    [style.color, flow],
+  );
+
   return (
-    <mesh
-      geometry={geometry}
-      material={material}
-      userData={{ id: `buried-${networkKey}` }}
-      castShadow={false}
-    />
+    <group userData={{ id: `buried-${networkKey}` }}>
+      <mesh geometry={geometry} material={material} castShadow={false} />
+      <lineSegments geometry={traceGeometry} material={traceMaterial} />
+    </group>
   );
 }
 
@@ -123,6 +157,16 @@ function BuriedSystem({
 export function BuriedNetworks() {
   const data = useFieldData();
 
+  /**
+   * Глубина в единицах сцены.
+   *
+   * Здесь была ошибка: 1,2 м вычитались напрямую, тогда как всё вертикальное в
+   * проекте увеличено втрое. Труба лежала втрое ближе к поверхности, чем
+   * положено, и при преувеличенном диаметре начала бы вылезать из земли.
+   * Глубина обязана проходить через то же преувеличение, что и рельеф.
+   */
+  const depth = BURIED_DEPTH * VERTICAL_EXAGGERATION;
+
   return (
     <group userData={{ id: 'buried-networks' }}>
       {BURIED_KEYS.map((key) => (
@@ -130,7 +174,9 @@ export function BuriedNetworks() {
           key={key}
           networkKey={key}
           lines={data.networks[key]}
-          depth={key.endsWith('cable') ? BURIED_DEPTH * 0.6 : BURIED_DEPTH}
+          // Кабели заложены мельче труб — так и делают в поле, чтобы при
+          // раскопке трубопровода не задеть связь.
+          depth={key.endsWith('cable') ? depth * 0.6 : depth}
         />
       ))}
     </group>

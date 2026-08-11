@@ -231,6 +231,44 @@ export function toSceneZ(dataY: number): number {
   return -(dataY - FIELD_H / 2);
 }
 
+/**
+ * Внутри ли точка объявленного габарита съёмки.
+ *
+ * Часть слоёв чертежа выходит за `meta.extent_m`: кабели связи и колодцы
+ * тянутся на 1,2 км севернее границы. Рельефа там нет — высотная сетка
+ * построена только на участок, — поэтому такие объекты повисали бы в пустоте
+ * рядом с блоком, и на кадре это читалось как ошибка модели.
+ */
+export function isInsideExtent(dataX: number, dataY: number): boolean {
+  return dataX >= 0 && dataX <= FIELD_W && dataY >= 0 && dataY <= FIELD_H;
+}
+
+/**
+ * Отсекает трассы по границе съёмки, разрывая их на входе и выходе.
+ *
+ * Звено сохраняется, только если внутри оба его конца: обрезать по точной
+ * точке пересечения смысла нет — на границе участка всё равно нет ни рельефа,
+ * ни продолжения сети, и лишняя точность здесь ничего не добавит.
+ */
+export function clipToExtent(lines: Polyline[]): Polyline[] {
+  const out: Polyline[] = [];
+
+  for (const line of lines) {
+    let run: [number, number][] = [];
+    for (const p of line) {
+      if (isInsideExtent(p[0], p[1])) {
+        run.push(p);
+      } else {
+        if (run.length > 1) out.push(run);
+        run = [];
+      }
+    }
+    if (run.length > 1) out.push(run);
+  }
+
+  return out;
+}
+
 /** Обратный перевод — нужен для выборки рельефа по координатам сцены. */
 export function toDataX(sceneX: number): number {
   return sceneX + FIELD_W / 2;
@@ -279,12 +317,34 @@ let loaded: FieldDataset | null = null;
 export function loadFieldData(): Promise<FieldDataset> {
   if (!promise) {
     promise = import('../../../data/moldabek_field_data.json').then((m) => {
-      loaded = m.default as unknown as FieldDataset;
+      loaded = trimToExtent(m.default as unknown as FieldDataset);
       if (import.meta.env.DEV) verifySiteCenter(loaded);
       return loaded;
     });
   }
   return promise;
+}
+
+/**
+ * Приводит датасет к объявленному габариту съёмки — один раз при загрузке.
+ *
+ * Делается централизованно, а не в каждом компоненте: иначе один слой отсекут,
+ * другой забудут, и в кадре останется висеть кусок сети рядом с блоком.
+ * Скважины НЕ отсекаются: реестр фонда шире топоплана намеренно и покрывает
+ * участки за пределами съёмки (ТЗ §4.1) — их место на плоской схеме.
+ */
+function trimToExtent(data: FieldDataset): FieldDataset {
+  const networks = {} as FieldNetworks;
+  for (const key of Object.keys(data.networks) as (keyof FieldNetworks)[]) {
+    networks[key] = clipToExtent(data.networks[key]);
+  }
+
+  const points = {} as FieldPoints;
+  for (const key of Object.keys(data.points) as (keyof FieldPoints)[]) {
+    points[key] = data.points[key].filter((p) => isInsideExtent(p[0], p[1]));
+  }
+
+  return { ...data, networks, points };
 }
 
 /**

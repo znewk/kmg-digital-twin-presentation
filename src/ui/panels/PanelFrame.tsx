@@ -69,7 +69,11 @@ export function PanelFrame({ module, screen, dataNote, side = 'right', children 
       ? 'inset-x-24 top-24 bottom-56'
       : side === 'left'
         ? 'left-10 top-24 bottom-56 w-[46rem]'
-        : 'right-10 top-24 bottom-56 w-[46rem]';
+        : // Ширина ограничена свободным местом слева от панели: в разборе
+          // модуля слева стоит панель раздела, и на узком экране боковая
+          // панель наезжала бы на неё. Предел считается от той же переменной,
+          // что и отступ полноэкранных панелей, — раскладка одна.
+          'right-10 top-24 bottom-56 w-[46rem] max-w-[calc(100%-var(--stage-left,3rem)-3rem)]';
 
   return (
     <div ref={el} className={`panel pointer-events-auto absolute flex flex-col ${box}`}>

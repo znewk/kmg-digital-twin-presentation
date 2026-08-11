@@ -53,7 +53,12 @@ export function CyclePanel() {
 
   return (
     <div className="pointer-events-auto absolute inset-x-0 bottom-0">
-      <div className="mx-auto w-[min(1120px,calc(100vw-3rem))] pb-5">
+      {/*
+        Ширина — доля СЛОЯ, а не окна. Слой масштабируется под экран, и `vw`
+        внутри него продолжает считаться от немасштабированного окна: на
+        большом экране расчёт от `100vw` дал бы панель шире, чем есть места.
+      */}
+      <div className="mx-auto w-full max-w-[1120px] px-6 pb-5">
         {/* Шкала пути нефти */}
         <div
           className="mb-3 flex items-center px-1 transition-opacity"

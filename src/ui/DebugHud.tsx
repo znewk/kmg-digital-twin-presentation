@@ -15,6 +15,8 @@ export function DebugHud() {
   const naming = useShow((s) => s.naming);
   const lang = useShow((s) => s.lang);
   const beatIndex = useShow((s) => s.beatIndex);
+  const hovered = useShow((s) => s.hovered);
+  const selected = useShow((s) => s.selected);
 
   const fpsEl = useRef<HTMLSpanElement>(null);
   const progEl = useRef<HTMLSpanElement>(null);
@@ -68,6 +70,15 @@ export function DebugHud() {
       </div>
       <div>
         beat {beatIndex} · {beat.stage.id}/{beat.id}
+      </div>
+      {/* Под курсором и выбрано: по этим двум строкам сразу видно, доходит ли
+          луч до объекта и срабатывает ли выбор. Без них разбор «не кликается»
+          превращается в гадание. */}
+      <div>
+        под курсором <span className="text-[var(--color-dob)]">{hovered ?? '—'}</span>
+      </div>
+      <div>
+        выбрано <span className="text-[var(--color-plast)]">{selected ?? '—'}</span>
       </div>
       <div>
         naming {naming} · lang {lang}

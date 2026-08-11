@@ -170,6 +170,8 @@ export function HubPads() {
       data.hubs.map((h) => {
         const x = toSceneX(h.p[0]);
         const z = toSceneZ(h.p[1]);
+        // Площадка тем крупнее, чем больше ниток сходится в узле: куст на
+        // девять скважин физически больше куста на две.
         return { x, z, y: surfY(x, z), size: 26 + Math.min(h.links, 10) * 4 };
       }),
     [data],
@@ -196,7 +198,14 @@ export function HubPads() {
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, hubs.length]} receiveShadow>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color="#37475c" roughness={1} metalness={0} />
+      {/*
+        Кустовая площадка — это отсыпка щебнем и грунтом, спланированная под
+        оборудование. Была тёмно-синей плитой и читалась инородной пластиной,
+        лежащей на степи; отсюда и вопрос «что это за прямоугольники». Теперь
+        песчано-гравийная отсыпка в тон грунта: сверху видно, что площадка
+        подготовлена, но она не спорит с рельефом.
+      */}
+      <meshStandardMaterial color="#6b6553" roughness={1} metalness={0} />
     </instancedMesh>
   );
 }

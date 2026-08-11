@@ -58,62 +58,89 @@ const WIRES_04: Conductor[] = [
   { offset: 0.5, height: 6.9 },
 ];
 
+interface Span {
+  ax: number;
+  az: number;
+  bx: number;
+  bz: number;
+  /** Пройденное расстояние от начала трассы до начала пролёта, м. */
+  from: number;
+  length: number;
+}
+
 /**
- * Строит провода по трассам: для каждого пролёта — провисающая дуга на каждый
- * провод. Вершины трассы считаются точками подвеса, то есть опорами.
+ * Пролёты, по которым реально вешаются провода.
+ *
+ * Единый источник и для проводов, и для опор. Раньше провода строились по
+ * пролётам, а опоры ставились отдельно по всем точкам чертежа — и опоры без
+ * проводов оставались стоять сами по себе. Теперь опора существует только там,
+ * где есть пролёт.
+ *
+ * Пролёты длиннее 140 м отбрасываются: на промысловой ВЛ таких не бывает, это
+ * участки, где в чертеже не проставлены промежуточные опоры. Вешать на них
+ * трёхметровый провес было бы неправдой.
  */
-function buildWires(lines: Polyline[], conductors: Conductor[]): THREE.BufferGeometry {
-  const pos: number[] = [];
-  // Продольная координата в метрах — по ней бежит импульс. Копится сквозь все
-  // пролёты одной трассы, иначе импульс перезапускался бы на каждой опоре.
-  const along: number[] = [];
+function collectSpans(lines: Polyline[]): Span[] {
+  const out: Span[] = [];
 
   for (const line of lines) {
     let traveled = 0;
-
     for (let i = 0; i < line.length - 1; i++) {
       const ax = toSceneX(line[i][0]);
       const az = toSceneZ(line[i][1]);
       const bx = toSceneX(line[i + 1][0]);
       const bz = toSceneZ(line[i + 1][1]);
+      const length = Math.hypot(bx - ax, bz - az);
 
-      const span = Math.hypot(bx - ax, bz - az);
-      // Пролёты длиннее 120 м на промысловой ВЛ не встречаются — такие
-      // «пролёты» на самом деле участки без промежуточных опор в чертеже,
-      // и вешать на них провес в три метра было бы неправдой.
-      if (span < 4 || span > 140) continue;
+      if (length >= 4 && length <= 140) {
+        out.push({ ax, az, bx, bz, from: traveled, length });
+      }
+      traveled += length;
+    }
+  }
 
-      const ay = surfY(ax, az);
-      const by = surfY(bx, bz);
-      const sag = span * SAG_RATIO;
+  return out;
+}
 
-      // Поперечное направление — по нему разносятся провода на траверсе.
-      const nx = -(bz - az) / span;
-      const nz = (bx - ax) / span;
+/**
+ * Строит провода по пролётам: на каждый пролёт — провисающая дуга на каждый
+ * провод.
+ */
+function buildWires(spans: Span[], conductors: Conductor[]): THREE.BufferGeometry {
+  const pos: number[] = [];
+  // Продольная координата в метрах — по ней бежит импульс. Копится сквозь все
+  // пролёты одной трассы, иначе импульс перезапускался бы на каждой опоре.
+  const along: number[] = [];
 
-      for (const wire of conductors) {
-        // Разнос по траверсе и высота подвеса растут вместе с опорой: иначе
-        // провода отвяжутся от траверс и повиснут сами по себе.
-        const ox = nx * wire.offset * EQUIPMENT_SCALE;
-        const oz = nz * wire.offset * EQUIPMENT_SCALE;
+  for (const { ax, az, bx, bz, from, length } of spans) {
+    const ay = surfY(ax, az);
+    const by = surfY(bx, bz);
+    const sag = length * SAG_RATIO;
 
-        for (let s = 0; s < SPAN_STEPS; s++) {
-          const t0 = s / SPAN_STEPS;
-          const t1 = (s + 1) / SPAN_STEPS;
+    // Поперечное направление — по нему разносятся провода на траверсе.
+    const nx = -(bz - az) / length;
+    const nz = (bx - ax) / length;
 
-          for (const t of [t0, t1]) {
-            const x = ax + (bx - ax) * t + ox;
-            const z = az + (bz - az) * t + oz;
-            // Парабола провеса: ноль на опорах, максимум в середине пролёта.
-            const droop = 4 * sag * t * (1 - t);
-            const y = ay + (by - ay) * t + wire.height * EQUIPMENT_SCALE - droop;
-            pos.push(x, y, z);
-            along.push(traveled + span * t);
-          }
+    for (const wire of conductors) {
+      // Разнос по траверсе и высота подвеса растут вместе с опорой: иначе
+      // провода отвяжутся от траверс и повиснут сами по себе.
+      const ox = nx * wire.offset * EQUIPMENT_SCALE;
+      const oz = nz * wire.offset * EQUIPMENT_SCALE;
+
+      for (let s = 0; s < SPAN_STEPS; s++) {
+        const t0 = s / SPAN_STEPS;
+        const t1 = (s + 1) / SPAN_STEPS;
+
+        for (const t of [t0, t1]) {
+          const x = ax + (bx - ax) * t + ox;
+          const z = az + (bz - az) * t + oz;
+          // Парабола провеса: ноль на опорах, максимум в середине пролёта.
+          const droop = 4 * sag * t * (1 - t);
+          const y = ay + (by - ay) * t + wire.height * EQUIPMENT_SCALE - droop;
+          pos.push(x, y, z);
+          along.push(from + length * t);
         }
       }
-
-      traveled += span;
     }
   }
 
@@ -124,93 +151,156 @@ function buildWires(lines: Polyline[], conductors: Conductor[]): THREE.BufferGeo
   return g;
 }
 
-/** Опоры ВЛ-10 кВ — в фактических точках чертежа, все 2877. */
-function usePoles10(): Placement[] {
-  const data = useFieldData();
+/** Насколько далеко от оси трассы опора всё ещё считается её опорой, м. */
+const POLE_SNAP = 30;
 
-  return useMemo(() => {
-    // Направление траверсы: поперёк ближайшего пролёта. Считается по трассам —
-    // у точки опоры собственного направления нет.
-    const segments: [number, number, number, number][] = [];
-    for (const line of data.networks.power_10kv) {
-      for (let i = 0; i < line.length - 1; i++) {
-        segments.push([
-          toSceneX(line[i][0]),
-          toSceneZ(line[i][1]),
-          toSceneX(line[i + 1][0]),
-          toSceneZ(line[i + 1][1]),
-        ]);
-      }
+/**
+ * Раскладывает опоры по трассам и строит пролёты МЕЖДУ СОСЕДНИМИ ОПОРАМИ.
+ *
+ * Это ключевой момент, и сначала я сделал его неправильно. В чертеже 84 трассы
+ * ВЛ-10 кВ, но после упрощения геометрии в них всего 88 звеньев — а опор 2877.
+ * То есть вершины трассы и опоры это разные вещи: трасса задаёт направление,
+ * опоры стоят вдоль неё через 40–80 м. Если вешать провода между вершинами,
+ * получаются пролёты в сотни метров, а 2877 опор остаются стоять без единого
+ * провода — ровно то, что и было видно в кадре.
+ *
+ * Поэтому каждая опора проецируется на ближайшую трассу, опоры сортируются
+ * вдоль неё, и пролёт — это отрезок между двумя соседними. Опоры, не легшие ни
+ * на одну трассу, отбрасываются: линии у них нет, значит и опоры быть не должно.
+ */
+function buildPoleSpans(
+  lines: Polyline[],
+  polePoints: [number, number][],
+): { spans: Span[]; poles: Placement[] } {
+  interface Seg {
+    ax: number;
+    az: number;
+    bx: number;
+    bz: number;
+    from: number;
+    len: number;
+  }
+
+  // Трассы в виде отрезков с накопленной длиной.
+  const byLine: Seg[][] = lines.map((line) => {
+    const segs: Seg[] = [];
+    let from = 0;
+    for (let i = 0; i < line.length - 1; i++) {
+      const ax = toSceneX(line[i][0]);
+      const az = toSceneZ(line[i][1]);
+      const bx = toSceneX(line[i + 1][0]);
+      const bz = toSceneZ(line[i + 1][1]);
+      const len = Math.hypot(bx - ax, bz - az);
+      segs.push({ ax, az, bx, bz, from, len });
+      from += len;
     }
+    return segs;
+  });
 
-    return data.points.power_pole_10kv.map((p) => {
-      const x = toSceneX(p[0]);
-      const z = toSceneZ(p[1]);
+  /** Опоры, легшие на трассу, с положением вдоль неё. */
+  const onLine: { x: number; z: number; s: number }[][] = lines.map(() => []);
 
-      let yaw = 0;
-      let bestD = Infinity;
-      for (const [ax, az, bx, bz] of segments) {
-        const mx = (ax + bx) / 2;
-        const mz = (az + bz) / 2;
-        const d = (mx - x) ** 2 + (mz - z) ** 2;
-        if (d < bestD) {
-          bestD = d;
-          // Траверса (локальная ось X) ставится поперёк пролёта.
-          yaw = Math.atan2(-(bz - az), bx - ax) + Math.PI / 2;
+  for (const p of polePoints) {
+    const x = toSceneX(p[0]);
+    const z = toSceneZ(p[1]);
+
+    let bestLine = -1;
+    let bestS = 0;
+    let bestD2 = POLE_SNAP * POLE_SNAP;
+
+    byLine.forEach((segs, li) => {
+      for (const seg of segs) {
+        if (seg.len < 1e-3) continue;
+        // Проекция точки на отрезок, зажатая его концами.
+        const t = Math.min(
+          1,
+          Math.max(
+            0,
+            ((x - seg.ax) * (seg.bx - seg.ax) + (z - seg.az) * (seg.bz - seg.az)) /
+              (seg.len * seg.len),
+          ),
+        );
+        const px = seg.ax + (seg.bx - seg.ax) * t;
+        const pz = seg.az + (seg.bz - seg.az) * t;
+        const d2 = (px - x) ** 2 + (pz - z) ** 2;
+        if (d2 < bestD2) {
+          bestD2 = d2;
+          bestLine = li;
+          bestS = seg.from + seg.len * t;
         }
       }
-
-      return { x, y: surfY(x, z), z, yaw };
     });
-  }, [data]);
+
+    if (bestLine >= 0) onLine[bestLine].push({ x, z, s: bestS });
+  }
+
+  const spans: Span[] = [];
+  const poles: Placement[] = [];
+
+  onLine.forEach((list) => {
+    if (list.length < 2) return;
+    list.sort((a, b) => a.s - b.s);
+
+    for (let i = 0; i < list.length; i++) {
+      const cur = list[i];
+      const next = list[i + 1];
+
+      // Разворот траверсы — поперёк того пролёта, в котором опора участвует.
+      const ref = next ?? list[i - 1];
+      const yaw = Math.atan2(-(ref.z - cur.z), ref.x - cur.x) + Math.PI / 2;
+      poles.push({ x: cur.x, y: surfY(cur.x, cur.z), z: cur.z, yaw });
+
+      if (!next) continue;
+      const length = Math.hypot(next.x - cur.x, next.z - cur.z);
+      // Разрыв больше 140 м — это не пролёт, а пропуск в расстановке опор.
+      if (length < 4 || length > 140) continue;
+
+      spans.push({ ax: cur.x, az: cur.z, bx: next.x, bz: next.z, from: cur.s, length });
+    }
+  });
+
+  return { spans, poles };
 }
 
 /**
- * Опоры ВЛ-0,4 кВ. Отдельного набора точек в датасете нет, поэтому опоры
- * ставятся в вершины трасс — там они и стоят в натуре.
+ * ВЛ-0,4 кВ: отдельного набора опор в датасете нет, поэтому опоры ставятся в
+ * концах пролётов, взятых прямо из вершин трасс, — там они и стоят в натуре.
  */
-function usePoles04(): Placement[] {
-  const data = useFieldData();
+function spansAndPolesFromVertices(lines: Polyline[]): {
+  spans: Span[];
+  poles: Placement[];
+} {
+  const spans = collectSpans(lines);
+  const poles: Placement[] = [];
+  const seen = new Set<string>();
 
-  return useMemo(() => {
-    const out: Placement[] = [];
-    const seen = new Set<string>();
-
-    for (const line of data.networks.power_04kv) {
-      for (let i = 0; i < line.length; i++) {
-        const x = toSceneX(line[i][0]);
-        const z = toSceneZ(line[i][1]);
-        // Трассы стыкуются в общих узлах — без отсева там встали бы по две
-        // опоры в одну точку.
-        const key = `${Math.round(x)}:${Math.round(z)}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-
-        const j = i < line.length - 1 ? i + 1 : i - 1;
-        const jx = toSceneX(line[j][0]);
-        const jz = toSceneZ(line[j][1]);
-        out.push({
-          x,
-          y: surfY(x, z),
-          z,
-          yaw: Math.atan2(-(jz - z), jx - x) + Math.PI / 2,
-        });
-      }
+  for (const s of spans) {
+    const yaw = Math.atan2(-(s.bz - s.az), s.bx - s.ax) + Math.PI / 2;
+    for (const [x, z] of [
+      [s.ax, s.az],
+      [s.bx, s.bz],
+    ]) {
+      // Трассы стыкуются в общих узлах — без отсева там встали бы по две
+      // опоры в одну точку.
+      const key = `${Math.round(x)}:${Math.round(z)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      poles.push({ x, y: surfY(x, z), z, yaw });
     }
+  }
 
-    return out;
-  }, [data]);
+  return { spans, poles };
 }
 
 function Wires({
-  lines,
+  spans,
   conductors,
   color,
   opacity,
   speed,
   id,
 }: {
-  lines: Polyline[];
+  spans: Span[];
   conductors: Conductor[];
   color: string;
   opacity: number;
@@ -218,7 +308,7 @@ function Wires({
   speed: number;
   id: string;
 }) {
-  const geometry = useMemo(() => buildWires(lines, conductors), [lines, conductors]);
+  const geometry = useMemo(() => buildWires(spans, conductors), [spans, conductors]);
 
   /**
    * Импульс по проводу — условное изображение передачи энергии, а не движение
@@ -243,19 +333,23 @@ function Wires({
 
 export function PowerLines() {
   const data = useFieldData();
-  const poles10 = usePoles10();
-  const poles04 = usePoles04();
+
+  const line10 = useMemo(
+    () => buildPoleSpans(data.networks.power_10kv, data.points.power_pole_10kv),
+    [data],
+  );
+  const line04 = useMemo(() => spansAndPolesFromVertices(data.networks.power_04kv), [data]);
 
   return (
     <group userData={{ id: 'power-lines' }}>
-      <Assembly build={buildPole10} placements={poles10} id="poles-10kv" />
-      <Assembly build={buildPole04} placements={poles04} id="poles-04kv" />
+      <Assembly build={buildPole10} placements={line10.poles} id="poles-10kv" />
+      <Assembly build={buildPole04} placements={line04.poles} id="poles-04kv" />
 
       {/* По магистральной ВЛ импульс идёт быстрее, чем по разводке 0,4 кВ —
           так видно направление: от питающей подстанции к КТП и дальше к
           приводам, а не наоборот. */}
       <Wires
-        lines={data.networks.power_10kv}
+        spans={line10.spans}
         conductors={WIRES_10}
         color={NETWORK_STYLE.power_10kv.color}
         opacity={0.9}
@@ -263,7 +357,7 @@ export function PowerLines() {
         id="s-vl10"
       />
       <Wires
-        lines={data.networks.power_04kv}
+        spans={line04.spans}
         conductors={WIRES_04}
         color={NETWORK_STYLE.power_04kv.color}
         opacity={0.7}

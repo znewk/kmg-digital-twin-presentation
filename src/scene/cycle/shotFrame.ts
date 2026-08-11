@@ -18,6 +18,7 @@ import { makeStoryWell } from '../../data/geo/storyWells';
 import type { CycleRoute, PpdRoute, RoutePoint } from '../../data/cycle/route';
 import type { Framing, ShotTarget } from '../../data/cycle/storyboard';
 import { perfPoint, surfY } from '../field/geology';
+import { INFLOW_REACH } from '../field/Well';
 import { EQUIPMENT_SCALE } from '../field/kit/scale';
 import { frameAround, type FocusFrame } from '../focus';
 
@@ -93,10 +94,9 @@ const SUBSURFACE_ELEVATION: Record<Framing, number> = {
  * заполняет кадр.
  */
 const SUBSURFACE_MARGIN: Record<Framing, number> = {
-  // Деталь под землёй — не вплотную. Камера, поставленная по габариту ствола,
-  // упиралась в саму обсадную колонну: в кадре серая труба во весь экран, а
-  // перфорация и приток, ради которых кадр существует, за ней не видны.
-  detail: 1.7,
+  // Габарит подземной детали теперь равен самому предмету кадра — зоне
+  // притока, — поэтому запас минимальный: предмет должен заполнять кадр.
+  detail: 1.1,
   object: 1.3,
   context: 1.25,
   wide: 1.5,
@@ -161,10 +161,18 @@ export function shotView(
       // отметке продуктивной толщи.
       const hero = makeStoryWell(route.well, 'skn');
       const p = perfPoint(hero);
-      // Габарит не по стволу, а по зоне притока: разговор идёт о том, как
-      // нефть входит в скважину, значит в кадре должен быть кусок пласта
-      // вокруг перфорации, а не одна труба.
-      return { center: p.clone(), radius: 48 };
+      /**
+       * Габарит равен вылету лучей притока, а не толщине ствола.
+       *
+       * Приток рисуется лучами, сходящимися к перфорации с расстояния в сто
+       * шестьдесят пять метров, — это и есть предмет кадра. Пока габарит брался
+       * по стволу, камера вписывала в кадр трубу, а звезда притока целиком
+       * оставалась за его пределами: было видно колонну и пустую породу вокруг.
+       *
+       * Число берётся из самой геометрии притока, а не подобрано: изменится
+       * вылет лучей — изменится и кадр.
+       */
+      return { center: p.clone(), radius: INFLOW_REACH * 1.15 };
     }
 
     case 'bore': {

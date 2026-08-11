@@ -214,6 +214,15 @@ function ChristmasTree({ y, cableEntry = false }: { y: number; cableEntry?: bool
  * идёт из скважины в пласт. Это не косметика — направление и есть смысл
  * объекта, и перепутать нагнетание с отбором нельзя.
  */
+/**
+ * Вылет лучей притока, м.
+ *
+ * Вынесен в экспорт, потому что по нему же строится кадр «как нефть попадает в
+ * скважину»: предмет кадра — эта самая звезда, и её размер должен задаваться в
+ * одном месте, а не совпадать с числом в постановке кадра по договорённости.
+ */
+export const INFLOW_REACH = 165;
+
 function ReservoirFlow({ spec }: { spec: StoryWell }) {
   const injecting = spec.kind === 'inj' || spec.kind === 'water';
 
@@ -226,7 +235,7 @@ function ReservoirFlow({ spec }: { spec: StoryWell }) {
       ? Math.abs(absToSceneY(horizon.topAbs) - absToSceneY(horizon.botAbs)) / 2
       : 20;
 
-    const R = 165;
+    const R = INFLOW_REACH;
     const RAYS = 16;
     const STEPS = 12;
     const pos: number[] = [];

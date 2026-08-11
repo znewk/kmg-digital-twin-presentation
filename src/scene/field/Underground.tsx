@@ -137,7 +137,9 @@ function BuriedSystem({
         pulseColor: '#ffffff',
         period: flow?.period ?? 60,
         speed: flow?.speed ?? 0,
-        opacity: 0.75,
+        // Подземная схема смотрится сквозь полупрозрачный грунт, и линия должна
+        // пробиваться через него, а не подмешиваться к нему.
+        opacity: 0.95,
       }),
     [style.color, flow],
   );

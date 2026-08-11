@@ -30,6 +30,33 @@ interface Circle {
 }
 
 /**
+ * Схлопывает контуры, описывающие один и тот же резервуар.
+ *
+ * Критерий физический: два резервуара не могут стоять внутри друг друга. Если
+ * расстояние между центрами меньше суммы радиусов, это не два бака, а один,
+ * обведённый в чертеже несколькими контурами — стенка, кольцо жёсткости,
+ * отбортовка. Именно из-за этого на площадке стояли бочки, проходящие одна
+ * сквозь другую: круги отстоят на пять метров при радиусе почти пять.
+ *
+ * Контуры перебираются от большего к меньшему, поэтому остаётся внешний.
+ * Порог 0,85 от суммы радиусов, а не единица: у стоящих вплотную резервуаров
+ * контуры в чертеже иногда чуть перекрываются из-за упрощения геометрии.
+ */
+function dedupeCircles(circles: Circle[]): Circle[] {
+  const sorted = [...circles].sort((a, b) => b.r - a.r);
+  const kept: Circle[] = [];
+
+  for (const c of sorted) {
+    const overlaps = kept.some(
+      (k) => Math.hypot(k.x - c.x, k.z - c.z) < (k.r + c.r) * 0.85,
+    );
+    if (!overlaps) kept.push(c);
+  }
+
+  return kept;
+}
+
+/**
  * Центр и радиус замкнутого контура. Контуры в чертеже упрощены до нескольких
  * точек, поэтому радиус берётся по габариту, а не по средней длине радиус-
  * вектора: у четырёхточечного восьмиугольника второе занижает размер.
@@ -132,18 +159,34 @@ function buildRvs(r: number): Part[] {
   // Люк-лаз в нижнем поясе
   out.push(cyl('steelDark', 0.34, 0.18, -r * 0.99, 1.1, 0, 0, 0, Math.PI / 2, 12));
 
-  // Обваловка: земляной вал по каре вокруг резервуара
-  const dike = r * 2.1;
-  for (const [dx, dz, w, d] of [
-    [0, -dike, dike * 2 + 2, 1.8],
-    [0, dike, dike * 2 + 2, 1.8],
-    [-dike, 0, 1.8, dike * 2 + 2],
-    [dike, 0, 1.8, dike * 2 + 2],
+  return out;
+}
+
+/**
+ * Обваловка резервуарного парка — одна на группу, а не на каждый резервуар.
+ *
+ * По нормам каре должно вместить объём наибольшего резервуара, и его делают
+ * общим для парка: у стоящих рядом баков вал один. Пока обваловка строилась в
+ * каждом резервуаре, валы соседей пересекались и площадка выглядела кривой.
+ */
+function buildTankFarmDike(w: number, d: number): Part[] {
+  const out: Part[] = [];
+  const hw = w / 2;
+  const hd = d / 2;
+
+  for (const [dx, dz, bw, bd] of [
+    [0, -hd, w + 3, 3],
+    [0, hd, w + 3, 3],
+    [-hw, 0, 3, d + 3],
+    [hw, 0, 3, d + 3],
   ] as const) {
-    out.push(box('concrete', w, 1.5, d, dx, 0.75, dz));
+    out.push(box('concrete', bw, 1.8, bd, dx, 0.9, dz));
   }
-  // Лестница через обваловку
-  out.push(box('steel', 1.0, 0.08, 2.6, 0, 1.55, -dike, 0, 0.12));
+
+  // Переходные лестницы через вал с двух сторон
+  for (const s of [-1, 1]) {
+    out.push(box('steel', 1.2, 0.1, 4.2, s * hw * 0.55, 1.9, -hd, 0, 0.1));
+  }
 
   return out;
 }
@@ -202,17 +245,36 @@ export function Tanks() {
    * в котором что-нибудь дёрнет перерисовку.
    */
   const groups = useMemo(() => {
-    const circles = data.networks.tank
-      .map(circleOf)
-      .filter((c): c is Circle => c !== null);
+    const circles = dedupeCircles(
+      data.networks.tank.map(circleOf).filter((c): c is Circle => c !== null),
+    );
 
     const out: { id: string; build: () => Part[]; placements: Placement[] }[] = [];
+    const rvs = circles.filter((c) => c.r >= RVS_MIN_RADIUS);
 
-    for (const [r, placements] of groupByRadius(circles.filter((c) => c.r >= RVS_MIN_RADIUS))) {
+    for (const [r, placements] of groupByRadius(rvs)) {
       out.push({ id: `rvs-${r}`, build: () => buildRvs(r), placements });
     }
     for (const [r, placements] of groupByRadius(circles.filter((c) => c.r < RVS_MIN_RADIUS))) {
       out.push({ id: `vessel-${r}`, build: () => buildVessel(r), placements });
+    }
+
+    // Общая обваловка вокруг резервуарного парка — по габариту группы РВС.
+    if (rvs.length > 0) {
+      const minX = Math.min(...rvs.map((c) => c.x - c.r));
+      const maxX = Math.max(...rvs.map((c) => c.x + c.r));
+      const minZ = Math.min(...rvs.map((c) => c.z - c.r));
+      const maxZ = Math.max(...rvs.map((c) => c.z + c.r));
+      const w = maxX - minX + 16;
+      const d = maxZ - minZ + 16;
+      const cx = (minX + maxX) / 2;
+      const cz = (minZ + maxZ) / 2;
+
+      out.push({
+        id: 'tank-farm-dike',
+        build: () => buildTankFarmDike(w, d),
+        placements: [{ x: cx, y: surfY(cx, cz), z: cz }],
+      });
     }
 
     return out;

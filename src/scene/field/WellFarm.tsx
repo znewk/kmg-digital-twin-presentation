@@ -220,8 +220,12 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
     [],
   );
 
+  /**
+   * Расстановка несёт идентификаторы скважин — тогда неподвижная часть станка
+   * кликается штатным механизмом сборки, тем же, что у ГЗУ.
+   */
   const placements = useMemo<Placement[]>(
-    () => items.map((it) => ({ x: it.x, y: it.y, z: it.z, yaw: it.yaw })),
+    () => items.map((it) => ({ x: it.x, y: it.y, z: it.z, yaw: it.yaw, id: `well:${it.well.uwi}` })),
     [items],
   );
 
@@ -299,6 +303,7 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
         args={[geometry.beam, undefined, items.length]}
         castShadow
         frustumCulled={false}
+        {...pick}
       >
         <meshStandardMaterial {...STEEL} />
       </instancedMesh>
@@ -308,6 +313,7 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
         args={[geometry.crank, undefined, items.length]}
         castShadow
         frustumCulled={false}
+        {...pick}
       >
         <meshStandardMaterial {...STEEL_DARK} />
       </instancedMesh>
@@ -317,6 +323,7 @@ function PumpjackFarm({ items }: { items: Placed[] }) {
         args={[geometry.pitman, undefined, items.length]}
         castShadow
         frustumCulled={false}
+        {...pick}
       >
         <meshStandardMaterial {...STEEL} />
       </instancedMesh>
@@ -376,12 +383,12 @@ function TreeFarm({ items, id }: { items: Placed[]; id: string }) {
 
   return (
     <group userData={{ id }} {...pick}>
-      <instancedMesh ref={pad} args={[undefined, undefined, items.length]} receiveShadow>
+      <instancedMesh ref={pad} args={[undefined, undefined, items.length]} receiveShadow {...pick}>
         <boxGeometry args={[4.6, 0.24, 4.6]} />
         <meshStandardMaterial color="#4f4c42" roughness={0.98} metalness={0} />
       </instancedMesh>
 
-      <instancedMesh ref={body} args={[undefined, undefined, items.length]} castShadow>
+      <instancedMesh ref={body} args={[undefined, undefined, items.length]} castShadow {...pick}>
         <cylinderGeometry args={[0.75, 0.9, 4.4, 8]} />
         <meshStandardMaterial metalness={0.65} roughness={0.4} />
       </instancedMesh>

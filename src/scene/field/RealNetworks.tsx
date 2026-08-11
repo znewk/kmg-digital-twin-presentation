@@ -6,10 +6,8 @@ import {
   useFieldData,
   type Polyline,
 } from '../../data/geo/fieldData';
-import { NETWORK_STYLE, type NetworkKey } from '../../data/geo/fieldStyle';
-import { makePulseMaterial } from './kit/flow';
+import { NETWORK_STYLE } from '../../data/geo/fieldStyle';
 import { surfY } from './geology';
-import { useShow } from '../../store/useShow';
 
 /**
  * Реальные сети промысла (ТЗ §4.1 п.3): нефтесбор, водоводы, газопровод,
@@ -27,8 +25,6 @@ interface NetSpec {
   opacity: number;
   /** Подъём над рельефом, м — чтобы линия не тонула в поверхности. */
   lift: number;
-  /** Параметры бегущей волны. Нет у дорог: по дороге ничего не течёт. */
-  flow?: { speed: number; period: number };
 }
 
 /**
@@ -87,96 +83,59 @@ export function RealNetworks() {
   const data = useFieldData();
 
   /**
-   * Здесь остаётся ТОЛЬКО поверхностное обозначение трасс.
+   * На поверхности остаются только дороги.
    *
-   * Сами подземные трубопроводы теперь лежат в земле на глубине заложения
-   * (см. `Underground.tsx`) — раньше они рисовались линиями над рельефом, и это
-   * противоречило `meta.buried_note`. Но убрать их с поверхности совсем нельзя
-   * по двум причинам: §3.1 п.6 требует, чтобы 3D читалась как продолжение
-   * плоской схемы с теми же трассами, и в натуре подземный трубопровод
-   * действительно обозначен на поверхности — расчищенной полосой отвода и
-   * знаками. Поэтому здесь тонкая приглушённая нитка-обозначение, а объём —
-   * под землёй.
+   * Трубопроводов здесь больше нет вовсе — и это правильный ответ на простой
+   * вопрос: где на промысле лежит нефтесборный коллектор? В земле. Значит и в
+   * модели он должен быть в земле, а не продублирован ниткой на поверхности.
    *
-   * Цвет берётся из общего словаря: плоская схема и сцена обязаны совпадать по
-   * обозначениям, иначе переход «карта поднимается в 3D» читается как подмена
-   * картинки.
+   * Раньше здесь была разметка трассы, и формально она честна: подземный
+   * трубопровод в натуре размечен полосой отвода. Но на экране линия по земле
+   * читается как труба по земле, что бы ни было написано в легенде, и спорит
+   * сама с собой — тем более что настоящая труба нарисована рядом, под ней.
+   *
+   * Цена решения: сверху промысел теряет узнаваемый звездообразный рисунок
+   * нефтесбора с плоской схемы (§3.1 п.6). Возвращается он режимом
+   * «Коммуникации» и разрезом — там, где ему и место.
    */
-  const specs = useMemo<NetSpec[]>(() => {
-    const n = data.networks;
-    const spec = (
-      id: string,
-      key: NetworkKey,
-      lines: Polyline[],
-      opacity: number,
-      flow?: { speed: number; period: number },
-    ): NetSpec => ({
-      id,
-      lines,
-      color: NETWORK_STYLE[key].color,
-      lift: 0.4,
-      opacity,
-      flow,
-    });
-    // Скорости те же, что у подземных труб: волна на поверхности и волна в
-    // трубе — одно и то же течение, показанное с двух сторон, и расходиться
-    // они не должны.
-    return [
-      spec('s-neftesbor', 'oil_pipeline', n.oil_pipeline, 0.42, { speed: 9, period: 46 }),
-      spec('s-ppd-line', 'water_pipeline', n.water_pipeline, 0.36, { speed: 16, period: 52 }),
-      spec('s-gas', 'gas_pipeline', n.gas_pipeline, 0.32, { speed: 26, period: 60 }),
-      spec('s-roads', 'road', n.road, 0.45),
-    ];
-  }, [data]);
+  const specs = useMemo<NetSpec[]>(
+    () => [
+      {
+        id: 's-roads',
+        lines: data.networks.road,
+        color: NETWORK_STYLE.road.color,
+        lift: 0.4,
+        opacity: 0.5,
+      },
+    ],
+    [data],
+  );
 
   const layers = useMemo(
     () =>
       specs.map((s) => ({
         spec: s,
         geometry: mergeLines(s.lines, s.lift),
-        material: s.flow
-          ? makePulseMaterial({
-              color: s.color,
-              pulseColor: '#ffffff',
-              period: s.flow.period,
-              speed: s.flow.speed,
-              opacity: s.opacity,
-              // Пунктир длиной 22 м: это разметка трассы, а не труба.
-              dash: 22,
-            })
-          : new THREE.LineBasicMaterial({
-              color: s.color,
-              transparent: true,
-              opacity: s.opacity,
-              depthWrite: false,
-            }),
+        material: new THREE.LineBasicMaterial({
+          color: s.color,
+          transparent: true,
+          opacity: s.opacity,
+          depthWrite: false,
+        }),
       })),
     [specs],
   );
 
-  /**
-   * В режиме «Коммуникации» разметка трасс убирается.
-   *
-   * Два изображения одного и того же трубопровода — пунктир на поверхности и
-   * настоящая труба под ней — вместе только путают: непонятно, где же он на
-   * самом деле. Поэтому они никогда не показываются одновременно: в обычном
-   * виде — разметка, в режиме коммуникаций — сама труба. Дороги остаются, они
-   * действительно на поверхности.
-   */
-  const utilities = useShow((s) => s.features.utilities);
-
   return (
     <group>
-      {layers
-        .filter(({ spec }) => !utilities || !spec.flow)
-        .map(({ spec, geometry, material }) => (
-          <lineSegments
-            key={spec.id}
-            geometry={geometry}
-            material={material}
-            userData={{ id: spec.id }}
-          />
-        ))}
+      {layers.map(({ spec, geometry, material }) => (
+        <lineSegments
+          key={spec.id}
+          geometry={geometry}
+          material={material}
+          userData={{ id: spec.id }}
+        />
+      ))}
     </group>
   );
 }

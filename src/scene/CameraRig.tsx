@@ -31,7 +31,6 @@ const _tgtTo = new THREE.Vector3();
 const _tgt = new THREE.Vector3();
 const _focusPos = new THREE.Vector3();
 const _focusTgt = new THREE.Vector3();
-const _up = new THREE.Vector3(0, 1, 0);
 
 interface Props {
   enabled?: boolean;
@@ -109,9 +108,16 @@ export function CameraRig({ enabled = true }: Props) {
     _tgtTo.set(to.t[0], to.t[1], to.t[2]);
     _tgt.lerpVectors(_tgtFrom, _tgtTo, k);
 
-    // Медленный дрейф после прилёта: кадр остаётся живым, но не мешает читать.
-    const hold = THREE.MathUtils.clamp((t - TRANSIT) / (1 - TRANSIT), 0, 1);
-    _pos.applyAxisAngle(_up, Math.sin(hold * Math.PI) * 0.02);
+    /*
+      Медленного дрейфа после прилёта здесь больше нет.
+
+      Он оживлял кадр, пока этапов было восемь и камера всё равно ехала. На
+      показе из трёх экранов, где два последних стоят на одном ракурсе, дрейф
+      остался единственным источником движения — и заметным: к концу такта он
+      разворачивается в обратную сторону, скорость меняет знак, и на границе
+      это читается рывком фона. Неподвижный кадр честнее живого, если живость
+      достигается качанием камеры.
+    */
 
     // ── Прицельное наведение на объект ───────────────────────────────────
     const perspective = camera as THREE.PerspectiveCamera;

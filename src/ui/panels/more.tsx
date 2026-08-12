@@ -510,7 +510,7 @@ export function EffectsPanel() {
   }, []);
 
   return (
-    <div ref={box} className="plate-in panel pointer-events-auto absolute inset-x-8 bottom-8 flex max-h-[54%] flex-col gap-3 overflow-hidden px-5 py-3.5">
+    <div className="plate-in panel pointer-events-auto absolute inset-x-16 top-1/2 flex max-h-[64%] -translate-y-1/2 flex-col gap-4 overflow-hidden px-7 py-5">
       <div className="kicker shrink-0 text-[var(--color-plast)]">Ожидаемые эффекты по контурам</div>
 
       <div
@@ -519,12 +519,12 @@ export function EffectsPanel() {
       >
         {rows.map((c) => (
           <div key={c.name} className="border-t-2 pt-2.5" style={{ borderColor: 'var(--color-plast)' }}>
-            <div className="text-[0.78rem] font-semibold uppercase tracking-wide">{c.name}</div>
+            <div className="text-[0.9rem] font-semibold uppercase tracking-wide">{c.name}</div>
             <div className="mt-2 flex flex-col gap-1.5">
               {c.effects.map((e) => (
                 <div key={e.label} className="flex items-baseline gap-2">
-                  <span className="font-mono text-[1.25rem] text-[var(--color-ok)]">{e.value}</span>
-                  <span className="text-[0.6rem] leading-tight text-[var(--color-txt-dim)]">
+                  <span className="font-mono text-[1.6rem] text-[var(--color-ok)]">{e.value}</span>
+                  <span className="text-[0.68rem] leading-tight text-[var(--color-txt-dim)]">
                     {e.label}
                   </span>
                 </div>

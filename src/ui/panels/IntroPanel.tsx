@@ -74,7 +74,6 @@ export function IntroPanel() {
   }, []);
 
   const naming = useShow((s) => s.naming);
-  const openDive = useShow((s) => s.openDive);
 
   const total = IT_LANDSCAPE.reduce((n, s) => n + s.systems.length, 0);
 
@@ -89,13 +88,10 @@ export function IntroPanel() {
           {contours.map((c) => (
             <div
               key={c.name}
-              role={c.dive ? 'button' : undefined}
-              onClick={c.dive ? () => openDive(c.dive!) : undefined}
-              className="border-t-2 px-3 py-2 transition-all hover:brightness-125"
+              className="border-t-2 px-3 py-2"
               style={{
                 borderColor: 'var(--color-abai)',
                 background: 'oklch(22% 0.02 250 / 0.45)',
-                cursor: c.dive ? 'pointer' : undefined,
               }}
             >
               <div className="flex items-baseline gap-2">

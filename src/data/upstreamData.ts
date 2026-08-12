@@ -57,7 +57,7 @@ export const CONTOURS: TwinContour[] = [
   {
     no: '1',
     name: 'ЦД пласта',
-    // dive: 'plast',
+    dive: 'plast',
     claim: 'Цифровая гидродинамическая модель и приоритизация ГТМ по экономике',
     effects: [{ value: '−5%', label: 'снижение CAPEX', major: true }],
     blocks: [
@@ -85,7 +85,7 @@ export const CONTOURS: TwinContour[] = [
   {
     no: '2',
     name: 'ЦД скважины',
-    // dive: 'skv',
+    dive: 'skv',
     claim: 'Сквозное планирование ТКРС и снижение простоев бригад',
     effects: [{ value: '−3%', label: 'сроки вывода на режим', major: true }],
     blocks: [
@@ -109,7 +109,7 @@ export const CONTOURS: TwinContour[] = [
   {
     no: '3',
     name: 'ЦД добычи и наземной инфраструктуры',
-    // dive: 'dob',
+    dive: 'dob',
     claim:
       'Оптимальное управление режимом фонда, минимизация потерь добычи за счёт предиктивной аналитики отказов',
     effects: [

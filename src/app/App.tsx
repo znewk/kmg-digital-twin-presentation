@@ -8,12 +8,13 @@ import { DebugHud } from '../ui/DebugHud';
 import { PanelLayer } from '../ui/panels';
 import { CyclePanel } from '../ui/CyclePanel';
 import { DivePanel } from '../ui/DivePanel';
+import { EntryCover } from '../ui/EntryCover';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { useUiScale } from '../hooks/useUiScale';
 import { useEffect } from 'react';
 import { FLAT_BEATS } from '../data/stages';
 import { panelReserve } from '../ui/panelReserve';
-import { useShow } from '../store/useShow';
+import { selectFieldMode, useShow } from '../store/useShow';
 
 /**
  * Индикатор цепочки живёт только на этапах, где есть промысел. На глобусе и
@@ -38,15 +39,25 @@ export function App() {
   const stageId = useShow((s) => s.stageId);
   const dive = useShow((s) => s.dive);
   const beatIndex = useShow((s) => s.beatIndex);
-
-  // Такт без нижней плашки — резерв снимается, кадр возвращается в центр.
-  useEffect(() => {
-    if (!RESERVING_PANELS.has(FLAT_BEATS[beatIndex].panel ?? '')) {
-      panelReserve.current = 0;
-    }
-  }, [beatIndex]);
   const inCycle = useShow((s) => s.cycleShot !== null);
   const explore = useShow((s) => s.explore);
+
+  /** Показ ведёт промысел, а не прокрутка: осмотр сцены или разбор контура. */
+  const fieldMode = useShow(selectFieldMode);
+
+  /**
+   * Такт без нижней плашки — резерв снимается, кадр возвращается в центр.
+   *
+   * Переход на промысел считается тем же: плашка целевого образа уходит с
+   * экрана, а такт под ней не менялся, и по одному только такту резерв остался
+   * бы висеть. Кадр промысла был бы поднят на половину экрана вверх — ровно на
+   * ту долю, которую занимала снятая плашка.
+   */
+  useEffect(() => {
+    if (fieldMode || !RESERVING_PANELS.has(FLAT_BEATS[beatIndex].panel ?? '')) {
+      panelReserve.current = 0;
+    }
+  }, [beatIndex, fieldMode]);
 
   /** Показ ведёт не прокрутка, а собственный режим — разбор или полный цикл. */
   const focusMode = dive !== null || inCycle;
@@ -67,7 +78,13 @@ export function App() {
         className="pointer-events-none fixed inset-0 z-10"
         style={{ zoom: 'var(--ui-scale, 1)' }}
       >
-        <PanelLayer />
+        {/*
+          Плашки линейного показа принадлежат прокрутке и на промысле не нужны:
+          плашка целевого образа занимает нижнюю половину кадра, а под ней в
+          этот момент месторождение. Такт при этом остаётся прежним — показ
+          продолжится с него же, когда зритель вернётся.
+        */}
+        {!fieldMode && <PanelLayer />}
 
         {/*
           ОБВЯЗКА ЛИНЕЙНОГО ПОКАЗА СНИМАЕТСЯ В ЛЮБОМ СОБСТВЕННОМ РЕЖИМЕ.
@@ -91,9 +108,15 @@ export function App() {
         */}
         {!dive && <SceneControls />}
 
-        {!focusMode && (
+        {/*
+          Карточка объекта живёт и в осмотре промысла: клик по качалке — это то,
+          ради чего осмотр и открывают. Титры этапа и шкала прокрутки — нет: они
+          рассказывают о такте линейного показа, которого на экране уже нет.
+        */}
+        {!focusMode && <ObjectPanel />}
+
+        {!fieldMode && !inCycle && (
           <>
-            <ObjectPanel />
             <StageCaption />
             <Progress />
           </>
@@ -104,6 +127,9 @@ export function App() {
         <DivePanel />
         <DebugHud />
       </div>
+
+      {/* Заслонка перехода — поверх интерфейса и вне его масштабирования */}
+      <EntryCover />
 
       <ScrollTrack />
     </>

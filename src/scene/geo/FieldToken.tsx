@@ -16,7 +16,7 @@ import { buildKns } from '../field/facilities/kns';
 import { buildPole10 } from '../field/facilities/pole';
 
 /**
- * КАРИКАТУРА ПРОМЫСЛА НА ГЛОБУСЕ — вместо точки на карте.
+ * КАРИКАТУРА ПРОМЫСЛА НА КАРТЕ — вместо точки-маркера.
  *
  * Пока докладчик говорит о цифровом двойнике, на фоне стояла оранжевая точка.
  * Точка сообщает «здесь», и больше ничего: аудитория, не связанная с отраслью,
@@ -32,13 +32,21 @@ import { buildPole10 } from '../field/facilities/pole';
  * Оборудование при этом НАСТОЯЩЕЕ — те же построители, что и в сцене промысла,
  * и та же четырёхзвенная кинематика качалки. Рисовать для значка отдельные
  * модели значило бы, что на глобусе одно, а внутри показа другое.
+ *
+ * ЧИТАЕТСЯ СВЕРХУ, КАК ПЛАН. На карту камера смотрит почти отвесно, и объект
+ * узнаётся не силуэтом сбоку, а расстановкой: два ряда качалок, между ними
+ * нитка нефтесбора, на востоке сборный пункт, рядом факел. Поэтому раскладка
+ * ортогональная — ряды по одной линии, трубы углами, а не лучами из центра.
+ * Расходящаяся «звезда» из труб читалась как случайная клякса.
  */
 
 /** Размер сценки в единицах глобуса. Подобран так, чтобы читалась силуэтом. */
 const TOKEN_SCALE = 0.045;
 
-/** Радиус площадки под сценкой. */
-const PAD_R = 26;
+/** Высота, на которой лежат нитки нефтесбора. */
+const PIPE_Y = 1.4;
+
+type P2 = [number, number];
 
 function partsMesh(m: Map<MatKey, THREE.BufferGeometry>) {
   return [...m.entries()].map(([key, geometry]) => (
@@ -48,8 +56,15 @@ function partsMesh(m: Map<MatKey, THREE.BufferGeometry>) {
   ));
 }
 
-/** Станок-качалка с той же кинематикой, что на промысле. */
-function Pumpjack({ at, yaw, phase }: { at: [number, number]; yaw: number; phase: number }) {
+/**
+ * Станок-качалка с той же кинематикой, что на промысле, на отсыпанной площадке.
+ *
+ * Площадка не декоративная: значок стоит поверх янтарной заливки области, и
+ * без тёмного основания стальная ферма на ней теряется. Отсыпка под каждым
+ * объектом даёт этот контраст локально — в отличие от общего круга, который
+ * читался чужой границей поверх контура области.
+ */
+function Pumpjack({ at, phase }: { at: P2; phase: number }) {
   const beam = useRef<THREE.Group>(null);
   const crank = useRef<THREE.Group>(null);
   const pitman = useRef<THREE.Group>(null);
@@ -76,7 +91,11 @@ function Pumpjack({ at, yaw, phase }: { at: [number, number]; yaw: number; phase
   });
 
   return (
-    <group position={[at[0], 0, at[1]]} rotation={[0, yaw, 0]}>
+    <group position={[at[0], 0, at[1]]}>
+      <mesh position={[-1, 0.06, 0]}>
+        <boxGeometry args={[16, 0.3, 7.4]} />
+        <meshStandardMaterial color="#2b2117" roughness={1} metalness={0} />
+      </mesh>
       {partsMesh(geo.base)}
       <group ref={beam}>{partsMesh(geo.beam)}</group>
       <group ref={crank}>{partsMesh(geo.crank)}</group>
@@ -92,7 +111,7 @@ function Static({
   scale = 1,
 }: {
   parts: Part[];
-  at: [number, number];
+  at: P2;
   yaw?: number;
   scale?: number;
 }) {
@@ -107,109 +126,161 @@ function Static({
 /**
  * Факел. Пламя — конус с бегущим шумом в цвете, а не частицы: частиц на значке
  * не разглядеть, а вертикальный язык с дрожащей яркостью читается сразу.
+ *
+ * Сверху вертикальный ствол вырождается в точку, поэтому у пламени есть ещё и
+ * аддитивный ореол: с отвесного ракурса факел узнаётся по светящемуся пятну.
  */
-function Flare({ at }: { at: [number, number] }) {
+function Flare({ at }: { at: P2 }) {
   const flame = useRef<THREE.Mesh>(null);
+  const halo = useRef<THREE.Mesh>(null);
 
   useFrame(({ clock }) => {
-    const m = flame.current;
-    if (!m) return;
     const t = clock.elapsedTime;
     // Дрожание по двум несовпадающим частотам: одна синусоида читается
     // механическим миганием, две дают живой огонь.
     const k = 1 + 0.16 * Math.sin(t * 7.3) + 0.09 * Math.sin(t * 11.7);
-    m.scale.set(1, k, 1);
-    (m.material as THREE.MeshBasicMaterial).opacity = 0.75 + 0.2 * Math.sin(t * 9.1);
+    if (flame.current) {
+      flame.current.scale.set(1, k, 1);
+      (flame.current.material as THREE.MeshBasicMaterial).opacity = 0.78 + 0.18 * Math.sin(t * 9.1);
+    }
+    if (halo.current) {
+      halo.current.scale.setScalar(0.9 + 0.18 * Math.sin(t * 6.1));
+    }
   });
 
   return (
     <group position={[at[0], 0, at[1]]}>
-      {/* Ствол факельной установки */}
-      <mesh position={[0, 9, 0]}>
-        <cylinderGeometry args={[0.7, 1, 18, 8]} />
+      {/* Отсыпка под факельной установкой */}
+      <mesh position={[0, 0.06, 0]}>
+        <boxGeometry args={[9, 0.3, 9]} />
+        <meshStandardMaterial color="#2b2117" roughness={1} metalness={0} />
+      </mesh>
+      {/* Ствол */}
+      <mesh position={[0, 11, 0]}>
+        <cylinderGeometry args={[0.7, 1.3, 22, 8]} />
         <meshStandardMaterial color="#8c8f95" metalness={0.6} roughness={0.5} />
       </mesh>
-      <mesh ref={flame} position={[0, 21, 0]}>
-        <coneGeometry args={[1.8, 7, 10]} />
+      <mesh ref={flame} position={[0, 25, 0]}>
+        <coneGeometry args={[2.1, 8, 10]} />
         <meshBasicMaterial color="#ff9a3c" transparent opacity={0.9} depthWrite={false} />
+      </mesh>
+      <mesh ref={halo} position={[0, 26, 0]}>
+        <sphereGeometry args={[4.4, 12, 10]} />
+        <meshBasicMaterial
+          color="#ff7a1a"
+          transparent
+          opacity={0.28}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
       </mesh>
     </group>
   );
 }
 
-/** Нитка нефтесбора от куста к сборному пункту — с бегущей волной. */
-function Gathering({ from, to }: { from: [number, number]; to: [number, number] }) {
-  const material = useRef<THREE.MeshBasicMaterial>(null);
+/**
+ * Нитка промыслового трубопровода по ломаной, с бегущей по ней каплей.
+ *
+ * Ломаная, а не дуга: трубы на промысле идут вдоль дорог прямыми участками с
+ * поворотами на углах, и сверху именно это читается разводкой, а дуга поперёк
+ * площадки — случайной чертой. Тензия у сплайна нулевая, поэтому кривая
+ * вырождается в отрезки и углы остаются углами.
+ *
+ * Направление показывает капля, а не мигание всей трубы: мигание сообщает
+ * «здесь что-то происходит», капля — «продукция идёт отсюда туда».
+ */
+function Route({ points, phase = 0 }: { points: P2[]; phase?: number }) {
+  const bead = useRef<THREE.Mesh>(null);
 
-  const geometry = useMemo(() => {
-    const a = new THREE.Vector3(from[0], 1.2, from[1]);
-    const b = new THREE.Vector3(to[0], 1.2, to[1]);
-    const mid = a.clone().lerp(b, 0.5);
-    mid.y += 2;
-    const curve = new THREE.CatmullRomCurve3([a, mid, b]);
-    return new THREE.TubeGeometry(curve, 24, 0.5, 6, false);
-  }, [from, to]);
+  const curve = useMemo(
+    () =>
+      new THREE.CatmullRomCurve3(
+        points.map(([x, z]) => new THREE.Vector3(x, PIPE_Y, z)),
+        false,
+        'catmullrom',
+        0,
+      ),
+    [points],
+  );
+
+  const geometry = useMemo(
+    () => new THREE.TubeGeometry(curve, points.length * 8, 0.42, 6, false),
+    [curve, points.length],
+  );
 
   useFrame(({ clock }) => {
-    const m = material.current;
-    if (!m) return;
-    m.opacity = 0.45 + 0.35 * (0.5 + 0.5 * Math.sin(clock.elapsedTime * 3));
+    if (!bead.current) return;
+    const t = (clock.elapsedTime * 0.22 + phase) % 1;
+    bead.current.position.copy(curve.getPointAt(t));
   });
 
   return (
-    <mesh geometry={geometry}>
-      <meshBasicMaterial ref={material} color="#f0ae4a" transparent opacity={0.6} />
-    </mesh>
+    <group>
+      <mesh geometry={geometry}>
+        <meshStandardMaterial color="#b8801f" roughness={0.6} metalness={0.3} />
+      </mesh>
+      <mesh ref={bead}>
+        <sphereGeometry args={[0.95, 10, 8]} />
+        <meshBasicMaterial color="#ffd48a" />
+      </mesh>
+    </group>
   );
 }
 
 /**
- * Расстановка. Куст качалок слева, замерная установка между ними, сборный пункт
- * справа, факел рядом с ним, линия электропередачи по краю — минимальный набор,
- * по которому промысел узнаётся силуэтом.
+ * Расстановка — план промысла в миниатюре.
+ *
+ * Два ряда качалок с запада, между рядами нефтесборный коллектор, на нём
+ * замерная установка, восточнее сборный пункт, у сборного пункта факел (туда
+ * уходит попутный газ) и насосная поддержания пластового давления, по южному
+ * краю линия электропередачи. Тот же порядок, что на настоящем Молдабеке, и
+ * тот минимум, по которому промысел узнаётся с одного взгляда.
  */
-const WELLS: { at: [number, number]; yaw: number; phase: number }[] = [
-  { at: [-16, -6], yaw: 0.3, phase: 0 },
-  { at: [-9, 8], yaw: -0.5, phase: 2.1 },
-  { at: [-20, 9], yaw: 0.9, phase: 4.2 },
-  { at: [-3, -12], yaw: 1.3, phase: 1.2 },
+const WELLS: { at: P2; phase: number }[] = [
+  { at: [-24, -11], phase: 0 },
+  { at: [-11, -11], phase: 2.4 },
+  { at: [2, -11], phase: 4.8 },
+  { at: [-24, 11], phase: 1.2 },
+  { at: [-11, 11], phase: 3.6 },
+  { at: [2, 11], phase: 5.4 },
 ];
 
-const GZU: [number, number] = [-2, 2];
-const SP: [number, number] = [17, -2];
-const FLARE: [number, number] = [24, 9];
+const GZU: P2 = [3, 0];
+const SP: P2 = [20, 0];
+const FLARE: P2 = [20, -15];
+const KNS: P2 = [16, 14];
+
+/** Коллектор идёт между рядами качалок — от западного куста к замерной установке. */
+const TRUNK: P2[] = [
+  [-24, 0],
+  [GZU[0], 0],
+];
 
 export function FieldToken() {
   return (
     <group scale={TOKEN_SCALE}>
-      {/* Площадка: тёмное основание, чтобы силуэт не терялся на заливке области */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
-        <circleGeometry args={[PAD_R, 40]} />
-        <meshBasicMaterial color="#1a1206" transparent opacity={0.82} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]}>
-        <ringGeometry args={[PAD_R * 0.97, PAD_R, 40]} />
-        <meshBasicMaterial color="#f0ae4a" transparent opacity={0.9} side={THREE.DoubleSide} />
-      </mesh>
-
       {WELLS.map((w, i) => (
-        <Pumpjack key={i} at={w.at} yaw={w.yaw} phase={w.phase} />
+        <Pumpjack key={i} at={w.at} phase={w.phase} />
       ))}
 
-      <Static parts={buildGzu()} at={GZU} yaw={0.4} />
-      <Static parts={buildSp()} at={SP} yaw={-0.5} scale={0.6} />
-      <Static parts={buildKns()} at={[6, 13]} yaw={1.1} scale={0.6} />
+      <Static parts={buildGzu()} at={GZU} />
+      <Static parts={buildSp()} at={SP} scale={0.55} />
+      <Static parts={buildKns()} at={KNS} scale={0.5} />
       <Flare at={FLARE} />
 
-      {[-22, -12, -2, 8].map((x) => (
-        <Static key={x} parts={buildPole10()} at={[x, -18]} scale={0.9} />
+      {[-26, -14, -2, 10, 22].map((x) => (
+        <Static key={x} parts={buildPole10()} at={[x, 20]} scale={0.9} />
       ))}
 
-      {/* Сбор: от каждой качалки к ГЗУ, от ГЗУ к сборному пункту */}
+      {/* Выкидные линии скважин — углом на коллектор */}
       {WELLS.map((w, i) => (
-        <Gathering key={i} from={w.at} to={GZU} />
+        <Route key={i} points={[w.at, [w.at[0], 0]]} phase={i / WELLS.length} />
       ))}
-      <Gathering from={GZU} to={SP} />
+      {/* Коллектор до замерной установки и напорный нефтепровод до сборного пункта */}
+      <Route points={TRUNK} phase={0.15} />
+      <Route points={[GZU, SP]} phase={0.5} />
+      {/* Нитка газа со сборного пункта на факел */}
+      <Route points={[[SP[0], -5], FLARE]} phase={0.8} />
     </group>
   );
 }

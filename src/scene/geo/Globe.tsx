@@ -5,7 +5,7 @@ import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import countries110m from 'world-atlas/countries-110m.json';
 import kzOblasts from '../../data/geo/kz-oblasts.json';
-import { progressRef, useShow } from '../../store/useShow';
+import { progressRef, selectFieldMode, useShow } from '../../store/useShow';
 import { FieldToken } from './FieldToken';
 import { FLAT_BEATS, TOTAL_BEATS } from '../../data/stages';
 import {
@@ -109,6 +109,7 @@ const _worldPos = new THREE.Vector3();
 
 export function Globe() {
   const stageId = useShow((s) => s.stageId);
+  const fieldMode = useShow(selectFieldMode);
   const { camera } = useThree();
   const root = useRef<THREE.Group>(null);
   const spin = useRef<THREE.Group>(null);
@@ -127,22 +128,40 @@ export function Globe() {
   );
 
   /**
-   * Разворот значка по нормали к поверхности.
+   * Разворот значка по местному горизонту: вверх — нормаль к поверхности,
+   * вправо — восток, вниз по экрану — юг.
    *
    * Сценка построена в обычных координатах — «вверх» у неё по оси Y. На сфере
    * вверх у каждой точки своё направление; без разворота качалки на широте
    * Атырау лежали бы на боку.
+   *
+   * Но одной нормали мало. Поворот «кратчайшей дугой» доворачивает сценку
+   * вокруг нормали на произвольный угол, и план промысла вставал на карту
+   * наискось — ряды качалок шли по диагонали, коллектор наперекос к контуру
+   * области. Здесь базис задан явно, поэтому ряды идут по параллели, а
+   * читатель карты видит план так же, как видел бы его на бумаге.
    */
-  const moldabekQuat = useMemo(
-    () =>
-      new THREE.Quaternion().setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        moldabekPos.clone().normalize(),
-      ),
-    [moldabekPos],
-  );
+  const moldabekQuat = useMemo(() => {
+    const up = moldabekPos.clone().normalize();
+    // Восток = вертикаль мира × нормаль. На полюсе вырождается, на широте
+    // Атырау — нет; проверка стоит одной строки и снимает вопрос.
+    const east = new THREE.Vector3(0, 1, 0).cross(up);
+    if (east.lengthSq() < 1e-8) east.set(1, 0, 0);
+    east.normalize();
+    const south = east.clone().cross(up).normalize();
+    return new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(east, up, south),
+    );
+  }, [moldabekPos]);
 
-  const active = GEO_STAGES.has(stageId);
+  /**
+   * Планета уходит из сцены, как только показ перешёл на промысел.
+   *
+   * Не «прячется», а размонтируется: глобус радиусом 300 единиц и промысел
+   * шириной пять километров стоят вокруг одного начала координат, и оставленная
+   * планета оказалась бы шариком в середине месторождения.
+   */
+  const active = GEO_STAGES.has(stageId) && !fieldMode;
 
   useFrame(() => {
     if (!active) return;
@@ -201,8 +220,12 @@ export function Globe() {
      *
      * От Атырауской области до подлёта к площадке камера сокращает дистанцию
      * на порядок; при фиксированном размере сценка была бы то точкой, то во
-     * весь кадр. Множитель подобран так, чтобы на обзорном ракурсе она
-     * занимала около трети полукадра: читается силуэтом и не закрывает область.
+     * весь кадр.
+     *
+     * Множитель подобран так, чтобы сценка целиком помещалась ВНУТРЬ контура
+     * области рядом со своей координатой. Прежний значок был вдвое крупнее и
+     * вылезал за восточный край Атырауской области в соседнюю: карта тогда
+     * говорит «промысел где-то тут вообще», а нужно «промысел вот здесь».
      *
      * Пульсации нет. Она годилась точке-маркеру, а сценка с работающими
      * качалками, дышащая целиком, читается сбоем масштаба, а не акцентом.
@@ -210,7 +233,7 @@ export function Globe() {
     if (markerRef.current) {
       markerRef.current.visible = callout > 0.05;
       const dist = camera.position.distanceTo(markerRef.current.getWorldPosition(_worldPos));
-      markerRef.current.scale.setScalar(callout * dist * 0.088);
+      markerRef.current.scale.setScalar(callout * dist * 0.04);
     }
 
     if (root.current) root.current.visible = true;

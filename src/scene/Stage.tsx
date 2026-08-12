@@ -8,6 +8,7 @@ import { TIER_SETTINGS, usePerfTier } from '../hooks/usePerfTier';
 import { CameraRig } from './CameraRig';
 import { FreeLook } from './FreeLook';
 import { Globe } from './geo/Globe';
+import { FieldEntry } from './geo/FieldEntry';
 import { Field } from './field/Field';
 import { renderStats } from './stats';
 
@@ -96,6 +97,12 @@ function SceneContents() {
       {/* На паузе управление камерой отдаётся мыши, таймлайн отступает */}
       <CameraRig enabled={!paused} />
       <FreeLook />
+      {/*
+        Снижение к промыслу. Живёт ВНЕ Suspense: пока грузится датасет
+        месторождения, граница ожидания снимает с экрана всё, что внутри неё, —
+        а переход обязан идти и в этот момент, он для того и нужен.
+      */}
+      <FieldEntry />
 
       <Suspense fallback={null}>
         <Globe />

@@ -19,7 +19,7 @@ import { Stratum, SURFACE_OFFSET } from './explode';
 import { flowEnabled, flowTime } from './kit/flow';
 import { useFieldData } from '../../data/geo/fieldData';
 import { selectStoryWells } from '../../data/geo/storyWells';
-import { useShow } from '../../store/useShow';
+import { selectFieldMode, useShow } from '../../store/useShow';
 import { CyclePlayer } from '../cycle/CyclePlayer';
 import { ModuleFocus } from '../cycle/ModuleFocus';
 import { cycleRoutes } from '../../data/cycle/route';
@@ -263,6 +263,16 @@ function FieldContents({ shadows }: { shadows: boolean }) {
 
 export function Field({ shadows }: { shadows: boolean }) {
   const stageId = useShow((s) => s.stageId);
-  if (!FIELD_STAGES.has(stageId)) return null;
+  /**
+   * Промысел поднимается по требованию, а не только тактом прокрутки.
+   *
+   * Показ идёт из трёх экранов, и такта с месторождением в нём нет — вход
+   * теперь кнопка: «перейти к промыслу» и «открыть разбор контура». Пока её не
+   * нажали, сцена не монтируется вовсе, и первые экраны идут без трёхсот
+   * килобайт геометрии в памяти. Список тактов оставлен: он снова заработает,
+   * как только промысел вернётся в линейный показ.
+   */
+  const fieldMode = useShow(selectFieldMode);
+  if (!fieldMode && !FIELD_STAGES.has(stageId)) return null;
   return <FieldContents shadows={shadows} />;
 }

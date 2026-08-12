@@ -66,10 +66,20 @@ export function SceneControls() {
   const inCycle = useShow((s) => s.cycleShot !== null);
   const explore = useShow((s) => s.explore);
   const exitExplore = useShow((s) => s.exitExplore);
+  const entry = useShow((s) => s.entry);
 
   if (!explore && !FIELD_STAGES.has(stageId)) return null;
-  // Под полноэкранной панелью модуля сцены всё равно не видно.
-  if (FLAT_BEATS[beatIndex].panel) return null;
+  /**
+   * Под полноэкранной панелью модуля сцены всё равно не видно.
+   *
+   * В осмотре промысла панель такта с экрана снята — показ стоит на своём
+   * такте, но его плашка не рисуется. Условие по такту гасило бы вместе с ней и
+   * управление сценой, то есть в осмотре не было бы ни разреза, ни разнесения
+   * слоёв, ни выхода обратно.
+   */
+  if (!explore && FLAT_BEATS[beatIndex].panel) return null;
+  // Во время снижения органы управления сценой ещё ни к чему не относятся.
+  if (entry) return null;
 
   const hoveredObj = hovered ? OBJECT_BY_ID.get(hovered) : undefined;
 
@@ -97,10 +107,16 @@ export function SceneControls() {
         Во время полного цикла он показан выключенным, а нажатие выходит из
         цикла. Режим ровно один: камерой владеет либо раскадровка, либо
         пользователь, и совмещать их — значит не иметь ни того ни другого.
+
+        В осмотре промысла тумблера нет вовсе: камера здесь у зрителя по самой
+        сути режима, отпустить её некуда — таймлайн ведёт линейный показ,
+        которого в кадре нет. Осталась только подсказка по управлению.
       */}
-      <Toggle on={paused && !inCycle} onClick={togglePaused}>
-        {inCycle ? 'Взять камеру себе' : paused ? '● свободный осмотр' : 'Свободный осмотр'}
-      </Toggle>
+      {(!explore || inCycle) && (
+        <Toggle on={paused && !inCycle} onClick={togglePaused}>
+          {inCycle ? 'Взять камеру себе' : paused ? '● свободный осмотр' : 'Свободный осмотр'}
+        </Toggle>
+      )}
       <div className="text-[0.58rem] leading-tight text-[var(--color-txt-faint)]">
         {inCycle
           ? 'Идёт полный цикл — камерой ведёт раскадровка'

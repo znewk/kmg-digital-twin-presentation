@@ -43,7 +43,7 @@ export type FeatureId =
  */
 export const progressRef = { current: 0, direction: 1 as 1 | -1 };
 
-interface ShowState {
+export interface ShowState {
   /** Индекс текущего такта — дискретно, обновляется на пересечении границы. */
   beatIndex: number;
   stageId: StageId;
@@ -93,6 +93,16 @@ interface ShowState {
   cycleReturn: SceneReturn | null;
 
   /**
+   * Состояние сцены до подъёма промысла — им же он и опускается.
+   *
+   * Разбор модуля и полный цикл включают по ходу свои слои: разрез, сетку ГГДМ,
+   * заводнение, разнесение. Без снимка зритель, вернувшийся к показу и снова
+   * открывший промысел, получал сцену в том виде, в каком её бросил последний
+   * шаг чужого раздела.
+   */
+  fieldReturn: SceneReturn | null;
+
+  /**
    * Режим осмотра промысла.
    *
    * Сцена месторождения больше не привязана к такту прокрутки: показ идёт из
@@ -104,6 +114,35 @@ interface ShowState {
   explore: boolean;
   enterExplore: () => void;
   exitExplore: () => void;
+
+  /**
+   * ПЕРЕХОД К ПРОМЫСЛУ — СНИЖЕНИЕ, А НЕ ПОДМЕНА КАДРА.
+   *
+   * Глобус и месторождение — две сцены разного масштаба: планета радиусом 300
+   * единиц и промысел шириной пять километров. Одновременно в кадре они жить не
+   * могут, и переход между ними — всегда подмена. Вопрос только в том, видит ли
+   * её зритель.
+   *
+   * Раньше подмену прятал такт «снижение к площадке»: камера уходила с орбиты к
+   * поверхности, и на общем плане промысла показ продолжался уже в другой сцене.
+   * Такта не стало вместе с сокращением показа до трёх экранов, а сам переход
+   * никуда не делся — он просто стал мгновенным.
+   *
+   * Здесь снижение возвращено как самостоятельное состояние, не привязанное к
+   * прокрутке: камера идёт с орбиты к Молдабеку (`descend`), экран перекрывается
+   * заслонкой, под ней поднимается промысел (`arrive`), и заслонка уходит, когда
+   * рельеф готов. Ждать готовности обязательно: сцена весит три сотни килобайт
+   * геометрии, и без ожидания зритель увидит пустой кадр вместо месторождения.
+   */
+  entry: { dive: string | null; phase: 'descend' | 'arrive' } | null;
+  /** Начать снижение. `diveId` — раздел, который откроется по прибытии. */
+  enterField: (diveId?: string | null) => void;
+  /** Снижение закончилось: промысел монтируется, камера уже над ним. */
+  arriveField: () => void;
+  /** Сцена готова — заслонку можно убирать. */
+  endEntry: () => void;
+  /** Уйти с промысла обратно в линейный показ. */
+  leaveField: () => void;
 
   /** Служебный оверлей: подсветка непереведённых строк, счётчик FPS. */
   debug: boolean;
@@ -144,15 +183,15 @@ interface ShowState {
     id: string;
     step: number;
     /**
-     * Такт, с которого вошли, и режим камеры на тот момент.
+     * Открыт ли раздел изнутри осмотра промысла.
      *
-     * Вход в раздел перематывает показ к промыслу — объекты живут там, а экран
-     * архитектуры идёт поверх глобуса, где поля в сцене нет вовсе. Значит выход
-     * обязан вернуть и такт, и режим: без этого «Выход» гасил раздел и оставлял
-     * зрителя посреди недр, откуда он в этот раздел не заходил.
+     * От этого зависит, куда возвращает «Выход». Раздел, открытый с экрана
+     * архитектуры, поднял промысел ради себя одного — и на выходе обязан
+     * опустить его обратно, вернув зрителя к показу. Раздел, открытый из уже
+     * идущего осмотра, промысла не поднимал и убирать его не вправе: выход из
+     * него возвращает в осмотр, а не выбрасывает на глобус.
      */
-    from: number;
-    wasPaused: boolean;
+    wasExplore: boolean;
   } | null;
   openDive: (id: string) => void;
   setDiveStep: (n: number) => void;
@@ -176,22 +215,7 @@ const initialTier = (params.get('quality') as QualityTier | null) ?? null;
 const initialNaming = (params.get('naming') as NamingMode | null) ?? 'abai';
 const initialLang = (params.get('lang') as Lang | null) ?? 'ru';
 
-/**
- * Перемотка показа на такт — вместе с прокруткой страницы.
- *
- * Двигать только состояние нельзя: позиция страницы останется прежней, и первое
- * же движение колеса выбросит зрителя обратно туда, откуда его увели.
- */
-function jumpToBeat(index: number, set: (s: Partial<ShowState>) => void): void {
-  const at = Math.min(TOTAL_BEATS - 1, Math.max(0, index));
-  const doc = document.documentElement;
-  const top = ((at + 0.5) / TOTAL_BEATS) * (doc.scrollHeight - globalThis.innerHeight);
-  globalThis.scrollTo({ top, behavior: 'auto' });
-  progressRef.current = top / Math.max(1, doc.scrollHeight - globalThis.innerHeight);
-  set({ beatIndex: at, stageId: FLAT_BEATS[at].stage.id });
-}
-
-/** Что цикл обязан вернуть на место при выходе. */
+/** Что цикл и промысел обязаны вернуть на место при выходе. */
 interface SceneReturn {
   paused: boolean;
   exploded: boolean;
@@ -249,7 +273,9 @@ export const useShow = create<ShowState>((set, get) => ({
   cycleShot: null,
   cyclePlaying: false,
   cycleReturn: null,
+  fieldReturn: null,
   explore: false,
+  entry: null,
   dive: null,
 
   debug: params.has('debug'),
@@ -261,7 +287,17 @@ export const useShow = create<ShowState>((set, get) => ({
   },
 
   step: (delta) => {
-    const next = Math.min(TOTAL_BEATS - 1, Math.max(0, get().beatIndex + delta));
+    /**
+     * На промысле шаг такта не работает.
+     *
+     * Стрелки и пробел ведут линейный показ, а он в этот момент за кадром:
+     * такт сменился бы вслепую, и зритель, вернувшись, оказался бы не там, где
+     * уходил. Из промысла выходят выходом, а не перелистыванием.
+     */
+    const s = get();
+    if (selectFieldMode(s) || s.entry) return;
+
+    const next = Math.min(TOTAL_BEATS - 1, Math.max(0, s.beatIndex + delta));
     // В кликер-режиме двигаем скролл, чтобы оба режима оставались в одной фазе.
     const target = (next + 0.5) / TOTAL_BEATS;
     const doc = document.documentElement;
@@ -273,10 +309,27 @@ export const useShow = create<ShowState>((set, get) => ({
   },
 
   setMode: (mode) => set({ mode }),
-  // Свободный осмотр гасит цикл: за камеру нельзя тянуть вдвоём, и если
-  // пользователь взялся за неё сам — раскадровка отступает.
-  togglePaused: () =>
-    set((s) => ({ paused: !s.paused, cycleShot: null, cyclePlaying: false, dive: null })),
+  /**
+   * Свободный осмотр гасит цикл: за камеру нельзя тянуть вдвоём, и если
+   * пользователь взялся за неё сам — раскадровка отступает.
+   *
+   * На промысле снимать паузу не с чего и нельзя. Прокрутка ведёт линейный
+   * показ, которого в этот момент нет на экране: отпущенная камера уехала бы по
+   * таймлайну на орбиту глобуса, оставив промысел смонтированным где-то под
+   * ней. Выход отсюда один — вернуться к показу.
+   */
+  togglePaused: () => {
+    const s = get();
+    // Во время цикла тумблер значит «взять камеру себе» — это выход из
+    // раскадровки, а не снятие паузы, и сцена возвращается в то состояние, в
+    // котором цикл её застал.
+    if (s.cycleShot || s.cyclePlaying) {
+      get().exitCycle();
+      return;
+    }
+    if (selectFieldMode(s) || s.entry) return;
+    set({ paused: !s.paused, dive: null });
+  },
   select: (selected) => set({ selected }),
   hover: (hovered) => set({ hovered }),
 
@@ -307,6 +360,16 @@ export const useShow = create<ShowState>((set, get) => ({
       paused: false,
       exploded: false,
       clip: false,
+      // Сброс возвращает показ в начало — значит и промысел опускается вместе
+      // со всем, что его держало: иначе сцена месторождения осталась бы
+      // смонтированной поверх глобуса на первом такте.
+      explore: false,
+      entry: null,
+      dive: null,
+      fieldReturn: null,
+      cycleShot: null,
+      cyclePlaying: false,
+      cycleReturn: null,
     });
   },
 
@@ -374,22 +437,61 @@ export const useShow = create<ShowState>((set, get) => ({
    * значит показ обязан сначала туда попасть. Экран архитектуры идёт поверх
    * глобуса, где поля в сцене ещё нет вовсе.
    *
-   * Прокрутка двигается вместе с тактом, а не только состояние: иначе позиция
-   * страницы остаётся на глобусе, и первое же движение колеса выбрасывает
-   * зрителя обратно.
+   * Попадание туда — это снижение, а не перемотка прокрутки: такта с промыслом
+   * в показе больше нет, и вести переход тактом нечем. Раздел просто просит
+   * поднять сцену и открывается по прибытии.
    */
-  openDive: (id) => {
-    const from = get().beatIndex;
-    const wasPaused = get().paused;
+  openDive: (id) => get().enterField(id),
 
-    const at = FLAT_BEATS.findIndex((b) => b.stage.id === 'reservoir');
-    if (at >= 0) jumpToBeat(at, set);
+  setDiveStep: (n) => set((s) => (s.dive ? { dive: { ...s.dive, step: n } } : s)),
 
-    // Раздел, цикл и свободный осмотр — один режим на троих. Выделение и
-    // наведение сбрасываются: сцена в разборе курсор не ловит, и оставшаяся
-    // от прошлого клика подсветка висела бы до самого выхода.
+  closeDive: () => {
+    const d = get().dive;
+    // Раздел, открытый из осмотра, промысла не поднимал — и опускать его не
+    // вправе: выход возвращает в осмотр. Открытый с экрана архитектуры поднял
+    // сцену ради себя одного и на выходе уводит показ обратно.
+    if (d?.wasExplore) {
+      set({ dive: null, paused: true, selected: null, hovered: null });
+      return;
+    }
+    get().leaveField();
+  },
+
+  /** Открыть промысел без разбора модуля — свободный осмотр сцены. */
+  enterExplore: () => get().enterField(null),
+
+  exitExplore: () => get().leaveField(),
+
+  /**
+   * НАЧАЛО СНИЖЕНИЯ К ПРОМЫСЛУ.
+   *
+   * Кадром дальше распоряжается сцена: камеру ведёт `FieldEntry`, а стор только
+   * держит, куда идём и на каком этапе перехода находимся. Прокрутка на время
+   * перехода замирает — иначе таймлайн тянет камеру обратно на орбиту.
+   */
+  enterField: (diveId = null) => {
+    const s = get();
+
+    // Промысел уже в кадре — снижаться неоткуда, раздел открывается сразу.
+    if (s.explore || s.dive) {
+      set({
+        dive: diveId ? { id: diveId, step: 0, wasExplore: true } : null,
+        paused: true,
+        cycleShot: null,
+        cyclePlaying: false,
+        selected: null,
+        hovered: null,
+      });
+      return;
+    }
+
+    // Переход уже идёт: повторный клик по соседнему контуру не должен начинать
+    // снижение заново с середины пути.
+    if (s.entry) return;
+
     set({
-      dive: { id, step: 0, from, wasPaused },
+      entry: { dive: diveId, phase: 'descend' },
+      fieldReturn: snapshot(s),
       paused: true,
       cycleShot: null,
       cyclePlaying: false,
@@ -398,17 +500,56 @@ export const useShow = create<ShowState>((set, get) => ({
     });
   },
 
-  setDiveStep: (n) => set((s) => (s.dive ? { dive: { ...s.dive, step: n } } : s)),
-
-  closeDive: () => {
-    const d = get().dive;
-    set({ dive: null, explore: false, paused: d ? d.wasPaused : false });
+  /**
+   * Снижение закончилось: под заслонкой поднимается промысел.
+   *
+   * Разбор открывается ровно здесь, а не в начале перехода: до прибытия его
+   * панель стояла бы поверх глобуса, а камера шага наводилась бы на объекты
+   * сцены, которой ещё нет.
+   */
+  arriveField: () => {
+    const e = get().entry;
+    if (!e || e.phase !== 'descend') return;
+    set({
+      entry: { dive: e.dive, phase: 'arrive' },
+      explore: true,
+      dive: e.dive ? { id: e.dive, step: 0, wasExplore: false } : null,
+      paused: true,
+    });
   },
 
-  /** Открыть промысел без разбора модуля — свободный осмотр сцены. */
-  enterExplore: () =>
-    set({ explore: true, paused: true, dive: null, cycleShot: null, cyclePlaying: false }),
+  endEntry: () => set((s) => (s.entry ? { entry: null } : s)),
 
-  exitExplore: () =>
-    set({ explore: false, paused: false, dive: null, cycleShot: null, cyclePlaying: false }),
+  /**
+   * Возврат к показу: промысел опускается, сцена восстанавливается по снимку.
+   *
+   * Снимок снят на входе, поэтому возвращается ровно то, что было: если зритель
+   * сам включил разрез до перехода, разрез и останется. Прокрутка отпускается —
+   * показ продолжается с того же такта, с которого уходили.
+   */
+  leaveField: () => {
+    const s = get();
+    set({
+      explore: false,
+      entry: null,
+      dive: null,
+      cycleShot: null,
+      cyclePlaying: false,
+      cycleReturn: null,
+      selected: null,
+      hovered: null,
+      ...(s.fieldReturn ?? { paused: false }),
+      fieldReturn: null,
+    });
+  },
 }));
+
+/**
+ * Промысел ведёт показ, а не прокрутка.
+ *
+ * Один селектор на все места, где это нужно знать: сцена решает, монтировать ли
+ * поле, глобус — гасить ли планету, интерфейс — какую обвязку показывать. При
+ * трёх копиях условия расхождение вопрос времени, и выглядело бы оно как
+ * «планета внутри промысла».
+ */
+export const selectFieldMode = (s: ShowState): boolean => s.explore || s.dive !== null;

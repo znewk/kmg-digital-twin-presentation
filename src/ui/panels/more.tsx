@@ -4,6 +4,7 @@ import { usePanelProgress } from './usePanelProgress';
 import { panelReserve } from '../panelReserve';
 import { DataTable, FullScreenPanel as FullScreen, KpiTile, PanelGrid, Pill, Section } from './kit';
 import { CONTOURS } from '../../data/upstreamData';
+import { ContourMini } from './ContourMini';
 import { MNEMO, NDP_ENTITIES, NDP_MAP_WELLS, SURFACE_NETWORK } from '../../data/panelData2';
 
 /**
@@ -519,16 +520,19 @@ export function EffectsPanel() {
       >
         {rows.map((c) => (
           <div key={c.name} className="border-t-2 pt-2.5" style={{ borderColor: 'var(--color-plast)' }}>
-            <div className="text-[0.9rem] font-semibold uppercase tracking-wide">{c.name}</div>
+            <ContourMini kind={c.dive} />
+            <div className="mt-1 text-[0.9rem] font-semibold uppercase tracking-wide">{c.name}</div>
             <div className="mt-2 flex flex-col gap-1.5">
-              {c.effects.map((e) => (
-                <div key={e.label} className="flex items-baseline gap-2">
-                  <span className="font-mono text-[1.6rem] text-[var(--color-ok)]">{e.value}</span>
-                  <span className="text-[0.68rem] leading-tight text-[var(--color-txt-dim)]">
-                    {e.label}
-                  </span>
-                </div>
-              ))}
+              {c.effects
+                .filter((e) => e.major)
+                .map((e) => (
+                  <div key={e.label} className="flex items-baseline gap-2">
+                    <span className="font-mono text-[1.6rem] text-[var(--color-ok)]">{e.value}</span>
+                    <span className="text-[0.68rem] leading-tight text-[var(--color-txt-dim)]">
+                      {e.label}
+                    </span>
+                  </div>
+                ))}
             </div>
           </div>
         ))}
@@ -536,12 +540,17 @@ export function EffectsPanel() {
 
       <div
         className="grid shrink-0 gap-3 border-t border-[var(--color-line)] pt-3"
-        style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}
+        style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}
       >
+        {/*
+          Потребности в финансировании в итоге нет намеренно. Цифра бюджета,
+          поставленная рядом с эффектами, перетягивает разговор на себя: зал
+          читает её первой и дальше слушает уже про деньги, а не про то, что
+          пилот даёт. Сумма живёт в материалах программы, где ей и место.
+        */}
         <KpiTile value="окт. 2026" label="промышленная эксплуатация пилота Молдабек В." />
         <KpiTile value="12" label="приоритетных активов, 7 ДЗО — 2027–2028" />
         <KpiTile value="100%" label="добывающих активов к 2028 году" />
-        <KpiTile value="15,03" unit="млрд ₸" label="общая потребность в финансировании программы" />
       </div>
     </div>
   );

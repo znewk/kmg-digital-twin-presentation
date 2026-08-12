@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
-import { useShow } from '../store/useShow';
+import { selectFieldMode, useShow } from '../store/useShow';
 import { CAMS, FLAT_BEATS } from '../data/stages';
 import { focusFrameFor, type FocusFrame } from './focus';
 import { shotFrame } from './cycle/shotFrame';
@@ -28,17 +28,25 @@ export function FreeLook() {
   const paused = useShow((s) => s.paused);
   const beatIndex = useShow((s) => s.beatIndex);
   const selected = useShow((s) => s.selected);
+  const fieldMode = useShow(selectFieldMode);
   const { camera, size } = useThree();
   const ref = useRef<OrbitControlsImpl>(null);
 
   useEffect(() => {
     if (!paused || !ref.current) return;
-    // Цель берём из ракурса текущего такта: камера уже смотрит туда, и орбита
-    // начинает вращение вокруг той же точки, а не вокруг начала координат.
-    const cam = CAMS[FLAT_BEATS[beatIndex].cam];
+    /**
+     * Цель берём из ракурса текущего такта: камера уже смотрит туда, и орбита
+     * начинает вращение вокруг той же точки, а не вокруг начала координат.
+     *
+     * На промысле такт не годится: показ стоит на глобусе, и его цель лежит на
+     * поверхности планеты — в трёхстах единицах от начала координат, тогда как
+     * промысел раскинут на пять километров вокруг него. Орбита крутилась бы
+     * вокруг точки где-то сбоку от месторождения.
+     */
+    const cam = fieldMode ? CAMS.overview : CAMS[FLAT_BEATS[beatIndex].cam];
     ref.current.target.set(cam.t[0], cam.t[1], cam.t[2]);
     ref.current.update();
-  }, [paused, beatIndex, camera]);
+  }, [paused, beatIndex, fieldMode, camera]);
 
   /**
    * Наведение на выбранный объект в свободном осмотре.
@@ -80,6 +88,7 @@ export function FreeLook() {
    */
   const cycleShot = useShow((s) => s.cycleShot);
   const dive = useShow((s) => s.dive);
+  const entry = useShow((s) => s.entry);
 
   /**
    * ПОСТАНОВКА КАДРА ОТЛОЖЕНА ДО ГОТОВНОСТИ СЦЕНЫ.
@@ -103,6 +112,31 @@ export function FreeLook() {
     flight.current = null;
     pending.current = Boolean(cycleShot || dive);
   }, [cycleShot, dive, size.width, size.height]);
+
+  /**
+   * ПРИБЫТИЕ НА ПРОМЫСЕЛ БЕЗ РАЗБОРА.
+   *
+   * Снижение оставляет камеру строго над промыслом — этим кадром заканчивается
+   * подлёт с орбиты. Дальше она сама сходит на обзорный ракурс: заслонка уходит
+   * не на неподвижную картинку, а на движение, и промысел сразу читается
+   * объёмом, а не планом.
+   *
+   * Отдельным эффектом, а не общим с разбором: тот гасит начатый подлёт при
+   * каждом изменении, и снятие заслонки обрывало бы движение на середине. Здесь
+   * достаточно условия «прибыли» — кадр обзорного ракурса известен заранее и
+   * данных сцены не требует.
+   */
+  const arrived = entry?.phase === 'arrive';
+  useEffect(() => {
+    if (!arrived || useShow.getState().dive) return;
+    const c = CAMS.overview;
+    flight.current = {
+      p: [c.p[0], c.p[1], c.p[2]],
+      t: [c.t[0], c.t[1], c.t[2]],
+      // Габарит промысла: по нему считается порог «пришли».
+      radius: 2600,
+    };
+  }, [arrived]);
 
   const resolveFrame = (): FocusFrame | null => {
     const framed = cycleShot
@@ -173,7 +207,10 @@ export function FreeLook() {
       // В режиме полного цикла орбита выключена: камерой владеет раскадровка,
       // и мышь, дерущаяся с подлётом, не даст ни того ни другого. Сам объект
       // контролов при этом жив — через него раскадровка и ведёт камеру.
-      enabled={paused && !cycleShot && !dive}
+      //
+      // На время перехода к промыслу — тоже: там камерой владеет снижение, и
+      // случайное движение мыши развернуло бы кадр посреди подлёта.
+      enabled={paused && !cycleShot && !dive && !entry}
       enableDamping
       dampingFactor={0.08}
       // Под землю пускаем: разглядывать стволы и залежь нужно именно снизу.

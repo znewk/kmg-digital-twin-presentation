@@ -14,8 +14,18 @@ export interface TwinContour {
   no: string;
   name: string;
   claim: string;
-  /** Ожидаемые эффекты — из слайда 7 презентации для АТК. */
-  effects: { value: string; label: string }[];
+  /**
+   * Ожидаемые эффекты — из слайда 7 презентации для АТК.
+   *
+   * `major` — эффект выносится ещё и в итоговую плашку. Итог не повторяет
+   * целевой образ: пять цифр в колонке зритель не удержит, две — запомнит.
+   * Поэтому в итоге остаётся то, ради чего пилот и затевался, а полный набор
+   * с разбивкой по трудозатратам живёт на экране целевого образа.
+   *
+   * Отбор в данных, а не в панели: иначе список «что показывать» разъехался бы
+   * с самими цифрами при первой же правке одного из двух мест.
+   */
+  effects: { value: string; label: string; major?: boolean }[];
   blocks: { title: string; items: string[]; modules: ModuleId[] }[];
   /** Контур ресурсной базы вынесен в 2027 год и показывается приглушённым. */
   future?: boolean;
@@ -34,7 +44,7 @@ export const CONTOURS: TwinContour[] = [
     name: 'ЦД ресурсной базы',
     dive: 'base',
     claim: 'Цифровая геологическая модель, восполняемость и конверсия запасов',
-    effects: [{ value: '−15%', label: 'полный цикл ГРР' }],
+    effects: [{ value: '−15%', label: 'полный цикл ГРР', major: true }],
     future: true,
     blocks: [
       {
@@ -47,9 +57,9 @@ export const CONTOURS: TwinContour[] = [
   {
     no: '1',
     name: 'ЦД пласта',
-    dive: 'plast',
+    // dive: 'plast',
     claim: 'Цифровая гидродинамическая модель и приоритизация ГТМ по экономике',
-    effects: [{ value: '−5%', label: 'снижение CAPEX' }],
+    effects: [{ value: '−5%', label: 'снижение CAPEX', major: true }],
     blocks: [
       {
         title: 'Геолого-гидродинамическая модель',
@@ -75,9 +85,9 @@ export const CONTOURS: TwinContour[] = [
   {
     no: '2',
     name: 'ЦД скважины',
-    dive: 'skv',
+    // dive: 'skv',
     claim: 'Сквозное планирование ТКРС и снижение простоев бригад',
-    effects: [{ value: '−3%', label: 'сроки вывода на режим' }],
+    effects: [{ value: '−3%', label: 'сроки вывода на режим', major: true }],
     blocks: [
       {
         title: 'Онлайн-мониторинг бурения и сводки',
@@ -99,15 +109,15 @@ export const CONTOURS: TwinContour[] = [
   {
     no: '3',
     name: 'ЦД добычи и наземной инфраструктуры',
-    dive: 'dob',
+    // dive: 'dob',
     claim:
       'Оптимальное управление режимом фонда, минимизация потерь добычи за счёт предиктивной аналитики отказов',
     effects: [
       { value: '−13%', label: 'ТРЗ на отклонениях режима' },
       { value: '−15%', label: 'ТРЗ на расчёты и ГТМ' },
-      { value: '−5%', label: 'управляемые потери добычи' },
+      { value: '−5%', label: 'управляемые потери добычи', major: true },
       { value: '−3%', label: 'энергозатраты инфраструктуры' },
-      { value: '−3%', label: 'CAPEX/OPEX инфраструктуры' },
+      { value: '−3%', label: 'CAPEX/OPEX инфраструктуры', major: true },
     ],
     blocks: [
       {

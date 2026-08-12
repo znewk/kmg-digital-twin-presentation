@@ -26,10 +26,22 @@ export function useKeyboard() {
           s.step(-1);
           return;
 
+        /**
+         * Escape снимает верхний слой показа, а не всё сразу.
+         *
+         * Порядок обратный тому, как зритель сюда пришёл: карточка объекта →
+         * раздел контура → промысел → пауза → в начало. Пока промысел был
+         * тактом прокрутки, снятия паузы хватало; теперь это отдельный режим, и
+         * без него Escape оставлял бы месторождение в кадре, отпустив камеру на
+         * таймлайн глобуса.
+         */
         case 'Escape':
           e.preventDefault();
-          if (s.paused) s.togglePaused();
-          else if (s.selected) s.select(null);
+          if (s.entry) return;
+          if (s.selected) s.select(null);
+          else if (s.dive) s.closeDive();
+          else if (s.explore) s.leaveField();
+          else if (s.paused) s.togglePaused();
           else s.reset();
           return;
 

@@ -6,6 +6,7 @@ import type { Topology } from 'topojson-specification';
 import countries110m from 'world-atlas/countries-110m.json';
 import kzOblasts from '../../data/geo/kz-oblasts.json';
 import { progressRef, useShow } from '../../store/useShow';
+import { FieldToken } from './FieldToken';
 import { FLAT_BEATS, TOTAL_BEATS } from '../../data/stages';
 import {
   geometryRings,
@@ -125,6 +126,22 @@ export function Globe() {
     [],
   );
 
+  /**
+   * Разворот значка по нормали к поверхности.
+   *
+   * Сценка построена в обычных координатах — «вверх» у неё по оси Y. На сфере
+   * вверх у каждой точки своё направление; без разворота качалки на широте
+   * Атырау лежали бы на боку.
+   */
+  const moldabekQuat = useMemo(
+    () =>
+      new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        moldabekPos.clone().normalize(),
+      ),
+    [moldabekPos],
+  );
+
   const active = GEO_STAGES.has(stageId);
 
   useFrame(() => {
@@ -179,15 +196,21 @@ export function Globe() {
       (dimMesh.current.material as THREE.MeshBasicMaterial).opacity = 0.62 * callout;
     }
 
-    // Маркер пилота появляется вместе с call-out. Размер держим постоянным на
-    // экране: от Атырауской области до подлёта к площадке камера сокращает
-    // дистанцию на порядок, и фиксированный радиус превратился бы из точки в
-    // бублик во весь кадр.
+    /**
+     * Значок пилота держит постоянный размер на экране.
+     *
+     * От Атырауской области до подлёта к площадке камера сокращает дистанцию
+     * на порядок; при фиксированном размере сценка была бы то точкой, то во
+     * весь кадр. Множитель подобран так, чтобы на обзорном ракурсе она
+     * занимала около трети полукадра: читается силуэтом и не закрывает область.
+     *
+     * Пульсации нет. Она годилась точке-маркеру, а сценка с работающими
+     * качалками, дышащая целиком, читается сбоем масштаба, а не акцентом.
+     */
     if (markerRef.current) {
       markerRef.current.visible = callout > 0.05;
       const dist = camera.position.distanceTo(markerRef.current.getWorldPosition(_worldPos));
-      const pulse = 1 + 0.1 * Math.sin(performance.now() * 0.003);
-      markerRef.current.scale.setScalar(callout * pulse * dist * 0.022);
+      markerRef.current.scale.setScalar(callout * dist * 0.088);
     }
 
     if (root.current) root.current.visible = true;
@@ -263,21 +286,22 @@ export function Globe() {
         )}
 
         {/* Маркер пилота: Молдабек Восточный */}
-        <group ref={markerRef} position={moldabekPos} visible={false} renderOrder={4}>
-          <mesh>
-            <sphereGeometry args={[0.16, 12, 10]} />
-            <meshBasicMaterial color="#f5c46a" depthTest={false} />
-          </mesh>
-          <mesh>
-            <ringGeometry args={[0.3, 0.42, 28]} />
-            <meshBasicMaterial
-              color="#f0ae4a"
-              transparent
-              opacity={0.85}
-              side={THREE.DoubleSide}
-              depthTest={false}
-            />
-          </mesh>
+        {/*
+          Вместо точки на карте — карикатура промысла: качалки качают, факел
+          горит, по коллектору бежит нефть.
+
+          Точка сообщает «здесь» и больше ничего. Аудитории, не связанной с
+          отраслью, из неё не понять, о каком производстве идёт речь, — а
+          сценка объясняет это без единого слова, пока докладчик говорит своё.
+        */}
+        <group
+          ref={markerRef}
+          position={moldabekPos}
+          quaternion={moldabekQuat}
+          visible={false}
+          renderOrder={4}
+        >
+          <FieldToken />
         </group>
       </group>
     </group>

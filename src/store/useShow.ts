@@ -84,6 +84,13 @@ interface ShowState {
   cycleShot: string | null;
   /** Цепочка идёт сама, без прокрутки. */
   cyclePlaying: boolean;
+  /**
+   * Состояние сцены до запуска цикла — чтобы вернуть его на выходе.
+   *
+   * Раскадровка по ходу цикла переключает слои, и без снимка зритель после
+   * выхода получал сцену с чужими настройками.
+   */
+  cycleReturn: SceneReturn | null;
 
   /** Служебный оверлей: подсветка непереведённых строк, счётчик FPS. */
   debug: boolean;
@@ -171,6 +178,21 @@ function jumpToBeat(index: number, set: (s: Partial<ShowState>) => void): void {
   set({ beatIndex: at, stageId: FLAT_BEATS[at].stage.id });
 }
 
+/** Что цикл обязан вернуть на место при выходе. */
+interface SceneReturn {
+  paused: boolean;
+  exploded: boolean;
+  clip: boolean;
+  features: Record<FeatureId, boolean>;
+}
+
+const snapshot = (s: ShowState): SceneReturn => ({
+  paused: s.paused,
+  exploded: s.exploded,
+  clip: s.clip,
+  features: { ...s.features },
+});
+
 export const useShow = create<ShowState>((set, get) => ({
   beatIndex: 0,
   stageId: 'hero',
@@ -213,6 +235,7 @@ export const useShow = create<ShowState>((set, get) => ({
 
   cycleShot: null,
   cyclePlaying: false,
+  cycleReturn: null,
   dive: null,
 
   debug: params.has('debug'),
@@ -292,15 +315,43 @@ export const useShow = create<ShowState>((set, get) => ({
    * Свободный осмотр, наоборот, гасит цикл: пользователь взял камеру себе.
    */
   setCycleShot: (cycleShot) =>
-    set({ cycleShot, paused: cycleShot ? true : get().paused, dive: cycleShot ? null : get().dive }),
+    set((s) => ({
+      cycleShot,
+      paused: cycleShot ? true : s.paused,
+      dive: cycleShot ? null : s.dive,
+      // Снимок берётся один раз — на входе в цикл, а не на каждом кадре:
+      // иначе он затрётся режимами, которые включил сам цикл.
+      cycleReturn: cycleShot ? (s.cycleReturn ?? snapshot(s)) : s.cycleReturn,
+    })),
 
   // Остановка не сбрасывает кадр: цикл ставят на паузу, чтобы рассмотреть
   // передел, на котором он стоит, а не чтобы вернуться в начало.
   toggleCyclePlay: () =>
-    set((s) => ({ cyclePlaying: !s.cyclePlaying, paused: s.cyclePlaying ? s.paused : true })),
+    set((s) => ({
+      cyclePlaying: !s.cyclePlaying,
+      paused: s.cyclePlaying ? s.paused : true,
+      cycleReturn: s.cyclePlaying ? s.cycleReturn : (s.cycleReturn ?? snapshot(s)),
+    })),
 
-  /** Выход из цикла целиком — камера возвращается пользователю. */
-  exitCycle: () => set({ cycleShot: null, cyclePlaying: false }),
+  /**
+   * Выход из цикла: сцена возвращается в то состояние, в котором её застали.
+   *
+   * Раскадровка по ходу цикла включает и гасит слои — трассы сетей, разрез,
+   * заводнение, дренирование, — и после выхода они оставались в том виде, в
+   * каком их бросил последний кадр. Зритель получал сцену с чужими
+   * настройками и свободный осмотр, которого не включал.
+   *
+   * Снимок снят на входе, поэтому восстанавливается ровно то, что было, а не
+   * набор «по умолчанию»: если пользователь сам включил разрез до запуска
+   * цикла, разрез и останется.
+   */
+  exitCycle: () =>
+    set((s) => ({
+      cycleShot: null,
+      cyclePlaying: false,
+      cycleReturn: null,
+      ...(s.cycleReturn ?? {}),
+    })),
 
   /**
    * Вход в раздел контура.

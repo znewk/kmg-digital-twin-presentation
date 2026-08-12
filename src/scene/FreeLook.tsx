@@ -11,6 +11,7 @@ import { cycleRoutes } from '../data/cycle/route';
 import { SHOT_BY_ID } from '../data/cycle/storyboard';
 import { DIVE_BY_ID } from '../data/dives';
 import { getFieldData } from '../data/geo/fieldData';
+import { terrainReady } from './field/geology';
 
 /**
  * Свободный осмотр сцены.
@@ -79,31 +80,50 @@ export function FreeLook() {
    */
   const cycleShot = useShow((s) => s.cycleShot);
   const dive = useShow((s) => s.dive);
+
+  /**
+   * ПОСТАНОВКА КАДРА ОТЛОЖЕНА ДО ГОТОВНОСТИ СЦЕНЫ.
+   *
+   * Считать кадр в эффекте, срабатывающем на смену режима, нельзя: вход в
+   * раздел контура одновременно перематывает показ к промыслу, и промысел в
+   * этот момент только монтируется. Сэмплера рельефа ещё нет, контур площади не
+   * посчитан, маршрут не разрешён — а всё это нужно, чтобы понять, куда
+   * смотреть. Кадр выходил наведённым на нулевую плоскость, и починить его мог
+   * только повторный щелчок по шагу, когда данные уже подъехали.
+   *
+   * Здесь запоминается ЧТО снимать, а сам расчёт делается в кадре и повторяется,
+   * пока не удастся. Порядок монтирования перестаёт иметь значение: как только
+   * рельеф и маршрут готовы, камера получает верный ракурс — обычно на
+   * следующем же кадре, и подлёт всё равно плавный.
+   */
+  const pending = useRef(true);
   const flight = useRef<FocusFrame | null>(null);
 
   useEffect(() => {
-    // Кадр берётся либо из раскадровки цикла, либо из шага раздела: механизм
-    // постановки один, источник разный.
+    flight.current = null;
+    pending.current = Boolean(cycleShot || dive);
+  }, [cycleShot, dive, size.width, size.height]);
+
+  const resolveFrame = (): FocusFrame | null => {
     const framed = cycleShot
       ? SHOT_BY_ID.get(cycleShot)
       : dive
         ? DIVE_BY_ID.get(dive.id)?.steps[dive.step]
         : null;
+    if (!framed) return null;
 
-    if (!framed) {
-      flight.current = null;
-      return;
-    }
+    // Рельеф — обязательное условие: без него отметки поверхности равны нулю.
+    if (!terrainReady()) return null;
+
     const data = getFieldData();
-    const shot = framed;
-    if (!data) return;
+    if (!data) return null;
 
     const { oil, ppd } = cycleRoutes(data);
-    if (!oil) return;
+    if (!oil) return null;
 
     const perspective = camera as THREE.PerspectiveCamera;
-    flight.current = shotFrame(
-      shot,
+    return shotFrame(
+      framed,
       oil,
       ppd,
       data,
@@ -111,15 +131,26 @@ export function FreeLook() {
       size.width / size.height,
       cycleShot ? 'cycle' : 'dive',
     );
-  }, [cycleShot, dive, camera, size.width, size.height]);
+  };
 
   const wantPos = useRef(new THREE.Vector3());
   const wantTarget = useRef(new THREE.Vector3());
 
   useFrame((_, dt) => {
-    const frame = flight.current;
     const controls = ref.current;
-    if (!frame || !controls) return;
+    if (!controls) return;
+
+    // Кадр ещё не посчитан — пробуем на каждом кадре, пока сцена не готова.
+    if (!flight.current && pending.current) {
+      const f = resolveFrame();
+      if (f) {
+        flight.current = f;
+        pending.current = false;
+      }
+    }
+
+    const frame = flight.current;
+    if (!frame) return;
 
     wantPos.current.set(frame.p[0], frame.p[1], frame.p[2]);
     wantTarget.current.set(frame.t[0], frame.t[1], frame.t[2]);

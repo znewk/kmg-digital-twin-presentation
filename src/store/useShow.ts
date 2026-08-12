@@ -195,7 +195,7 @@ const snapshot = (s: ShowState): SceneReturn => ({
 
 export const useShow = create<ShowState>((set, get) => ({
   beatIndex: 0,
-  stageId: 'intro',
+  stageId: 'globe',
 
   mode: 'scroll',
   paused: false,
@@ -287,7 +287,7 @@ export const useShow = create<ShowState>((set, get) => ({
     progressRef.current = 0;
     set({
       beatIndex: 0,
-      stageId: 'intro',
+      stageId: 'globe',
       selected: null,
       hovered: null,
       paused: false,

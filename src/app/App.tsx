@@ -46,6 +46,7 @@ export function App() {
     }
   }, [beatIndex]);
   const inCycle = useShow((s) => s.cycleShot !== null);
+  const explore = useShow((s) => s.explore);
 
   /** Показ ведёт не прокрутка, а собственный режим — разбор или полный цикл. */
   const focusMode = dive !== null || inCycle;
@@ -98,7 +99,7 @@ export function App() {
           </>
         )}
 
-        {!dive && CYCLE_STAGES.has(stageId) && <CyclePanel />}
+        {!dive && (explore || CYCLE_STAGES.has(stageId)) && <CyclePanel />}
 
         <DivePanel />
         <DebugHud />

@@ -92,6 +92,19 @@ interface ShowState {
    */
   cycleReturn: SceneReturn | null;
 
+  /**
+   * Режим осмотра промысла.
+   *
+   * Сцена месторождения больше не привязана к такту прокрутки: показ идёт из
+   * трёх экранов, а промысел открывается кнопкой. Раньше вход в разбор
+   * перематывал прокрутку к такту с промыслом — этого такта не стало, и вход
+   * пришлось бы закрыть совсем. Отдельный флаг развязывает одно с другим:
+   * сцена поднимается по требованию, а линейный показ остаётся трёхэкранным.
+   */
+  explore: boolean;
+  enterExplore: () => void;
+  exitExplore: () => void;
+
   /** Служебный оверлей: подсветка непереведённых строк, счётчик FPS. */
   debug: boolean;
 
@@ -236,6 +249,7 @@ export const useShow = create<ShowState>((set, get) => ({
   cycleShot: null,
   cyclePlaying: false,
   cycleReturn: null,
+  explore: false,
   dive: null,
 
   debug: params.has('debug'),
@@ -388,9 +402,13 @@ export const useShow = create<ShowState>((set, get) => ({
 
   closeDive: () => {
     const d = get().dive;
-    set({ dive: null });
-    if (!d) return;
-    jumpToBeat(d.from, set);
-    set({ paused: d.wasPaused });
+    set({ dive: null, explore: false, paused: d ? d.wasPaused : false });
   },
+
+  /** Открыть промысел без разбора модуля — свободный осмотр сцены. */
+  enterExplore: () =>
+    set({ explore: true, paused: true, dive: null, cycleShot: null, cyclePlaying: false }),
+
+  exitExplore: () =>
+    set({ explore: false, paused: false, dive: null, cycleShot: null, cyclePlaying: false }),
 }));

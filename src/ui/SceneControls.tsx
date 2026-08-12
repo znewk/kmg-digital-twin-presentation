@@ -64,8 +64,10 @@ export function SceneControls() {
   const toggleFeature = useShow((s) => s.toggleFeature);
   const togglePaused = useShow((s) => s.togglePaused);
   const inCycle = useShow((s) => s.cycleShot !== null);
+  const explore = useShow((s) => s.explore);
+  const exitExplore = useShow((s) => s.exitExplore);
 
-  if (!FIELD_STAGES.has(stageId)) return null;
+  if (!explore && !FIELD_STAGES.has(stageId)) return null;
   // Под полноэкранной панелью модуля сцены всё равно не видно.
   if (FLAT_BEATS[beatIndex].panel) return null;
 
@@ -73,6 +75,21 @@ export function SceneControls() {
 
   return (
     <div className="panel pointer-events-auto absolute top-24 left-8 flex w-[13.5rem] flex-col gap-2 px-3 py-3">
+      {/*
+        Возврат к показу. В осмотр входят кнопкой из плашки, и выйти обратно
+        должно быть так же просто — иначе зритель остаётся в сцене, из которой
+        нет видимого пути назад, и ищет его прокруткой.
+      */}
+      {explore && (
+        <button
+          type="button"
+          onClick={exitExplore}
+          className="rounded border border-[var(--color-line)] px-2.5 py-1 font-mono text-[9.5px] tracking-[0.12em] uppercase transition-colors hover:border-[var(--color-accent)]"
+        >
+          ← Вернуться к показу
+        </button>
+      )}
+
       {/*
         Свободный осмотр: без него объекты почти невозможно поймать курсором на
         общих планах, и кликабельность сцены остаётся незамеченной.

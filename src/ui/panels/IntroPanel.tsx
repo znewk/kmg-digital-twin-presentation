@@ -46,6 +46,8 @@ export function IntroPanel() {
   usePanelReserve(box);
 
   const naming = useShow((s) => s.naming);
+  const openDive = useShow((s) => s.openDive);
+  const enterExplore = useShow((s) => s.enterExplore);
 
   const total = IT_LANDSCAPE.reduce((n, s) => n + s.systems.length, 0);
 
@@ -58,12 +60,22 @@ export function IntroPanel() {
       <Row title="Единый ЦД Актива · из чего он строится">
         <div className="grid shrink-0 gap-2.5" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
           {contours.map((c) => (
+            /*
+              Контур кликабелен: отсюда проваливаются в его разбор.
+              Раньше вход перематывал прокрутку к такту с промыслом, и когда
+              этот такт убрали, клик пришлось закрыть. Теперь разбор поднимает
+              сцену сам, и привязка к прокрутке ему не нужна.
+            */
             <div
               key={c.name}
-              className="border-t-2 px-3 py-2"
+              role={c.dive ? 'button' : undefined}
+              tabIndex={c.dive ? 0 : undefined}
+              onClick={c.dive ? () => openDive(c.dive!) : undefined}
+              className="border-t-2 px-3 py-2 transition-all hover:brightness-125"
               style={{
                 borderColor: 'var(--color-abai)',
                 background: 'oklch(22% 0.02 250 / 0.45)',
+                cursor: c.dive ? 'pointer' : undefined,
               }}
             >
               <div className="flex items-baseline gap-2">
@@ -75,6 +87,14 @@ export function IntroPanel() {
               <div className="mt-1 text-[0.66rem] leading-snug text-[var(--color-txt-dim)]">
                 {c.claim}
               </div>
+              {c.dive && (
+                <div
+                  className="mt-1.5 font-mono text-[8.5px] tracking-[0.12em] uppercase"
+                  style={{ color: 'var(--color-accent)' }}
+                >
+                  Открыть разбор →
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -120,6 +140,30 @@ export function IntroPanel() {
           })}
         </div>
       </Row>
+
+      {/*
+        ПЕРЕХОД К ПРОМЫСЛУ — КНОПКОЙ, А НЕ ПРОКРУТКОЙ.
+
+        Сцена месторождения весит три сотни килобайт геометрии и живёт своей
+        анимацией. В линейном показе из трёх экранов ей места нет: она нужна не
+        всякому зрителю и не на всяком показе. Кнопка делает переход
+        осознанным — и до нажатия сцена не поднимается вовсе, поэтому первые
+        три экрана идут без единой лишней отрисовки.
+      */}
+      <div className="flex shrink-0 items-center gap-2 border-t border-[var(--color-line)] pt-2.5">
+        <span className="kicker text-[var(--color-txt-faint)]">Пилотный актив</span>
+        <button
+          type="button"
+          onClick={enterExplore}
+          className="rounded border px-3 py-1 font-mono text-[9.5px] tracking-[0.12em] uppercase transition-colors hover:brightness-125"
+          style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
+        >
+          Перейти к ЦД Молдабек Восточный
+        </button>
+        <span className="text-[0.6rem] text-[var(--color-txt-faint)]">
+          3D-модель промысла, полный цикл добычи, разбор модулей на объектах
+        </span>
+      </div>
 
       {/* ── Чем работают сегодня ─────────────────────────────────────────── */}
       <Row title={`Инженерный ИТ-ландшафт · ${total} систем, единого слоя между ними нет`}>

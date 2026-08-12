@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { progressRef, useShow } from '../store/useShow';
+import { panelReserve } from '../ui/panelReserve';
 import { CAMS, FLAT_BEATS, TOTAL_BEATS } from '../data/stages';
 import { focusFrameFor } from './focus';
 
@@ -45,8 +46,49 @@ export function CameraRig({ enabled = true }: Props) {
   const inited = useRef(false);
   /** Доля наведения на объект: 0 — таймлайн, 1 — объект. */
   const focusBlend = useRef(0);
+  /** Последняя применённая доля плашки — чтобы не трогать проекцию впустую. */
+  const appliedReserve = useRef(-1);
 
   useFrame((_, dt) => {
+    /**
+     * ПОДЪЁМ КАДРА НАД НИЖНЕЙ ПЛАШКОЙ.
+     *
+     * Когда снизу стоит плашка, предмет должен вставать в центр СВОБОДНОЙ
+     * полосы, а не экрана. Раньше это делалось смещением цели камеры по
+     * поверхности сферы — и работало плохо: кривизна съедает часть смещения
+     * непредсказуемо, доля плашки была вписана числом по одному монитору, и на
+     * другом разрешении кадр разъезжался.
+     *
+     * Здесь сдвигается само окно проекции. Камера смотрит ровно на предмет, а
+     * отрисовывается сдвинутая по вертикали часть кадра — предмет поднимается
+     * на экране ровно на заданную долю, без всякой геометрии сферы. Доля
+     * измеряется плашкой в рантайме, поэтому Full HD, 4K и любое соотношение
+     * сторон дают одинаковый результат.
+     *
+     * Сдвиг равен половине занятой снизу доли: центр свободной полосы лежит
+     * ровно на столько выше центра экрана.
+     */
+    const perspectiveCam = camera as THREE.PerspectiveCamera;
+    const reserve = panelReserve.current > 0.02 ? panelReserve.current : 0;
+
+    // Пересчёт только при изменении: и установка, и сброс перестраивают матрицу
+    // проекции, а делать это каждый кадр ради неизменного числа незачем.
+    if (reserve !== appliedReserve.current) {
+      appliedReserve.current = reserve;
+      if (reserve > 0) {
+        perspectiveCam.setViewOffset(
+          size.width,
+          size.height,
+          0,
+          (reserve / 2) * size.height,
+          size.width,
+          size.height,
+        );
+      } else {
+        perspectiveCam.clearViewOffset();
+      }
+    }
+
     if (!enabled) return;
 
     // ── Кадр по таймлайну ────────────────────────────────────────────────

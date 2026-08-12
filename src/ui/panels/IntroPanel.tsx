@@ -1,6 +1,8 @@
 import { CONTOURS, IT_LANDSCAPE, UPSTREAM_CHAIN } from '../../data/upstreamData';
 import { MODULES, moduleName, SOURCE_META } from '../../data/modules';
 import { useShow } from '../../store/useShow';
+import { useEffect, useRef } from 'react';
+import { panelReserve } from '../panelReserve';
 
 /**
  * ПЕРВЫЙ ЭТАП ПОКАЗА — ОДИН ЭКРАН ВМЕСТО ТРЁХ.
@@ -40,6 +42,37 @@ function Row({ title, children }: { title: string; children: React.ReactNode }) 
 }
 
 export function IntroPanel() {
+  /**
+   * Плашка сообщает камере, сколько кадра она занимает.
+   *
+   * Измеряется, а не вычисляется: высота зависит от того, как перенеслось
+   * содержимое, а перенос — от ширины экрана. Наблюдатель размера ловит и
+   * первую компоновку, и любое изменение окна.
+   */
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      // От верхнего края плашки до низа экрана: снизу у неё ещё отступ, и он
+      // тоже занят — предмет туда опускать нельзя.
+      panelReserve.current = Math.min(0.8, (globalThis.innerHeight - rect.top) / globalThis.innerHeight);
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    globalThis.addEventListener('resize', measure);
+
+    return () => {
+      ro.disconnect();
+      globalThis.removeEventListener('resize', measure);
+      panelReserve.current = 0;
+    };
+  }, []);
+
   const naming = useShow((s) => s.naming);
   const openDive = useShow((s) => s.openDive);
 
@@ -49,7 +82,7 @@ export function IntroPanel() {
   const contours = CONTOURS.filter((c) => !c.future);
 
   return (
-    <div className="panel pointer-events-auto absolute inset-x-8 bottom-8 flex max-h-[54%] flex-col gap-2.5 overflow-hidden px-5 py-3.5">
+    <div ref={box} className="panel pointer-events-auto absolute inset-x-8 bottom-8 flex max-h-[54%] flex-col gap-2.5 overflow-hidden px-5 py-3.5">
       {/* ── Что строим ───────────────────────────────────────────────────── */}
       <Row title="Единый ЦД Актива · из чего он строится">
         <div className="grid shrink-0 gap-2.5" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>

@@ -30,6 +30,7 @@ export function CyclePanel() {
   const playing = useShow((s) => s.cyclePlaying);
   const setCycleShot = useShow((s) => s.setCycleShot);
   const togglePlay = useShow((s) => s.toggleCyclePlay);
+  const exitCycle = useShow((s) => s.exitCycle);
 
   const shot = shotId ? SHOT_BY_ID.get(shotId) : null;
   const index = shotId ? FULL_CYCLE.findIndex((s) => s.id === shotId) : -1;
@@ -154,6 +155,20 @@ export function CyclePanel() {
                 }}
               >
                 {playing ? 'Пауза' : 'Продолжить'}
+              </button>
+
+              {/*
+                Выход из режима, а не пауза. Пауза оставляет камеру у
+                раскадровки и держит сцену некликабельной — выйти из цикла ею
+                нельзя, и это тупик: зритель останавливает показ и не понимает,
+                почему ничего не слушается.
+              */}
+              <button
+                type="button"
+                onClick={exitCycle}
+                className="rounded border border-[var(--color-line)] px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-[var(--color-accent)]"
+              >
+                Выход
               </button>
               <div className="flex gap-1.5">
                 <button

@@ -74,17 +74,46 @@ function useClipping(root: React.RefObject<THREE.Group | null>) {
     gl.localClippingEnabled = true;
   }, [gl]);
 
+  /**
+   * РЕЖЕТСЯ ТОЛЬКО ПОРОДА.
+   *
+   * Плоскость навешивалась обходом на все материалы подряд — и срезала вместе
+   * с толщами стволы скважин, подземное оборудование, приток к забою и наземные
+   * объекты. Половина того, ради чего разрез и открывают, исчезала вместе с
+   * породой: на срезе оставалась пустая стенка.
+   *
+   * Разрез существует, чтобы убрать МЕШАЮЩЕЕ — непрозрачную породу, — а не
+   * содержимое. Поэтому плоскость получают только помеченные поддеревья, а
+   * скважины, обвязка и потоки остаются целыми и висят в открывшемся объёме.
+   *
+   * Отметка ставится на группе, а не на каждом меше: у толщ разреза свои
+   * материалы, у оборудования — общие на весь промысел, и снятие плоскости
+   * «со всего, кроме» задевало бы чужое.
+   */
   useEffect(() => {
     const g = root.current;
     if (!g) return;
+
+    const assign = (obj: THREE.Object3D, planes: THREE.Plane[] | null) => {
+      obj.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.material) return;
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of mats) {
+          m.clippingPlanes = planes;
+          m.needsUpdate = true;
+        }
+      });
+    };
+
+    // Сначала снять плоскость со всей сцены: помеченные поддеревья могли
+    // смениться, и оставшаяся на старых материалах плоскость резала бы их и
+    // после выключения разреза.
+    assign(g, null);
+    if (!clip) return;
+
     g.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!mesh.material) return;
-      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const m of mats) {
-        m.clippingPlanes = clip ? [plane] : null;
-        m.needsUpdate = true;
-      }
+      if (o.userData?.clipTarget) assign(o, [plane]);
     });
   }, [clip, plane, root]);
 
@@ -143,6 +172,9 @@ function FieldContents({ shadows }: { shadows: boolean }) {
     return out;
   }, [data]);
 
+  /** Весь фонд с полными моделями: сюжетный состав плюс герои цикла. */
+  const detailWells = useMemo(() => [...story.wells, ...cycleWells], [story, cycleWells]);
+
   const storyUwis = useMemo(
     () => new Set([...story.wells, ...cycleWells].map((w) => w.uwi)),
     [story, cycleWells],
@@ -159,9 +191,18 @@ function FieldContents({ shadows }: { shadows: boolean }) {
       {features.grid && <GgdmGrid />}
       {features.isolines && <TopIsolines />}
       {features.seismic && <SeismicSection />}
-      {features.flood && <FloodFront wells={story.wells} />}
-      {features.cone && <WaterCone wells={story.wells} />}
-      {features.drainage && <DrainageZones wells={story.wells} />}
+      {/*
+        Слои процессов строятся по ВСЕМУ детальному фонду, включая скважину-
+        героиню цикла и её нагнетательную пару.
+        Раньше сюда шёл только сюжетный состав, подобранный вокруг узла
+        детализации, а героиня выбирается отдельно — по связности сети сбора.
+        Получалось, что на кадре о притоке к забою у самой этой скважины не было
+        ни зоны дренирования, ни конуса обводнения: всё окружение процесса
+        рисовалось у соседей.
+      */}
+      {features.flood && <FloodFront wells={detailWells} />}
+      {features.cone && <WaterCone wells={detailWells} />}
+      {features.drainage && <DrainageZones wells={detailWells} />}
 
       {/*
         КАЖДЫЙ ОБЪЕКТ ЕДЕТ СО СВОИМ СЛОЁМ.
@@ -200,7 +241,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
             модели. */}
         <WellFarm exclude={storyUwis} />
 
-        {[...story.wells, ...cycleWells].map((w) => (
+        {detailWells.map((w) => (
           <WellHead key={`${w.id}:head`} spec={w} groundY={surfY(w.x, w.z)} />
         ))}
       </Stratum>
@@ -212,7 +253,7 @@ function FieldContents({ shadows }: { shadows: boolean }) {
       <ModuleFocus />
 
       {/* Стволы — вне группы поверхности, на своих фактических отметках */}
-      {[...story.wells, ...cycleWells].map((w) => (
+      {detailWells.map((w) => (
         <Well key={w.id} spec={w} />
       ))}
       <FundBores exclude={storyUwis} near={story.focus} clusters={story.satellites} />

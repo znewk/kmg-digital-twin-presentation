@@ -6,7 +6,7 @@ import { FULL_CYCLE, SHOT_BY_ID, type Shot } from '../../data/cycle/storyboard';
 import { useFieldData } from '../../data/geo/fieldData';
 import { useShow } from '../../store/useShow';
 import { flowEnabled, flowTime } from '../field/kit/flow';
-import { surfY } from '../field/geology';
+import { surfY, HW } from '../field/geology';
 
 /**
  * Проигрыватель полного цикла (ТЗ §4.4).
@@ -199,9 +199,28 @@ export function CyclePlayer() {
 
     const want = shot.setup ?? {};
     const f = want.features ?? {};
+
+    /**
+     * НА КАДРАХ О РАБОТЕ СКВАЖИНЫ ПОРОДА УБИРАЕТСЯ ЦЕЛИКОМ.
+     *
+     * Плоскость по середине участка оставляла перед скважиной толщу, а
+     * нефтенасыщенный прослой почти плотный и подсвечен — приток и подъём по
+     * колонне он закрашивал. Сдвиг вплотную к скважине помогал наполовину:
+     * что-то всё равно оставалось между камерой и стволом.
+     *
+     * Здесь порода не нужна вовсе. Разговор идёт о том, что происходит ВНУТРИ
+     * скважины и вокруг забоя, и толща на этих двух кадрах — только помеха.
+     * Плоскость уходит за западный край, и в кадре остаются ствол, ГНО,
+     * перфорация, приток и зона дренирования — всё, о чём речь, и ничего
+     * лишнего. На следующих кадрах разрез возвращается сам: состояние сцены
+     * задаётся кадром целиком.
+     */
+    const clipX = want.clipAt === 'hero' ? -HW : 0;
+
     useShow.setState((s) => ({
       exploded: want.exploded ?? false,
       clip: want.clip ?? false,
+      clipX,
       features: {
         ...s.features,
         grid: f.grid ?? false,

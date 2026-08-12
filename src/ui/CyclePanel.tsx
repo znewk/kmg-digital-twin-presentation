@@ -1,5 +1,7 @@
 import { CYCLE_NODES, FULL_CYCLE, SHOT_BY_ID, STORYBOARD_PPD } from '../data/cycle/storyboard';
 import { dedupeModules, moduleName, MODULES } from '../data/modules';
+import { cycleRoutes } from '../data/cycle/route';
+import { getFieldData } from '../data/geo/fieldData';
 import { useShow } from '../store/useShow';
 
 /**
@@ -31,6 +33,10 @@ export function CyclePanel() {
   const setCycleShot = useShow((s) => s.setCycleShot);
   const togglePlay = useShow((s) => s.toggleCyclePlay);
   const exitCycle = useShow((s) => s.exitCycle);
+
+  // Маршрут уже посчитан и закэширован по датасету — здесь только чтение.
+  const data = getFieldData();
+  const route = data ? cycleRoutes(data).oil : null;
 
   const shot = shotId ? SHOT_BY_ID.get(shotId) : null;
   const index = shotId ? FULL_CYCLE.findIndex((s) => s.id === shotId) : -1;
@@ -222,6 +228,22 @@ export function CyclePanel() {
                       </span>
                     ))}
                   </div>
+                )}
+
+                {/*
+                  Маршрут показа выводится явно.
+                  Цикл идёт по фактическому пути одной скважины, найденному в
+                  данных, но зритель этого не видит и вынужден верить на слово —
+                  а на вопрос «точно эта скважина?» отвечать расчётами по
+                  датасету нельзя. Номер, горизонт, установка и сборный пункт
+                  проверяются по чертежу и реестру за секунду.
+                */}
+                {route && (
+                  <p className="mt-2 font-mono text-[9px] tracking-[0.06em] text-[var(--color-txt-faint)]">
+                    {route.well.uwi}
+                    {route.well.hor ? ` · горизонт ${route.well.hor}` : ''} → {route.gzu.name} →{' '}
+                    {(route.collectorLength / 1000).toFixed(2)} км коллектора → {route.sp.name}
+                  </p>
                 )}
 
                 {shot.illustrative && (

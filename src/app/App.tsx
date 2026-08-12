@@ -10,6 +10,9 @@ import { CyclePanel } from '../ui/CyclePanel';
 import { DivePanel } from '../ui/DivePanel';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { useUiScale } from '../hooks/useUiScale';
+import { useEffect } from 'react';
+import { FLAT_BEATS } from '../data/stages';
+import { panelReserve } from '../ui/panelReserve';
 import { useShow } from '../store/useShow';
 
 /**
@@ -17,6 +20,16 @@ import { useShow } from '../store/useShow';
  * карте страны показывать «где сейчас флюид» не о чем: самого флюида в кадре
  * ещё нет.
  */
+/**
+ * Такты, на которых снизу стоит плашка и камера обязана поднимать кадр.
+ *
+ * Список ведётся здесь, а не в самих панелях: сброс резерва должен происходить
+ * в ОДНОМ месте и по текущему такту. Когда его делала уборка панели, выходила
+ * гонка — React убирает старую панель раньше, чем монтирует новую, и обнуление
+ * приходило после установки. Фон на переходе уезжал по вертикали.
+ */
+const RESERVING_PANELS = new Set(['intro', 'effects']);
+
 const CYCLE_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'production']);
 
 export function App() {
@@ -24,6 +37,14 @@ export function App() {
   useUiScale();
   const stageId = useShow((s) => s.stageId);
   const dive = useShow((s) => s.dive);
+  const beatIndex = useShow((s) => s.beatIndex);
+
+  // Такт без нижней плашки — резерв снимается, кадр возвращается в центр.
+  useEffect(() => {
+    if (!RESERVING_PANELS.has(FLAT_BEATS[beatIndex].panel ?? '')) {
+      panelReserve.current = 0;
+    }
+  }, [beatIndex]);
   const inCycle = useShow((s) => s.cycleShot !== null);
 
   /** Показ ведёт не прокрутка, а собственный режим — разбор или полный цикл. */

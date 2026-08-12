@@ -43,7 +43,7 @@ function Row({ title, children }: { title: string; children: React.ReactNode }) 
 
 export function IntroPanel() {
   const box = useRef<HTMLDivElement>(null);
-  usePanelReserve('intro', box);
+  usePanelReserve(box);
 
   const naming = useShow((s) => s.naming);
 

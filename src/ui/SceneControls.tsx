@@ -10,7 +10,7 @@ import { useShow, type FeatureId } from '../store/useShow';
  * плоских экранах они бессмысленны и только загромождают кадр.
  */
 
-const FIELD_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'production', 'outro']);
+const FIELD_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'production']);
 
 const FEATURES: { id: FeatureId; label: string }[] = [
   { id: 'traces', label: 'Трассы сетей' },

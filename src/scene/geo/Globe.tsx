@@ -34,7 +34,7 @@ import {
  * Компонент возвращает null, когда этапа нет в списке, — глобус просто не
  * рисовался, пока показ не доходил до снижения к Молдабеку.
  */
-const GEO_STAGES = new Set(['globe', 'intro', 'descend']);
+const GEO_STAGES = new Set(['globe', 'intro', 'outro', 'descend']);
 
 /** Слои приподняты над сферой, иначе линии тонут в ней и мерцают. */
 const R_COAST = GLOBE_R * 1.0015;

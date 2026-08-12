@@ -1,5 +1,7 @@
 import { PanelFrame } from './PanelFrame';
+import { useEffect, useRef } from 'react';
 import { usePanelProgress } from './usePanelProgress';
+import { panelReserve } from '../panelReserve';
 import { DataTable, FullScreenPanel as FullScreen, KpiTile, PanelGrid, Pill, Section } from './kit';
 import { CONTOURS } from '../../data/upstreamData';
 import { MNEMO, NDP_ENTITIES, NDP_MAP_WELLS, SURFACE_NETWORK } from '../../data/panelData2';
@@ -460,41 +462,88 @@ export function AssetTwinPanel() {
 // ── Итог ────────────────────────────────────────────────────────────────────
 
 export function EffectsPanel() {
-  const t = usePanelProgress();
   const rows = CONTOURS.filter((c) => !c.future);
 
+  /**
+   * Итог встаёт на то же место, что и плашка целевого образа: нижняя часть
+   * кадра, верхняя остаётся карте актива.
+   *
+   * Раньше это была панель по центру экрана, и переход на итог читался как
+   * прыжок — менялось всё сразу: и место панели, и содержимое, и ракурс. Здесь
+   * плашка остаётся на месте и меняет только содержание, а карта за ней стоит
+   * неподвижно: показ подводит черту над тем же активом, о котором и шёл.
+   *
+   * Проявление по прогрессу такта убрано. Оно имело смысл, когда этапов было
+   * восемь и панель успевала собраться на подлёте; на трёх экранах зритель
+   * доходит до итога сразу, и колонки, проступающие по очереди, читаются как
+   * подтормаживание.
+   */
+
+  /**
+   * Плашка сообщает камере, сколько кадра занимает, — так же, как плашка
+   * целевого образа. Карта за ней поднимается в свободную полосу сама, и на
+   * любом разрешении одинаково.
+   */
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      panelReserve.current = Math.min(
+        0.8,
+        (globalThis.innerHeight - rect.top) / globalThis.innerHeight,
+      );
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    globalThis.addEventListener('resize', measure);
+
+    return () => {
+      ro.disconnect();
+      globalThis.removeEventListener('resize', measure);
+      panelReserve.current = 0;
+    };
+  }, []);
+
   return (
-    <FullScreen fit>
-      <div className="flex flex-col gap-6">
-        <div className="kicker text-[var(--color-plast)]">Ожидаемые эффекты по контурам</div>
-        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${rows.length}, 1fr)` }}>
-          {rows.map((c, ci) => (
-            <div
-              key={c.name}
-              className="border-t-2 pt-3 transition-opacity duration-500"
-              style={{ borderColor: 'var(--color-plast)', opacity: t > ci * 0.2 ? 1 : 0 }}
-            >
-              <div className="text-[0.8rem] font-semibold uppercase tracking-wide">{c.name}</div>
-              <div className="mt-3 flex flex-col gap-2">
-                {c.effects.map((e) => (
-                  <div key={e.label} className="flex items-baseline gap-2">
-                    <span className="font-mono text-[1.5rem] text-[var(--color-ok)]">{e.value}</span>
-                    <span className="text-[0.62rem] leading-tight text-[var(--color-txt-dim)]">
-                      {e.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
+    <div ref={box} className="panel pointer-events-auto absolute inset-x-8 bottom-8 flex max-h-[54%] flex-col gap-3 overflow-hidden px-5 py-3.5">
+      <div className="kicker shrink-0 text-[var(--color-plast)]">Ожидаемые эффекты по контурам</div>
+
+      <div
+        className="grid min-h-0 shrink-0 gap-4"
+        style={{ gridTemplateColumns: `repeat(${rows.length}, 1fr)` }}
+      >
+        {rows.map((c) => (
+          <div key={c.name} className="border-t-2 pt-2.5" style={{ borderColor: 'var(--color-plast)' }}>
+            <div className="text-[0.78rem] font-semibold uppercase tracking-wide">{c.name}</div>
+            <div className="mt-2 flex flex-col gap-1.5">
+              {c.effects.map((e) => (
+                <div key={e.label} className="flex items-baseline gap-2">
+                  <span className="font-mono text-[1.25rem] text-[var(--color-ok)]">{e.value}</span>
+                  <span className="text-[0.6rem] leading-tight text-[var(--color-txt-dim)]">
+                    {e.label}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="grid gap-3 border-t border-[var(--color-line)] pt-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          <KpiTile value="окт. 2026" label="промышленная эксплуатация пилота Молдабек В." />
-          <KpiTile value="12" label="приоритетных активов, 7 ДЗО — 2027–2028" />
-          <KpiTile value="100%" label="добывающих активов к 2028 году" />
-          <KpiTile value="15,03" unit="млрд ₸" label="общая потребность в финансировании программы" />
-        </div>
+          </div>
+        ))}
       </div>
-    </FullScreen>
+
+      <div
+        className="grid shrink-0 gap-3 border-t border-[var(--color-line)] pt-3"
+        style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}
+      >
+        <KpiTile value="окт. 2026" label="промышленная эксплуатация пилота Молдабек В." />
+        <KpiTile value="12" label="приоритетных активов, 7 ДЗО — 2027–2028" />
+        <KpiTile value="100%" label="добывающих активов к 2028 году" />
+        <KpiTile value="15,03" unit="млрд ₸" label="общая потребность в финансировании программы" />
+      </div>
+    </div>
   );
 }
+

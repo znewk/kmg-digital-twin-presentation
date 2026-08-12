@@ -32,7 +32,7 @@ import { makeStoryWell } from '../../data/geo/storyWells';
  * килобайт геометрии не грузятся.
  */
 
-const FIELD_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'production', 'outro']);
+const FIELD_STAGES = new Set(['objectmap', 'reservoir', 'surface', 'well', 'production']);
 
 /** Свет промысла: теневая камера охватывает участок 5352 × 4682 м целиком. */
 function FieldLighting({ shadows }: { shadows: boolean }) {

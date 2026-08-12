@@ -51,6 +51,34 @@ export function CyclePanel() {
   }
   const onPpd = shot?.line === 'ppd';
 
+  /**
+   * ДО ЗАПУСКА — ТОЛЬКО КНОПКА.
+   *
+   * Полная панель разворачивалась во всю ширину экрана ещё до того, как цикл
+   * начали, и накрывала титры этапа в левом нижнем углу: нижняя карточка
+   * оказывалась нечитаемой, а показ — захламлённым приглашением, которым ещё
+   * не воспользовались. Пока цикл не идёт, здесь стоит одна кнопка, узкая и по
+   * центру, — она ни с чем не пересекается.
+   */
+  if (!shot) {
+    return (
+      <div className="pointer-events-auto absolute inset-x-0 bottom-6 flex justify-center">
+        <button
+          type="button"
+          onClick={togglePlay}
+          className="rounded border border-[var(--color-line)] bg-[var(--color-bg-panel)]/95 px-5 py-2.5 text-left backdrop-blur transition-colors hover:border-[var(--color-accent)]"
+        >
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase" style={{ color: LINE_COLOR.oil }}>
+            Полный цикл добычи
+          </span>
+          <span className="mt-0.5 block text-[11px] text-[var(--color-txt-dim)]">
+            Путь одной порции нефти от пласта до товарной — {FULL_CYCLE.length} кадров
+          </span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="pointer-events-auto absolute inset-x-0 bottom-0">
       {/*
@@ -59,9 +87,17 @@ export function CyclePanel() {
         большом экране расчёт от `100vw` дал бы панель шире, чем есть места.
       */}
       <div className="mx-auto w-full max-w-[1120px] px-6 pb-5">
-        {/* Шкала пути нефти */}
+        {/*
+          Шкала пути внутри карточки, а не над ней.
+
+          Над карточкой она висела на прозрачном фоне, и на светлой земле
+          подписи узлов пропадали вовсе — их набор в девять пунктов девятым
+          кеглем читался только над тёмным небом. Внутри карточки у неё всегда
+          есть подложка.
+        */}
+        <div className="rounded border border-[var(--color-line)] bg-[var(--color-bg-panel)]/97 px-5 pt-3.5 backdrop-blur">
         <div
-          className="mb-3 flex items-center px-1 transition-opacity"
+          className="flex items-center px-1 pb-3 transition-opacity"
           style={{ opacity: onPpd ? 0.3 : 1 }}
         >
           {CYCLE_NODES.map((node, i) => {
@@ -105,7 +141,7 @@ export function CyclePanel() {
           })}
         </div>
 
-        <div className="rounded border border-[var(--color-line)] bg-[var(--color-bg-panel)]/94 px-5 py-4 backdrop-blur">
+        <div className="border-t border-[var(--color-line)] px-0 pt-3.5 pb-4">
           <div className="flex items-start gap-5">
             <div className="flex shrink-0 flex-col gap-1.5">
               <button
@@ -117,7 +153,7 @@ export function CyclePanel() {
                   color: playing ? 'var(--color-accent)' : undefined,
                 }}
               >
-                {playing ? 'Пауза' : shot ? 'Продолжить' : 'Полный цикл'}
+                {playing ? 'Пауза' : 'Продолжить'}
               </button>
               <div className="flex gap-1.5">
                 <button
@@ -139,8 +175,7 @@ export function CyclePanel() {
               </div>
             </div>
 
-            {shot ? (
-              <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-3">
                   <span
                     className="font-mono text-[9px] tracking-[0.14em] uppercase"
@@ -180,16 +215,6 @@ export function CyclePanel() {
                   </p>
                 )}
               </div>
-            ) : (
-              <div className="min-w-0 flex-1">
-                <h3 className="text-[17px] leading-tight">Полный цикл добычи</h3>
-                <p className="mt-1.5 max-w-[70ch] text-[13px] leading-relaxed text-[var(--color-txt-dim)]">
-                  Путь одной порции нефти от пласта до товарной: {FULL_CYCLE.length} кадров, камера
-                  идёт по фактическому маршруту одной скважины через её замерную установку на
-                  сборный пункт. Ветка поддержания пластового давления — в конце.
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Ветка ППД — отдельным рядом: это не участок пути нефти */}
@@ -213,6 +238,7 @@ export function CyclePanel() {
               </button>
             ))}
           </div>
+        </div>
         </div>
       </div>
     </div>

@@ -510,7 +510,7 @@ export function EffectsPanel() {
   }, []);
 
   return (
-    <div ref={box} className="panel pointer-events-auto absolute inset-x-8 bottom-8 flex max-h-[54%] flex-col gap-3 overflow-hidden px-5 py-3.5">
+    <div ref={box} className="plate-in panel pointer-events-auto absolute inset-x-8 bottom-8 flex max-h-[54%] flex-col gap-3 overflow-hidden px-5 py-3.5">
       <div className="kicker shrink-0 text-[var(--color-plast)]">Ожидаемые эффекты по контурам</div>
 
       <div

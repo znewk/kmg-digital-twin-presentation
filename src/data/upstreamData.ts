@@ -145,64 +145,58 @@ export const UPSTREAM_CHAIN = [
 ];
 
 /**
- * ИТ-ландшафт по этапам — «лоскутное одеяло» из реестра сценария.
- * `own` помечает системы КМГ (ABAI), остальное — сторонние и офисные.
+ * ИТ-ландшафт по этапам процесса.
+ *
+ * Состав приведён к профильным системам: офисная обвязка и вспомогательные
+ * сервисы из перечня убраны. Excel, Outlook и WhatsApp стояли там
+ * содержательно — обмен между службами идёт через них, — но на экране показа
+ * перетягивали внимание на канцелярию, тогда как разговор о том, чем считают и
+ * моделируют. Убраны и узкие инструменты, не относящиеся к демонстрируемой
+ * цепочке.
+ *
+ * Порядок этапов: наземная инфраструктура идёт сразу за разработкой. Решение о
+ * форсировании отбора упирается не в пласт, а в трубу, и в показе этот переход
+ * следует за разработкой, а не замыкает список.
+ *
+ * `own` помечает системы КМГ (ABAI), остальное — сторонние.
  */
 export const IT_LANDSCAPE: { stage: string; systems: { name: string; own?: boolean }[] }[] = [
   {
     stage: 'Геология и ГРР',
     systems: [
-      { name: 'Petrel' }, { name: 'Techlog' }, { name: 'tNavigator' }, { name: 'Peloton' },
-      { name: 'PVTi' }, { name: 'PVTSim' }, { name: 'ProSource' }, { name: 'Kingdom' },
-      { name: 'GeoGraphix' }, { name: 'Hampson Russel' }, { name: 'Spark 1.5' },
-      { name: 'ГеоПоиск' }, { name: 'Жулдыз' }, { name: 'ABP+' },
-      { name: 'ABAI (БД)', own: true }, { name: 'Excel' }, { name: 'Outlook' },
+      { name: 'Petrel' }, { name: 'Techlog' }, { name: 'tNavigator' },
+      { name: 'PVTi' }, { name: 'PVTSim' }, { name: 'Kingdom' },
+      { name: 'Hampson Russel' }, { name: 'ABAI (БД)', own: true },
     ],
   },
   {
     stage: 'Разработка',
     systems: [
       { name: 'Petrel' }, { name: 'tNavigator' }, { name: 'Eclipse' }, { name: 'OFM' },
-      { name: 'Жулдыз' }, { name: 'ABAI (УЗ)', own: true }, { name: 'ABAI (ТР)', own: true },
+      { name: 'ABAI (УЗ)', own: true }, { name: 'ABAI (ТР)', own: true },
       { name: 'ABAI (ПиАГТМ)', own: true }, { name: 'ABAI (БД)', own: true },
-      { name: 'Excel' },
-    ],
-  },
-  {
-    stage: 'Бурение и ВСР',
-    systems: [
-      { name: 'Petrel' }, { name: 'Landmark' }, { name: 'tNavigator' }, { name: 'Sysdrill' },
-      { name: 'SoloBox' }, { name: 'SoloFeed' }, { name: 'DrillSpot' }, { name: 'Starsteer' },
-      { name: 'WellView' }, { name: 'ДЭЛ-140/150' }, { name: 'АСРППС' }, { name: 'ЕКПД' },
-      { name: 'SAP ERP' }, { name: 'СЭД' }, { name: 'WhatsApp' },
-      { name: 'ABAI (БД, ПГНО, ПДИМ)', own: true }, { name: 'ABP+' }, { name: 'Excel' },
-      { name: 'Outlook' },
-    ],
-  },
-  {
-    stage: 'Добыча',
-    systems: [
-      { name: 'PipeSim' }, { name: 'UniSim' }, { name: 'AutoCAD' }, { name: 'Questor' },
-      { name: 'СДМО' }, { name: 'ИСУТО' }, { name: 'ИМ' }, { name: 'GreenData' },
-      { name: 'АСКУЭ' }, { name: 'АСТУЭ' }, { name: 'SCADA' }, { name: 'SAP ERP' },
-      { name: 'Procu' }, { name: 'ABAI (БД)', own: true }, { name: 'ABP+' },
-      { name: 'Excel' }, { name: 'Outlook' },
     ],
   },
   {
     stage: 'КС и наземная инфр-ра',
     systems: [
-      { name: 'PipeSim' }, { name: 'UniSim' }, { name: 'AutoCAD' }, { name: 'Qportal.kz' },
-      { name: 'АСУ НСИ' }, { name: 'SAP' }, { name: 'ABC-4' }, { name: 'SAS FM' },
-      { name: 'E-Pass' }, { name: 'eLicense' }, { name: 'E-Qurylys' }, { name: 'Самрук-Казына' },
-      { name: 'Procu' }, { name: 'СЭД' }, { name: 'ABP+' }, { name: 'Excel' }, { name: 'Outlook' },
+      { name: 'UniSim' }, { name: 'АСУ НСИ' }, { name: 'SAP' }, { name: 'Procu' },
     ],
   },
-];
-
-/** Цифры проблематики — презентация для АТК, слайд 10. */
-export const LANDSCAPE_FACTS = [
-  { value: 'до 80%', label: 'рабочего времени специалистов — ручной перенос данных в Excel' },
-  { value: '0', label: 'интеграционных шин (ESB/API Gateway) и систем MDM/НСИ на уровне ДЗО' },
-  { value: '63', label: '«серые зоны» функционального пересечения между службами' },
+  {
+    stage: 'Бурение и ВСР',
+    systems: [
+      { name: 'Petrel' }, { name: 'Landmark' }, { name: 'tNavigator' },
+      { name: 'Starsteer' }, { name: 'ДЭЛ-140/150' }, { name: 'SAP ERP' },
+      { name: 'СЭД' }, { name: 'ABAI (БД, ПГНО, ПДИМ)', own: true },
+    ],
+  },
+  {
+    stage: 'Добыча',
+    systems: [
+      { name: 'UniSim' }, { name: 'СДМО' }, { name: 'ИСУТО' }, { name: 'ИМ' },
+      { name: 'АСКУЭ' }, { name: 'АСТУЭ' }, { name: 'SCADA' }, { name: 'SAP ERP' },
+      { name: 'Procu' }, { name: 'ABAI (БД)', own: true },
+    ],
+  },
 ];

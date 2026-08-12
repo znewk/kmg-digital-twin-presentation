@@ -1,4 +1,4 @@
-import { CONTOURS, IT_LANDSCAPE, LANDSCAPE_FACTS, UPSTREAM_CHAIN } from '../../data/upstreamData';
+import { CONTOURS, IT_LANDSCAPE, UPSTREAM_CHAIN } from '../../data/upstreamData';
 import { dedupeModules, MODULES, moduleName, SOURCE_META } from '../../data/modules';
 import { useShow } from '../../store/useShow';
 import { usePanelProgress } from './usePanelProgress';
@@ -194,27 +194,19 @@ export function ItPatchworkPanel() {
   return (
     <FullScreen sheet>
       <div className="flex flex-col gap-3">
-        {/* Цифры проблематики вынесены в шапку: в нижней полке вертикали в
-            обрез, и отдельной строкой внизу они срезались краем кадра. */}
-        <div className="flex shrink-0 items-end gap-8 border-b border-[var(--color-line)] pb-2">
-          <div>
-            <div className="kicker text-[var(--color-risk)]">
-              Инженерный ИТ-ландшафт цепочки КЦ — КМГИ — ЭМГ сегодня
-            </div>
-            <div className="mt-1 text-[0.75rem] text-[var(--color-txt-dim)]">
-              {total} систем на пять этапов. Единого интеграционного слоя нет, обмен идёт через
-              Outlook и Excel.
-            </div>
-          </div>
-          <div className="ml-auto flex gap-6">
-            {LANDSCAPE_FACTS.map((f) => (
-              <div key={f.label} className="flex items-baseline gap-2">
-                <span className="font-mono text-[1.25rem] text-[var(--color-risk)]">{f.value}</span>
-                <span className="max-w-44 text-[0.58rem] leading-tight text-[var(--color-txt-dim)]">
-                  {f.label}
-                </span>
-              </div>
-            ))}
+        {/*
+          Шапка без цифр проблематики.
+
+          Доля ручного переноса, отсутствие интеграционных шин и число «серых
+          зон» были острыми и уместными в рабочем обсуждении, но на показе
+          читались перечнем претензий к заказчику. Экран отвечает на вопрос
+          «чем работают сегодня», а не «что здесь плохо»; вывод о разрозненности
+          зритель делает сам, глядя на пять несвязанных столбцов.
+        */}
+        <div className="shrink-0 border-b border-[var(--color-line)] pb-2">
+          <div className="kicker">Инженерный ИТ-ландшафт цепочки КЦ — КМГИ — ЭМГ</div>
+          <div className="mt-1 text-[0.75rem] text-[var(--color-txt-dim)]">
+            {total} систем на пять этапов процесса, единого интеграционного слоя между ними нет.
           </div>
         </div>
 

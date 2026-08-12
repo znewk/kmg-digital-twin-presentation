@@ -126,24 +126,29 @@ export function Globe() {
     const i = Math.min(TOTAL_BEATS - 1, Math.floor(raw));
     const t = raw - i;
     const stage = FLAT_BEATS[i].stage.id;
+    /**
+     * Первые три такта — один этап, и различать их приходится по такту, а не
+     * по этапу: подлёт от планеты к области идёт внутри одного блока.
+     */
+    const beat = FLAT_BEATS[i].id;
 
     // Планета медленно вращается только на первом этапе; как только начинается
     // подлёт к Казахстану, вращение замирает — иначе цель уезжает из-под камеры.
     if (spin.current) {
-      const spinPhase = stage === 'globe' ? t : 1;
+      const spinPhase = beat === 'contours' ? t : 1;
       spin.current.rotation.y = 0.35 * (1 - spinPhase) * 0.6;
     }
 
     // Контуры областей проявляются при подлёте к Казахстану.
     const oblastVis =
-      stage === 'globe' ? Math.max(0, t - 0.55) / 0.45 : stage === 'kazakhstan' ? 1 : 1;
+      beat === 'contours' ? Math.max(0, t - 0.55) / 0.45 : 1;
     if (oblastLines.current) {
       (oblastLines.current.material as THREE.LineBasicMaterial).opacity = 0.42 * oblastVis;
     }
 
     // Call-out: Атырауская область загорается, остальная страна гаснет.
     const callout =
-      stage === 'atyrau' ? Math.min(1, t / 0.4) : stage === 'descend' ? 1 : 0;
+      beat === 'landscape' ? Math.min(1, t / 0.4) : stage === 'descend' ? 1 : 0;
 
     // На подлёте заливка отступает: она нужна, чтобы выделить область на фоне
     // страны, а вблизи площадки просто заливает кадр сплошным янтарём.

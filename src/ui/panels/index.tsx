@@ -16,6 +16,7 @@ import {
 } from './kit';
 import { NUMEX_RESERVOIR, OPTIMIZE_RUN, PIPE, POTENTIAL, RTM_PARAMS, WWO_ROWS, NDP_SOURCES } from '../../data/panelData';
 import { ArchitecturePanel, ItPatchworkPanel, UpstreamChainPanel } from './upstream';
+import { IntroPanel } from './IntroPanel';
 import { FieldMap2DPanel } from './FieldMap2D';
 import {
   AssetTwinPanel,
@@ -337,6 +338,7 @@ function Placeholder({ panel }: { panel: PanelId }) {
 }
 
 export const REGISTRY: Partial<Record<PanelId, () => React.ReactElement>> = {
+  intro: IntroPanel,
   architecture: ArchitecturePanel,
   'upstream-chain': UpstreamChainPanel,
   'it-patchwork': ItPatchworkPanel,

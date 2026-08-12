@@ -4,7 +4,6 @@ import { usePanelProgress } from './usePanelProgress';
 import { panelReserve } from '../panelReserve';
 import { DataTable, FullScreenPanel as FullScreen, KpiTile, PanelGrid, Pill, Section } from './kit';
 import { CONTOURS } from '../../data/upstreamData';
-import { ContourMini } from './ContourMini';
 import { MNEMO, NDP_ENTITIES, NDP_MAP_WELLS, SURFACE_NETWORK } from '../../data/panelData2';
 
 /**
@@ -520,7 +519,12 @@ export function EffectsPanel() {
       >
         {rows.map((c) => (
           <div key={c.name} className="border-t-2 pt-2.5" style={{ borderColor: 'var(--color-plast)' }}>
-            <ContourMini kind={c.dive} />
+            {/*
+              Значков контуров здесь нет. Каждый был отдельным канвасом с
+              вращающейся моделью — три лишних контекста WebGL поверх основной
+              сцены на такте, где речь идёт о цифрах, а не о геометрии. Сам
+              `ContourMini` оставлен в коде: место для него ещё может найтись.
+            */}
             <div className="mt-1 text-[0.9rem] font-semibold uppercase tracking-wide">{c.name}</div>
             <div className="mt-2 flex flex-col gap-1.5">
               {c.effects

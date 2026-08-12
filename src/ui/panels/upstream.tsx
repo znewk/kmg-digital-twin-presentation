@@ -1,5 +1,5 @@
 import { CONTOURS, IT_LANDSCAPE, LANDSCAPE_FACTS, UPSTREAM_CHAIN } from '../../data/upstreamData';
-import { MODULES, moduleName, SOURCE_META } from '../../data/modules';
+import { dedupeModules, MODULES, moduleName, SOURCE_META } from '../../data/modules';
 import { useShow } from '../../store/useShow';
 import { usePanelProgress } from './usePanelProgress';
 import { FullScreenPanel as FullScreen } from './kit';
@@ -77,7 +77,7 @@ export function ArchitecturePanel() {
                         ))}
                       </ul>
                       <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-                        {b.modules.map((mid) => {
+                        {dedupeModules(b.modules, naming).map((mid) => {
                           const m = MODULES[mid];
                           return (
                             <span

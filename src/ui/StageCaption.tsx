@@ -1,3 +1,4 @@
+import { dedupeModules } from '../data/modules';
 import { FLAT_BEATS } from '../data/stages';
 import { isMissing, t } from '../i18n';
 import { useShow } from '../store/useShow';
@@ -22,6 +23,7 @@ export function StageCaption() {
   const lang = useShow((s) => s.lang);
   const debug = useShow((s) => s.debug);
   const selected = useShow((s) => s.selected);
+  const naming = useShow((s) => s.naming);
 
   const beat = FLAT_BEATS[beatIndex];
   if (beat.stage.id === 'hero') return null;
@@ -97,7 +99,7 @@ export function StageCaption() {
 
         {beat.modules && beat.modules.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-1.5">
-            {beat.modules.map((id) => (
+            {dedupeModules(beat.modules, naming).map((id) => (
               <ModuleBadge key={id} id={id} />
             ))}
           </div>

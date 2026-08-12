@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { DIVE_BY_ID } from '../data/dives';
-import { moduleName, MODULES, SOURCE_META } from '../data/modules';
+import { dedupeModules, moduleName, MODULES, SOURCE_META } from '../data/modules';
 import { DOSSIER } from '../data/moduleDossier';
 import { useShow } from '../store/useShow';
 import { REGISTRY } from './panels';
@@ -169,7 +169,7 @@ export function DivePanel() {
 
           {step.modules && step.modules.length > 0 && (
             <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {step.modules.map((id) => {
+              {dedupeModules(step.modules, naming).map((id) => {
                 const m = MODULES[id];
                 if (!m) return null;
                 return (

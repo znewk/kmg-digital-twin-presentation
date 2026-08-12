@@ -1,5 +1,5 @@
 import { CYCLE_NODES, FULL_CYCLE, SHOT_BY_ID, STORYBOARD_PPD } from '../data/cycle/storyboard';
-import { moduleName, MODULES } from '../data/modules';
+import { dedupeModules, moduleName, MODULES } from '../data/modules';
 import { useShow } from '../store/useShow';
 
 /**
@@ -198,7 +198,7 @@ export function CyclePanel() {
                     <span className="font-mono text-[9px] tracking-[0.1em] text-[var(--color-txt-faint)] uppercase">
                       Здесь работают
                     </span>
-                    {shot.modules.map((id) => (
+                    {dedupeModules(shot.modules, naming).map((id) => (
                       <span
                         key={id}
                         className="max-w-full rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[9px] leading-snug tracking-[0.06em] break-words"

@@ -77,12 +77,20 @@ export function PanelFrame({ module, screen, dataNote, side = 'right', children 
 
   return (
     <div ref={el} className={`panel pointer-events-auto absolute flex flex-col ${box}`}>
+      {/*
+        Шапка переносится по строкам. Утверждённые наименования доходят до
+        шестидесяти знаков — «ABAI Планирование добычи и мониторинг (Целостность
+        трубопроводов) 2.0», — и в одну строку с названием экрана и статусом они
+        не помещаются ни при какой ширине панели. Сокращать текст нельзя: имя
+        утверждено заказчиком, а сокращение на экране показа читается как другой
+        продукт.
+      */}
       <header
-        className="flex items-baseline gap-3 border-b px-5 py-3"
+        className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-5 py-3"
         style={{ borderColor: 'var(--color-line)' }}
       >
         <span
-          className="font-mono text-[11px] tracking-[0.16em]"
+          className="font-mono text-[11px] leading-snug tracking-[0.16em]"
           style={{ color: source.colorVar }}
         >
           {moduleName(m, naming)}

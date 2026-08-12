@@ -201,7 +201,7 @@ export function CyclePanel() {
                     {shot.modules.map((id) => (
                       <span
                         key={id}
-                        className="rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[9px] tracking-[0.06em]"
+                        className="max-w-full rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[9px] leading-snug tracking-[0.06em] break-words"
                       >
                         {MODULES[id] ? moduleName(MODULES[id], naming) : id}
                       </span>

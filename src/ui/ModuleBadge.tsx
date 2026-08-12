@@ -29,13 +29,15 @@ export function ModuleBadge({ id, compact = false }: { id: ModuleId; compact?: b
 
   return (
     <span
-      className="inline-flex flex-col gap-0.5 border-l-2 py-1 pl-2 pr-3 align-top"
+      // Ширина ограничена, текст переносится: длинные утверждённые наименования
+      // иначе растягивают бейдж на пол-экрана и выдавливают соседние.
+      className="inline-flex max-w-[15rem] flex-col gap-0.5 border-l-2 py-1 pl-2 pr-3 align-top"
       style={{
         borderLeftColor: source.colorVar,
         background: 'oklch(24% 0.02 250 / 0.45)',
       }}
     >
-      <span className="flex items-baseline gap-2">
+      <span className="flex flex-wrap items-baseline gap-x-2">
         <span
           className="font-mono text-[10px] tracking-[0.14em]"
           style={{ color: source.colorVar }}

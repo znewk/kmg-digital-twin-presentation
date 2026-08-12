@@ -240,7 +240,7 @@ export function NdpModelPanel() {
     <FullScreen>
       <div className="flex h-full flex-col gap-3">
         <div className="kicker text-[var(--color-nedra)]">
-          Nedra.DATA · сквозная модель данных ЦД Актива
+          КХД · сквозная модель данных ЦД Актива
         </div>
         <svg viewBox="0 0 900 320" className="min-h-0 flex-1">
           {NDP_ENTITIES.map((e, i) => {
@@ -316,7 +316,7 @@ export function NdpMapPanel() {
     <FullScreen>
       <div className="flex h-full flex-col gap-3">
         <div className="kicker text-[var(--color-nedra)]">
-          Nedra.DATA · карта объектов актива
+          КХД · карта объектов актива
         </div>
         <div className="grid min-h-0 flex-1 gap-4" style={{ gridTemplateColumns: '16rem 1fr' }}>
           <div className="min-h-0 overflow-hidden">

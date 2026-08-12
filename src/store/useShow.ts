@@ -141,7 +141,19 @@ interface ShowState {
 
 const params = new URLSearchParams(globalThis.location?.search ?? '');
 const initialTier = (params.get('quality') as QualityTier | null) ?? null;
-const initialNaming = (params.get('naming') as NamingMode | null) ?? 'hybrid';
+/**
+ * Раскладка наименований по умолчанию — ABAI.
+ *
+ * Заказчик утвердил единую терминологию: в показе выводятся имена в терминах
+ * ABAI, продуктовые имена вендора не появляются. Переключатель оставлен в коде
+ * и доступен через адрес (`?naming=`) и горячую клавишу — он нужен на разборах
+ * с командой внедрения, где имена продуктов как раз и обсуждают, — но
+ * состояние по умолчанию одно.
+ *
+ * Гибридная раскладка, стоявшая здесь раньше, выводила оба имени сразу и
+ * противоречит утверждённому решению напрямую.
+ */
+const initialNaming = (params.get('naming') as NamingMode | null) ?? 'abai';
 const initialLang = (params.get('lang') as Lang | null) ?? 'ru';
 
 /**

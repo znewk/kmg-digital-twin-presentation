@@ -343,7 +343,7 @@ const WELL_OBJECTS: FieldObject[] = [
   {
     id: 'w-prod-3',
     label: 'Горизонтальная Д-3',
-    subtitle: 'Кандидат на бурение по результатам NUMEX',
+    subtitle: 'Кандидат на бурение по результатам ABAI ЦРНС 2.0',
     kind: 'well',
     x: 60,
     z: 300,

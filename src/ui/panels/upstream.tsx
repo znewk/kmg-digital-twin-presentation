@@ -82,7 +82,7 @@ export function ArchitecturePanel() {
                           return (
                             <span
                               key={mid}
-                              className="font-mono text-[8.5px] tracking-[0.06em]"
+                              className="max-w-full font-mono text-[8.5px] leading-snug tracking-[0.06em] break-words"
                               style={{ color: SOURCE_META[m.source].colorVar }}
                             >
                               {moduleName(m, naming)}

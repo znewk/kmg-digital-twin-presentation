@@ -175,7 +175,7 @@ export function DivePanel() {
                 return (
                   <span
                     key={id}
-                    className="rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[9px] tracking-[0.06em]"
+                    className="max-w-full rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[9px] leading-snug tracking-[0.06em] break-words"
                     style={{ color: SOURCE_META[m.source].colorVar }}
                   >
                     {moduleName(m, naming)}

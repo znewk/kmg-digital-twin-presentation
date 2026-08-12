@@ -26,7 +26,6 @@ export function StageCaption() {
   const naming = useShow((s) => s.naming);
 
   const beat = FLAT_BEATS[beatIndex];
-  if (beat.stage.id === 'hero') return null;
 
   const accent = beat.stage.twin ? TWIN_COLOR[beat.stage.twin] : 'var(--color-plast)';
   const flag = (v: Parameters<typeof isMissing>[0]) =>

@@ -7,14 +7,12 @@ import { useShow } from '../store/useShow';
  */
 export function Progress() {
   const beatIndex = useShow((s) => s.beatIndex);
-  if (FLAT_BEATS[beatIndex].stage.id === 'hero') return null;
 
   let cursor = 0;
   return (
     <div className="absolute top-8 left-1/2 flex -translate-x-1/2 items-center gap-2">
       {STAGES.map((stage, si) => {
         const cells = stage.beats.map(() => cursor++);
-        if (stage.id === 'hero') return null;
         return (
           <div key={stage.id} className="flex gap-[3px]" title={stage.title.ru}>
             {cells.map((c) => (

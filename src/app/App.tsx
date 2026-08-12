@@ -1,6 +1,5 @@
 import { Stage } from '../scene/Stage';
 import { ScrollTrack } from './ScrollTrack';
-import { HeroOverlay } from '../ui/HeroOverlay';
 import { ObjectPanel } from '../ui/ObjectPanel';
 import { SceneControls } from '../ui/SceneControls';
 import { StageCaption } from '../ui/StageCaption';
@@ -46,7 +45,6 @@ export function App() {
         className="pointer-events-none fixed inset-0 z-10"
         style={{ zoom: 'var(--ui-scale, 1)' }}
       >
-        <HeroOverlay />
         <PanelLayer />
 
         {/*

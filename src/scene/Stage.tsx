@@ -7,7 +7,6 @@ import { useShow } from '../store/useShow';
 import { TIER_SETTINGS, usePerfTier } from '../hooks/usePerfTier';
 import { CameraRig } from './CameraRig';
 import { FreeLook } from './FreeLook';
-import { FieldShowcase } from './hero/FieldShowcase';
 import { Globe } from './geo/Globe';
 import { Field } from './field/Field';
 import { renderStats } from './stats';
@@ -99,7 +98,6 @@ function SceneContents() {
       <FreeLook />
 
       <Suspense fallback={null}>
-        <FieldShowcase shadows={settings.shadows} />
         <Globe />
         <Field shadows={settings.shadows} />
       </Suspense>

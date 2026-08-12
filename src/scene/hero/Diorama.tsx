@@ -14,6 +14,9 @@ import { buildGzu } from '../field/facilities/gzu';
 import { buildSp } from '../field/facilities/sp';
 import { buildKns } from '../field/facilities/kns';
 import { buildPole10 } from '../field/facilities/pole';
+import { buildKtp } from '../field/facilities/ktp';
+import { buildRigStatic } from '../field/facilities/rig';
+import { dome, makeLayer, outlineRadius, relief, type Fn } from './dioramaGeometry';
 
 /**
  * ДИОРАМА ПРОМЫСЛА — экспонат приветственного экрана (ТЗ §8.2).
@@ -35,101 +38,137 @@ import { buildPole10 } from '../field/facilities/pole';
  * всегда обращена в кадр.
  */
 
-/** Полуразмер блока в плане и глубина, единицы сцены. */
-const HALF = 26;
+/** Глубина блока и подъём под витринный ракурс. */
 const DEPTH = 34;
-
-/**
- * Подъём диорамы, чтобы её середина оказалась в прицеле витринного ракурса.
- *
- * Камера витрины смотрит в точку чуть ниже нуля и стоит далеко: блок, у
- * которого кровля на нуле, а подошва на минус тридцати четырёх, уходил бы из
- * кадра вниз, а над ним висела бы пустота.
- */
 const LIFT = 13;
 
 /** Отметка подошвы блока — по ней ставится подиум витрины. */
 export const DIORAMA_BOTTOM = LIFT - DEPTH;
 
 /**
- * Разрез диорамы — сжатая, но не выдуманная стратиграфия.
+ * РАЗРЕЗ ДИОРАМЫ — СЖАТЫЙ, НО НЕ ВЫДУМАННЫЙ.
  *
- * Порядок и характер толщ те же, что в модели месторождения: почва,
- * перекрывающая толща с прослоями, продуктивный интервал, водонасыщенная
- * часть под ним, фундамент. Настоящие мощности сюда не переносятся — семьсот
- * метров разреза на блок в полсотни единиц дали бы полоски в пиксель, — но
- * последовательность и соотношение сохранены.
+ * Порядок толщ тот же, что в модели месторождения: почва, перекрывающая толща
+ * с прослоем-маркером, водоносный горизонт, непроницаемая покрышка,
+ * продуктивный интервал, вода под ним, фундамент. Настоящие мощности сюда не
+ * переносятся — семьсот метров разреза на блок в полсотни единиц дали бы
+ * полоски в пиксель.
+ *
+ * ГЛАВНОЕ ОТЛИЧИЕ ОТ ПОЛОСАТОГО ПИРОГА: слои выгнуты сводом. Купол в середине
+ * блока — то, из-за чего нефть вообще собирается в залежь: лёгкая нефть
+ * всплывает и упирается в непроницаемую покрышку. Горизонтальные полосы с
+ * покрашенной серединой были бы неправдой о том, почему нефть здесь.
+ *
+ * Свод растёт с глубиной: у поверхности его почти нет, у продуктивного пласта
+ * он максимален. Так и выглядит унаследованная структура — приповерхностные
+ * отложения выравнивают рельеф, глубокие повторяют форму фундамента.
  */
+const BASE = {
+  soil: -1.8,
+  over1: -7.2,
+  marker: -8.4,
+  over2: -14.2,
+  aquifer: -16.8,
+  seal: -20.4,
+  payTop: -20.4,
+  owc: -24.2,
+  payBot: -26.6,
+  water: -30.4,
+};
+
+/** Насколько слой поднят сводом. */
+const ARCH = {
+  soil: 0.6,
+  over1: 1.4,
+  marker: 1.8,
+  over2: 2.6,
+  aquifer: 3.2,
+  seal: 4.4,
+  pay: 5.2,
+  base: 3,
+};
+
+const at =
+  (base: number, arch: number): Fn =>
+  (x, z) =>
+    base + arch * dome(x, z);
+
+/** Кровля блока: свод плюс мелкая складчатость — не плита. */
+const surface: Fn = (x, z) => 0.4 * dome(x, z) + relief(x, z);
+
+/**
+ * Водонефтяной контакт — СТРОГО ГОРИЗОНТАЛЬНАЯ отметка.
+ *
+ * Это не украшение, а физика: вода тяжелее нефти и лежит под ней ровной
+ * плоскостью независимо от формы пласта. Поэтому нефтенасыщенная часть выходит
+ * линзой — толстой в своде и сходящей на нет на крыльях, где кровля пласта
+ * опускается ниже контакта. Ровно так залежь и рисуют на разрезах.
+ */
+const OWC: Fn = () => BASE.owc;
+
 interface Layer {
   id: string;
-  /** Верх и низ в единицах сцены, вниз от поверхности. */
-  top: number;
-  bot: number;
+  top: Fn;
+  bot: Fn;
   color: string;
-  /** Продуктивный интервал — единственный, что светится. */
+  roughness?: number;
+  /** Нефтенасыщенная линза — единственное, что светится. */
   pay?: boolean;
 }
 
 const LAYERS: Layer[] = [
-  { id: 'soil', top: 0, bot: -2.2, color: '#8a7d68' },
-  { id: 'over-1', top: -2.2, bot: -7.5, color: '#6f6a60' },
-  { id: 'marker-1', top: -7.5, bot: -8.6, color: '#565049' },
-  { id: 'over-2', top: -8.6, bot: -14.5, color: '#6a6a72' },
-  { id: 'aquifer', top: -14.5, bot: -17.4, color: '#4b7ea6' },
-  { id: 'seal', top: -17.4, bot: -20.6, color: '#5e6166' },
-  { id: 'pay', top: -20.6, bot: -24.4, color: '#e0912b', pay: true },
-  { id: 'water', top: -24.4, bot: -28.2, color: '#4d6f8c' },
-  { id: 'base', top: -28.2, bot: -DEPTH, color: '#3a3d44' },
+  { id: 'soil', top: surface, bot: at(BASE.soil, ARCH.soil), color: '#7d6f57' },
+  { id: 'over-1', top: at(BASE.soil, ARCH.soil), bot: at(BASE.over1, ARCH.over1), color: '#8a7a63' },
+  { id: 'marker', top: at(BASE.over1, ARCH.over1), bot: at(BASE.marker, ARCH.marker), color: '#5d5750' },
+  { id: 'over-2', top: at(BASE.marker, ARCH.marker), bot: at(BASE.over2, ARCH.over2), color: '#7a7264' },
+  { id: 'aquifer', top: at(BASE.over2, ARCH.over2), bot: at(BASE.aquifer, ARCH.aquifer), color: '#4f86ad' },
+  { id: 'seal', top: at(BASE.aquifer, ARCH.aquifer), bot: at(BASE.seal, ARCH.seal), color: '#4e5259' },
+  {
+    id: 'oil',
+    top: at(BASE.payTop, ARCH.pay),
+    bot: (x, z) => Math.max(OWC(x, z), at(BASE.payBot, ARCH.pay)(x, z)),
+    color: '#f0a038',
+    roughness: 0.45,
+    pay: true,
+  },
+  {
+    id: 'pay-water',
+    top: (x, z) => Math.min(OWC(x, z), at(BASE.payTop, ARCH.pay)(x, z)),
+    bot: at(BASE.payBot, ARCH.pay),
+    color: '#3f74a0',
+    roughness: 0.5,
+  },
+  { id: 'under', top: at(BASE.payBot, ARCH.pay), bot: at(BASE.water, ARCH.base), color: '#5a6470' },
+  { id: 'base', top: at(BASE.water, ARCH.base), bot: () => -DEPTH, color: '#33373f' },
 ];
 
-/**
- * Г-образный след блока: полный куб без одной четверти.
- *
- * Две коробки вместо вычитания: булевых операций в three нет, а собирать
- * L-образный контур вершинами ради девяти слоёв — писать полсотни строк там,
- * где хватает двух примитивов. Стык проходит по плоскостям реза, и шва не
- * видно: обе коробки одного материала и вплотную.
- */
-function LayerSlab({ layer }: { layer: Layer }) {
-  const h = layer.top - layer.bot;
-  const y = (layer.top + layer.bot) / 2;
+function LayerBody({ layer }: { layer: Layer }) {
+  const geometry = useMemo(() => makeLayer(layer.top, layer.bot), [layer]);
 
   const material = useMemo(() => {
     const m = new THREE.MeshStandardMaterial({
       color: layer.color,
-      roughness: layer.pay ? 0.5 : 0.95,
+      roughness: layer.roughness ?? 0.95,
       metalness: layer.pay ? 0.1 : 0.02,
     });
     if (layer.pay) {
-      m.emissive = new THREE.Color('#c06a12');
-      m.emissiveIntensity = 0.55;
+      m.emissive = new THREE.Color('#c9701a');
+      m.emissiveIntensity = 0.5;
     }
     return m;
   }, [layer]);
 
   /**
-   * Продуктивный пласт медленно «дышит».
-   *
-   * Не мигает и не бегает: это единственная нарочитая условность на экране, и
-   * она означает ровно одно — вот то, ради чего всё остальное существует.
-   * Период четыре секунды, амплитуда четверть яркости: заметно боковым
-   * зрением, не отвлекает от чтения заголовка.
+   * Залежь медленно «дышит». Не мигает и не бегает: единственная нарочитая
+   * условность на экране, и означает она ровно одно — вот то, ради чего всё
+   * остальное существует.
    */
   useFrame(({ clock }) => {
     if (!layer.pay) return;
-    material.emissiveIntensity = 0.45 + 0.22 * (0.5 + 0.5 * Math.sin(clock.elapsedTime * 1.6));
+    material.emissiveIntensity = 0.42 + 0.24 * (0.5 + 0.5 * Math.sin(clock.elapsedTime * 1.5));
   });
 
-  return (
-    <group position={[0, y, 0]}>
-      <mesh material={material} castShadow receiveShadow position={[0, 0, -HALF / 2]}>
-        <boxGeometry args={[HALF * 2, h, HALF]} />
-      </mesh>
-      <mesh material={material} castShadow receiveShadow position={[-HALF / 2, 0, HALF / 2]}>
-        <boxGeometry args={[HALF, h, HALF]} />
-      </mesh>
-    </group>
-  );
+  return <mesh geometry={geometry} material={material} castShadow receiveShadow />;
 }
 
 /** Статичная часть сборки — сливается по материалам, как в основной сцене. */
@@ -223,27 +262,36 @@ function WorkingPumpjack({
  * должны загораживать стволы, ради которых вырез и сделан.
  */
 const WELLS: { at: [number, number]; yaw: number; phase: number }[] = [
-  { at: [-6, 6], yaw: 0.2, phase: 0 },
-  { at: [-15, 14], yaw: -0.35, phase: 2.1 },
-  { at: [6, -6], yaw: 1.35, phase: 4.2 },
-  { at: [15, 4], yaw: 1.1, phase: 1.1 },
+  { at: [-7, -9], yaw: 0.25, phase: 0 },
+  { at: [-17, 2], yaw: -0.4, phase: 2.1 },
+  { at: [-5, 12], yaw: 1.2, phase: 4.2 },
+  { at: [-19, -12], yaw: 0.9, phase: 1.1 },
+  { at: [7, 14], yaw: -1.1, phase: 3.4 },
+  { at: [16, 6], yaw: 0.5, phase: 5.2 },
 ];
 
-/** Отметка кровли пласта — до неё доводятся стволы. */
-const PAY_TOP = LAYERS.find((l) => l.pay)!.top;
-const PAY_MID = (PAY_TOP + LAYERS.find((l) => l.pay)!.bot) / 2;
+/** Отметка середины залежи — до неё доводятся стволы. */
+const PAY_MID_Y = (BASE.payTop + BASE.owc) / 2 + ARCH.pay * 0.6;
 
+/**
+ * Стволы доводятся до залежи и видны на срезе.
+ *
+ * Устье садится на рельеф, а не на нулевую отметку: кровля блока волнистая, и
+ * колонна, начатая от нуля, у одних скважин висела бы в воздухе, у других
+ * уходила бы в грунт.
+ */
 function Bores() {
-  const geometry = useMemo(() => {
-    const parts: THREE.BufferGeometry[] = [];
-    for (const w of WELLS) {
-      const len = -PAY_MID;
-      const g = new THREE.CylinderGeometry(0.34, 0.34, len, 10);
-      g.translate(w.at[0], PAY_MID + len / 2, w.at[1]);
-      parts.push(g);
-    }
-    return parts;
-  }, []);
+  const geometry = useMemo(
+    () =>
+      WELLS.map((w) => {
+        const top = surface(w.at[0], w.at[1]) + 1.2;
+        const len = top - PAY_MID_Y;
+        const g = new THREE.CylinderGeometry(0.3, 0.3, len, 10);
+        g.translate(w.at[0], PAY_MID_Y + len / 2, w.at[1]);
+        return g;
+      }),
+    [],
+  );
 
   return (
     <>
@@ -256,34 +304,71 @@ function Bores() {
   );
 }
 
+/**
+ * Наземное хозяйство диорамы.
+ *
+ * Расставлено так, чтобы промысел выглядел обжитым, а не составленным из трёх
+ * образцов: скважины кустами, установки между ними, линия электропередачи по
+ * краю. Вырезанный сектор (восточный ближний угол) остаётся пустым — в нём
+ * земли нет, и поставленный там объект висел бы над пропастью.
+ */
+const FACILITIES: { parts: () => Part[]; at: [number, number]; yaw: number; scale: number }[] = [
+  { parts: buildGzu, at: [-13, 8], yaw: 0.4, scale: 0.8 },
+  { parts: buildGzu, at: [2, 17], yaw: -0.9, scale: 0.8 },
+  { parts: buildSp, at: [14, -14], yaw: -0.5, scale: 0.5 },
+  { parts: buildKns, at: [-20, 10], yaw: 1.2, scale: 0.55 },
+  { parts: buildKtp, at: [-2, 2], yaw: 0.2, scale: 0.9 },
+  { parts: buildKtp, at: [10, 20], yaw: -0.4, scale: 0.9 },
+  { parts: buildRigStatic, at: [20, -3], yaw: 0.7, scale: 0.55 },
+];
+
+/** Опоры ВЛ по дуге вдоль дальнего края — заполняют пустой край блока. */
+const POLES = [2.3, 2.7, 3.1, 3.5, 3.9, 4.3].map((a): [number, number] => {
+  const r = outlineRadius(a) * 0.82;
+  return [Math.cos(a) * r, Math.sin(a) * r];
+});
+
 export function Diorama() {
   return (
     <group position={[0, LIFT, 0]}>
       {LAYERS.map((l) => (
-        <LayerSlab key={l.id} layer={l} />
+        <LayerBody key={l.id} layer={l} />
       ))}
 
       <Bores />
 
-      {/* Фонд: четыре работающих станка-качалки, у каждого своя фаза хода —
-          синхронный ход выдал бы механическое повторение одной модели. */}
+      {/* Фонд: работающие станки-качалки, у каждого своя фаза хода —
+          синхронный выдал бы механическое повторение одной модели. Все садятся
+          на рельеф: кровля блока волнистая, и общая нулевая отметка оставила бы
+          часть парящей над землёй. */}
       {WELLS.map((w, i) => (
         <WorkingPumpjack
           key={i}
-          position={[w.at[0], 0.1, w.at[1]]}
+          position={[w.at[0], surface(w.at[0], w.at[1]), w.at[1]]}
           rotation={w.yaw}
           phase={w.phase}
         />
       ))}
 
       {/* Наземные объекты — те же модели, что на промысле */}
-      <StaticParts parts={buildGzu()} position={[-2, 0.1, -12]} rotation={0.4} scale={0.85} />
-      <StaticParts parts={buildSp()} position={[13, 0.1, -17]} rotation={-0.5} scale={0.5} />
-      <StaticParts parts={buildKns()} position={[-18, 0.1, -6]} rotation={1.2} scale={0.6} />
+      {FACILITIES.map((f, i) => (
+        <StaticParts
+          key={i}
+          parts={f.parts()}
+          position={[f.at[0], surface(f.at[0], f.at[1]), f.at[1]]}
+          rotation={f.yaw}
+          scale={f.scale}
+        />
+      ))}
 
-      {/* Линия электропередачи вдоль дальнего края */}
-      {[-20, -8, 4, 16].map((x) => (
-        <StaticParts key={x} parts={buildPole10()} position={[x, 0.1, -23]} />
+      {/* Линия электропередачи по дальнему краю */}
+      {POLES.map((p, i) => (
+        <StaticParts
+          key={i}
+          parts={buildPole10()}
+          position={[p[0], surface(p[0], p[1]), p[1]]}
+          scale={0.9}
+        />
       ))}
     </group>
   );

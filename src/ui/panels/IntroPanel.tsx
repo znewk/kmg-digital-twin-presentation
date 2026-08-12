@@ -1,6 +1,5 @@
 import { CONTOURS, IT_LANDSCAPE, UPSTREAM_CHAIN } from '../../data/upstreamData';
 import { MODULES, moduleName, SOURCE_META } from '../../data/modules';
-import { FLAT_BEATS } from '../../data/stages';
 import { useShow } from '../../store/useShow';
 
 /**
@@ -22,31 +21,18 @@ import { useShow } from '../../store/useShow';
  * Панель на весь экран убила бы этот подлёт, а он и объясняет, где всё
  * происходит.
  *
- * Строка, о которой идёт речь сейчас, подсвечена, остальные приглушены — блок
- * читается как одно целое, но взгляд знает, куда смотреть.
+ * Плашка ЕДИНАЯ и не проявляется по тактам. Проявление означало бы, что
+ * зритель должен дождаться нужной строки, чтобы её прочесть; здесь всё
+ * доступно сразу, а такты меняют только ракурс подлёта за ней.
+ *
+ * Высота ограничена половиной кадра, содержимое подобрано так, чтобы влезать
+ * целиком: прокрутки внутри плашки нет. Скроллящийся блок на показе — это
+ * содержание, которого зритель не увидит.
  */
 
-/** Такты первого этапа в порядке появления — по ним подсвечиваются строки. */
-const ROW_OF_BEAT: Record<string, number> = {
-  contours: 0,
-  chain: 1,
-  landscape: 2,
-};
-
-function Row({
-  active,
-  title,
-  children,
-}: {
-  active: boolean;
-  title: string;
-  children: React.ReactNode;
-}) {
+function Row({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div
-      className="flex min-h-0 flex-col transition-opacity duration-500"
-      style={{ opacity: active ? 1 : 0.42 }}
-    >
+    <div className="flex min-h-0 flex-col">
       <div className="kicker mb-1.5 shrink-0">{title}</div>
       {children}
     </div>
@@ -54,20 +40,18 @@ function Row({
 }
 
 export function IntroPanel() {
-  const beatIndex = useShow((s) => s.beatIndex);
   const naming = useShow((s) => s.naming);
   const openDive = useShow((s) => s.openDive);
 
-  const row = ROW_OF_BEAT[FLAT_BEATS[beatIndex].id] ?? 0;
   const total = IT_LANDSCAPE.reduce((n, s) => n + s.systems.length, 0);
 
   /** Контур ресурсной базы вне периметра пилота — в этой сводке не участвует. */
   const contours = CONTOURS.filter((c) => !c.future);
 
   return (
-    <div className="panel pointer-events-auto absolute inset-x-8 bottom-8 flex max-h-[52%] flex-col gap-3 overflow-hidden px-5 py-4">
+    <div className="panel pointer-events-auto absolute inset-x-8 bottom-8 flex max-h-[54%] flex-col gap-2.5 overflow-hidden px-5 py-3.5">
       {/* ── Что строим ───────────────────────────────────────────────────── */}
-      <Row active={row === 0} title="Единый ЦД Актива · из чего он строится">
+      <Row title="Единый ЦД Актива · из чего он строится">
         <div className="grid shrink-0 gap-2.5" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
           {contours.map((c) => (
             <div
@@ -96,7 +80,7 @@ export function IntroPanel() {
       </Row>
 
       {/* ── В каком процессе ─────────────────────────────────────────────── */}
-      <Row active={row === 1} title="Цепочка создания ценности UPSTREAM">
+      <Row title="Цепочка создания ценности UPSTREAM">
         <div className="flex shrink-0 items-stretch gap-1.5">
           {UPSTREAM_CHAIN.map((s, i) => {
             const m = MODULES[s.module];
@@ -137,7 +121,7 @@ export function IntroPanel() {
       </Row>
 
       {/* ── Чем работают сегодня ─────────────────────────────────────────── */}
-      <Row active={row === 2} title={`Инженерный ИТ-ландшафт · ${total} систем, единого слоя между ними нет`}>
+      <Row title={`Инженерный ИТ-ландшафт · ${total} систем, единого слоя между ними нет`}>
         <div className="grid min-h-0 gap-2 overflow-hidden" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
           {IT_LANDSCAPE.map((stage) => (
             <div key={stage.stage} className="flex min-h-0 flex-col">

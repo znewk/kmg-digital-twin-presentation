@@ -135,13 +135,13 @@ export function Globe() {
     // Планета медленно вращается только на первом этапе; как только начинается
     // подлёт к Казахстану, вращение замирает — иначе цель уезжает из-под камеры.
     if (spin.current) {
-      const spinPhase = beat === 'contours' ? t : 1;
+      const spinPhase = beat === 'planet' ? t : 1;
       spin.current.rotation.y = 0.35 * (1 - spinPhase) * 0.6;
     }
 
     // Контуры областей проявляются при подлёте к Казахстану.
     const oblastVis =
-      beat === 'contours' ? Math.max(0, t - 0.55) / 0.45 : 1;
+      beat === 'planet' ? Math.max(0, t - 0.55) / 0.45 : 1;
     if (oblastLines.current) {
       (oblastLines.current.material as THREE.LineBasicMaterial).opacity = 0.42 * oblastVis;
     }

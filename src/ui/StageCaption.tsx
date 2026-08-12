@@ -27,6 +27,15 @@ export function StageCaption() {
 
   const beat = FLAT_BEATS[beatIndex];
 
+  /**
+   * Под плашкой первого этапа титров нет.
+   *
+   * Плашка занимает нижнюю половину кадра и сама несёт все заголовки — от
+   * контуров до ландшафта. Строка титров под ней повторяла бы третьим шрифтом
+   * то же самое и отъедала последние сантиметры, которых плашке и так в обрез.
+   */
+  if (beat.panel === 'intro') return null;
+
   const accent = beat.stage.twin ? TWIN_COLOR[beat.stage.twin] : 'var(--color-plast)';
   const flag = (v: Parameters<typeof isMissing>[0]) =>
     debug && isMissing(v, lang) ? 'outline outline-1 outline-dashed outline-[var(--color-risk)]' : '';

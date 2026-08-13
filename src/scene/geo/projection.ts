@@ -51,6 +51,30 @@ export const ATYRAU: [number, number] = [51.92, 47.11];
 export const MOLDABEK: [number, number] = SITE_CENTER_LONLAT;
 
 /**
+ * Местный горизонт в точке поверхности: вверх, восток, юг.
+ *
+ * Нужен всем, кто ставит на глобус что-то «стоящее на земле»: значок промысла
+ * разворачивается по этому базису, и от него же считается ракурс обзора вблизи.
+ * Держится в одном месте, потому что расхождение между «как повёрнут значок» и
+ * «откуда на него смотрит камера» — это кадр, где модель стоит боком.
+ *
+ * Восток = вертикаль мира × нормаль. На полюсе вырождается, на широтах
+ * Казахстана — нет; проверка стоит одной строки и снимает вопрос.
+ */
+export function localBasis(lon: number, lat: number): {
+  up: THREE.Vector3;
+  east: THREE.Vector3;
+  south: THREE.Vector3;
+} {
+  const up = lonLatToVec3(lon, lat, 1).normalize();
+  const east = new THREE.Vector3(0, 1, 0).cross(up);
+  if (east.lengthSq() < 1e-8) east.set(1, 0, 0);
+  east.normalize();
+  const south = east.clone().cross(up).normalize();
+  return { up, east, south };
+}
+
+/**
  * Ломаная границы в виде отрезков для LineSegments.
  * GeoJSON-кольца превращаются в пары точек, приподнятые над поверхностью,
  * иначе линия тонет в сфере и мерцает.

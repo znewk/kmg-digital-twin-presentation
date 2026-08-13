@@ -9,6 +9,7 @@ import { PanelLayer } from '../ui/panels';
 import { CyclePanel } from '../ui/CyclePanel';
 import { DivePanel } from '../ui/DivePanel';
 import { EntryCover } from '../ui/EntryCover';
+import { TokenCloseup } from '../ui/TokenCloseup';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { useUiScale } from '../hooks/useUiScale';
 import { useEffect } from 'react';
@@ -41,6 +42,7 @@ export function App() {
   const beatIndex = useShow((s) => s.beatIndex);
   const inCycle = useShow((s) => s.cycleShot !== null);
   const explore = useShow((s) => s.explore);
+  const tokenView = useShow((s) => s.tokenView);
 
   /** Показ ведёт промысел, а не прокрутка: осмотр сцены или разбор контура. */
   const fieldMode = useShow(selectFieldMode);
@@ -84,7 +86,15 @@ export function App() {
           этот момент месторождение. Такт при этом остаётся прежним — показ
           продолжится с него же, когда зритель вернётся.
         */}
-        {!fieldMode && <PanelLayer />}
+        {/*
+          Осмотр значка снимает плашку по той же причине, что и промысел: она
+          занимает нижнюю половину кадра, а показывать в этот момент нужно то,
+          что под ней. Вместо неё встаёт узкая полоса с подписью и выходами —
+          она же сообщает камере свою высоту, поэтому резерв не обнуляется, а
+          подменяется.
+        */}
+        {!fieldMode && !tokenView && <PanelLayer />}
+        {!fieldMode && tokenView && <TokenCloseup />}
 
         {/*
           ОБВЯЗКА ЛИНЕЙНОГО ПОКАЗА СНИМАЕТСЯ В ЛЮБОМ СОБСТВЕННОМ РЕЖИМЕ.

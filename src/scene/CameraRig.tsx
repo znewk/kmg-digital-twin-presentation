@@ -1,10 +1,11 @@
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { progressRef, useShow } from '../store/useShow';
+import { progressRef, tokenCloseRef, useShow } from '../store/useShow';
 import { panelReserve } from '../ui/panelReserve';
 import { CAMS, FLAT_BEATS, TOTAL_BEATS } from '../data/stages';
 import { focusFrameFor } from './focus';
+import { moldabekCloseFrame } from './geo/tokenLayout';
 
 /**
  * Камера как чистая функция прогресса скролла — плюс приоритетный режим
@@ -31,6 +32,18 @@ const _tgtTo = new THREE.Vector3();
 const _tgt = new THREE.Vector3();
 const _focusPos = new THREE.Vector3();
 const _focusTgt = new THREE.Vector3();
+const _closePos = new THREE.Vector3();
+const _closeTgt = new THREE.Vector3();
+
+/**
+ * Скорость подхода к значку промысла, 1/с.
+ *
+ * Заметно медленнее наведения на объект (3,2): там кадр переставляется внутри
+ * одной сцены, здесь камера уходит с орбиты почти к самой поверхности. На
+ * быстрой подстановке этот путь читается прыжком, а он и есть содержание —
+ * зритель должен увидеть, как карта превращается в местность.
+ */
+const CLOSE_RATE = 1.9;
 
 interface Props {
   enabled?: boolean;
@@ -39,6 +52,7 @@ interface Props {
 export function CameraRig({ enabled = true }: Props) {
   const { camera, size } = useThree();
   const selected = useShow((s) => s.selected);
+  const tokenView = useShow((s) => s.tokenView);
 
   const smoothed = useRef(new THREE.Vector3());
   const smoothedTarget = useRef(new THREE.Vector3());
@@ -88,6 +102,18 @@ export function CameraRig({ enabled = true }: Props) {
       }
     }
 
+    /**
+     * Доля подхода к значку промысла ведётся ДО выхода по `enabled`.
+     *
+     * Иначе она замирала бы на своём значении, когда камеру забирает свободная
+     * орбита, — и значок остался бы в мировом размере посреди чужого кадра.
+     * Здесь отпущенная камера означает и отпущенный подход: доля гаснет, значок
+     * возвращается к постоянному экранному размеру.
+     */
+    const wantClose = tokenView && enabled ? 1 : 0;
+    tokenCloseRef.current +=
+      (wantClose - tokenCloseRef.current) * (1 - Math.exp(-dt * CLOSE_RATE));
+
     if (!enabled) return;
 
     // ── Кадр по таймлайну ────────────────────────────────────────────────
@@ -118,6 +144,28 @@ export function CameraRig({ enabled = true }: Props) {
       это читается рывком фона. Неподвижный кадр честнее живого, если живость
       достигается качанием камеры.
     */
+
+    /**
+     * ── Подход к значку промысла на карте ────────────────────────────────
+     *
+     * Кадр считается каждый кадр, а не берётся из таблицы `CAMS`: он зависит от
+     * угла обзора, соотношения сторон и от того, сколько экрана занято плашкой.
+     * Вписанный числами ракурс пришлось бы подбирать заново на каждом экране.
+     *
+     * Смешивание идёт поверх кадра таймлайна, поэтому уход обратно ничего не
+     * требует: доля гаснет, и камера возвращается туда, где её ждёт показ.
+     */
+    if (tokenCloseRef.current > 0.001) {
+      const close = moldabekCloseFrame(
+        (camera as THREE.PerspectiveCamera).fov,
+        size.width / size.height,
+        reserve,
+      );
+      _closePos.set(close.p[0], close.p[1], close.p[2]);
+      _closeTgt.set(close.t[0], close.t[1], close.t[2]);
+      _pos.lerp(_closePos, tokenCloseRef.current);
+      _tgt.lerp(_closeTgt, tokenCloseRef.current);
+    }
 
     // ── Прицельное наведение на объект ───────────────────────────────────
     const perspective = camera as THREE.PerspectiveCamera;

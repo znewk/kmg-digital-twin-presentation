@@ -38,6 +38,7 @@ const easeInOutCubic = (k: number) =>
 
 const _from = new THREE.Vector3();
 const _fromTarget = new THREE.Vector3();
+const _forward = new THREE.Vector3();
 const _pos = new THREE.Vector3();
 const _toTarget = new THREE.Vector3();
 const _target = new THREE.Vector3();
@@ -63,10 +64,23 @@ export function FieldEntry() {
         started.current = true;
         elapsed.current = 0;
         _from.copy(camera.position);
-        // Цель берётся из ракурса такта, с которого уходим: камера уже смотрит
-        // туда, и снижение начинается продолжением кадра, а не рывком.
+        /**
+         * Цель снимается с ФАКТИЧЕСКОГО направления взгляда, а не берётся из
+         * ракурса такта.
+         *
+         * Пока камера всегда стояла на кадре такта, разницы не было. Но уйти на
+         * промысел можно и из осмотра значка вблизи, где камера стоит у самой
+         * площадки и смотрит на неё сбоку: цель такта в этот момент в стороне и
+         * выше, и снижение начиналось бы с рывка взгляда. Расстояние до цели
+         * берётся от ракурса такта — оно задаёт, насколько «дальний» взгляд
+         * плавно сводится к точке снижения.
+         */
         const cam = CAMS[FLAT_BEATS[useShow.getState().beatIndex].cam];
         _fromTarget.set(cam.t[0], cam.t[1], cam.t[2]);
+        camera.getWorldDirection(_forward);
+        _fromTarget
+          .copy(camera.position)
+          .addScaledVector(_forward, camera.position.distanceTo(_fromTarget));
       }
 
       elapsed.current += dt;

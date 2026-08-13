@@ -14,6 +14,8 @@ import { buildGzu } from '../field/facilities/gzu';
 import { buildSp } from '../field/facilities/sp';
 import { buildKns } from '../field/facilities/kns';
 import { buildPole10 } from '../field/facilities/pole';
+import { LAYOUT_OFFSET, TOKEN_SCALE } from './tokenLayout';
+import { tokenCloseRef } from '../../store/useShow';
 
 /**
  * КАРИКАТУРА ПРОМЫСЛА НА КАРТЕ — вместо точки-маркера.
@@ -38,10 +40,11 @@ import { buildPole10 } from '../field/facilities/pole';
  * нитка нефтесбора, на востоке сборный пункт, рядом факел. Поэтому раскладка
  * ортогональная — ряды по одной линии, трубы углами, а не лучами из центра.
  * Расходящаяся «звезда» из труб читалась как случайная клякса.
+ *
+ * СТОИТ НА КАРТЕ, А НЕ НАД НЕЙ. Размер, посадка на заливку области и сдвиг
+ * вглубь неё — в `tokenLayout`: там же от них считается ракурс осмотра вблизи,
+ * и порознь эти числа расходятся.
  */
-
-/** Размер сценки в единицах глобуса. Подобран так, чтобы читалась силуэтом. */
-const TOKEN_SCALE = 0.045;
 
 /** Высота, на которой лежат нитки нефтесбора. */
 const PIPE_Y = 1.4;
@@ -129,6 +132,11 @@ function Static({
  *
  * Сверху вертикальный ствол вырождается в точку, поэтому у пламени есть ещё и
  * аддитивный ореол: с отвесного ракурса факел узнаётся по светящемуся пятну.
+ *
+ * ОРЕОЛ ГАСНЕТ НА ПОДХОДЕ. Он решает ровно одну задачу — сделать факел заметным
+ * там, где сам факел не виден. На пологом ракурсе ствол и пламя видны целиком,
+ * а четырёхметровый шар вокруг них превращается из подсказки в оранжевый шар,
+ * заслоняющий то, ради чего к промыслу подошли.
  */
 function Flare({ at }: { at: P2 }) {
   const flame = useRef<THREE.Mesh>(null);
@@ -144,7 +152,10 @@ function Flare({ at }: { at: P2 }) {
       (flame.current.material as THREE.MeshBasicMaterial).opacity = 0.78 + 0.18 * Math.sin(t * 9.1);
     }
     if (halo.current) {
+      const close = tokenCloseRef.current;
+      halo.current.visible = close < 0.97;
       halo.current.scale.setScalar(0.9 + 0.18 * Math.sin(t * 6.1));
+      (halo.current.material as THREE.MeshBasicMaterial).opacity = 0.28 * (1 - close);
     }
   });
 
@@ -259,28 +270,36 @@ const TRUNK: P2[] = [
 export function FieldToken() {
   return (
     <group scale={TOKEN_SCALE}>
-      {WELLS.map((w, i) => (
-        <Pumpjack key={i} at={w.at} phase={w.phase} />
-      ))}
+      {/*
+        Расстановка сдвинута вглубь области: координата площадки лежит у самой
+        восточной границы Атырауской, и значок читаемого размера, посаженный на
+        неё центром, вылезал в соседнюю область. Почему сдвиг именно такой — см.
+        `LAYOUT_OFFSET`.
+      */}
+      <group position={[LAYOUT_OFFSET[0], 0, LAYOUT_OFFSET[1]]}>
+        {WELLS.map((w, i) => (
+          <Pumpjack key={i} at={w.at} phase={w.phase} />
+        ))}
 
-      <Static parts={buildGzu()} at={GZU} />
-      <Static parts={buildSp()} at={SP} scale={0.55} />
-      <Static parts={buildKns()} at={KNS} scale={0.5} />
-      <Flare at={FLARE} />
+        <Static parts={buildGzu()} at={GZU} />
+        <Static parts={buildSp()} at={SP} scale={0.55} />
+        <Static parts={buildKns()} at={KNS} scale={0.5} />
+        <Flare at={FLARE} />
 
-      {[-26, -14, -2, 10, 22].map((x) => (
-        <Static key={x} parts={buildPole10()} at={[x, 20]} scale={0.9} />
-      ))}
+        {[-26, -14, -2, 10, 22].map((x) => (
+          <Static key={x} parts={buildPole10()} at={[x, 20]} scale={0.9} />
+        ))}
 
-      {/* Выкидные линии скважин — углом на коллектор */}
-      {WELLS.map((w, i) => (
-        <Route key={i} points={[w.at, [w.at[0], 0]]} phase={i / WELLS.length} />
-      ))}
-      {/* Коллектор до замерной установки и напорный нефтепровод до сборного пункта */}
-      <Route points={TRUNK} phase={0.15} />
-      <Route points={[GZU, SP]} phase={0.5} />
-      {/* Нитка газа со сборного пункта на факел */}
-      <Route points={[[SP[0], -5], FLARE]} phase={0.8} />
+        {/* Выкидные линии скважин — углом на коллектор */}
+        {WELLS.map((w, i) => (
+          <Route key={i} points={[w.at, [w.at[0], 0]]} phase={i / WELLS.length} />
+        ))}
+        {/* Коллектор до замерной установки и напорный нефтепровод до сборного пункта */}
+        <Route points={TRUNK} phase={0.15} />
+        <Route points={[GZU, SP]} phase={0.5} />
+        {/* Нитка газа со сборного пункта на факел */}
+        <Route points={[[SP[0], -5], FLARE]} phase={0.8} />
+      </group>
     </group>
   );
 }

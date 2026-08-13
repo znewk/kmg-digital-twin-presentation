@@ -43,6 +43,20 @@ export type FeatureId =
  */
 export const progressRef = { current: 0, direction: 1 as 1 | -1 };
 
+/**
+ * Доля подхода к промыслу на глобусе: 0 — кадр этапа, 1 — осмотр значка вблизи.
+ *
+ * Живёт рядом с прогрессом и по той же причине: значение покадровое. Его ведёт
+ * `CameraRig` — он владеет камерой, — а читает `Globe`, чтобы на подходе
+ * отпустить значок из постоянного экранного размера в постоянный мировой.
+ *
+ * Через стор это не проходит принципиально: обе стороны должны видеть ОДНО И ТО
+ * ЖЕ число в ОДНОМ И ТОМ ЖЕ кадре. Два независимых сглаживания разошлись бы, и
+ * значок менял бы размер не в такт с подходом камеры — то есть ровно то, ради
+ * чего фиксация размера и делается, сломалось бы незаметно.
+ */
+export const tokenCloseRef = { current: 0 };
+
 export interface ShowState {
   /** Индекс текущего такта — дискретно, обновляется на пересечении границы. */
   beatIndex: number;
@@ -114,6 +128,23 @@ export interface ShowState {
   explore: boolean;
   enterExplore: () => void;
   exitExplore: () => void;
+
+  /**
+   * ОСМОТР ЗНАЧКА ПРОМЫСЛА ВБЛИЗИ — ЕЩЁ НЕ ПЕРЕХОД НА ПРОМЫСЕЛ.
+   *
+   * На карте области стоит сценка промысла, и с высоты этапа она читается
+   * планом: расстановка видна, а сами объекты — значками в несколько пикселей.
+   * Между «вижу, что здесь месторождение» и «стою внутри трёхмерной сцены на
+   * пять километров» не хватало ступени: подойти и рассмотреть модель, не
+   * поднимая при этом всю сцену промысла с её геометрией и датасетом.
+   *
+   * Это состояние и есть та ступень. Сцена не меняется — камера идёт по
+   * поверхности глобуса к площадке и встаёт рядом с ней на пологом ракурсе.
+   * Прокрутка при этом продолжает вести показ: осмотр не режим, а ракурс, и
+   * смена такта его снимает.
+   */
+  tokenView: boolean;
+  setTokenView: (v: boolean) => void;
 
   /**
    * ПЕРЕХОД К ПРОМЫСЛУ — СНИЖЕНИЕ, А НЕ ПОДМЕНА КАДРА.
@@ -275,6 +306,7 @@ export const useShow = create<ShowState>((set, get) => ({
   cycleReturn: null,
   fieldReturn: null,
   explore: false,
+  tokenView: false,
   entry: null,
   dive: null,
 
@@ -283,7 +315,15 @@ export const useShow = create<ShowState>((set, get) => ({
   setBeatIndex: (i) => {
     const clamped = Math.min(TOTAL_BEATS - 1, Math.max(0, i));
     if (clamped === get().beatIndex) return;
-    set({ beatIndex: clamped, stageId: FLAT_BEATS[clamped].stage.id, selected: null });
+    // Осмотр значка принадлежит такту, на котором его открыли: он поставлен на
+    // конкретную точку карты, а следующий такт может уводить камеру со всей
+    // области. Смена такта возвращает кадр показу.
+    set({
+      beatIndex: clamped,
+      stageId: FLAT_BEATS[clamped].stage.id,
+      selected: null,
+      tokenView: false,
+    });
   },
 
   step: (delta) => {
@@ -328,7 +368,9 @@ export const useShow = create<ShowState>((set, get) => ({
       return;
     }
     if (selectFieldMode(s) || s.entry) return;
-    set({ paused: !s.paused, dive: null });
+    // Свободная орбита забирает камеру у таймлайна, а вместе с ним и у осмотра
+    // значка: тянуть кадр вдвоём нельзя.
+    set({ paused: !s.paused, dive: null, tokenView: false });
   },
   select: (selected) => set({ selected }),
   hover: (hovered) => set({ hovered }),
@@ -364,6 +406,7 @@ export const useShow = create<ShowState>((set, get) => ({
       // со всем, что его держало: иначе сцена месторождения осталась бы
       // смонтированной поверх глобуса на первом такте.
       explore: false,
+      tokenView: false,
       entry: null,
       dive: null,
       fieldReturn: null,
@@ -457,6 +500,18 @@ export const useShow = create<ShowState>((set, get) => ({
     get().leaveField();
   },
 
+  /**
+   * Подойти к значку промысла на карте или вернуться к кадру этапа.
+   *
+   * Осмотр несовместим со свободной орбитой и с разбором: и то и другое владеет
+   * камерой. Поэтому включение снимает паузу, а не спорит с ней.
+   */
+  setTokenView: (v) => {
+    const s = get();
+    if (v && (selectFieldMode(s) || s.entry)) return;
+    set({ tokenView: v, paused: v ? false : s.paused, selected: null });
+  },
+
   /** Открыть промысел без разбора модуля — свободный осмотр сцены. */
   enterExplore: () => get().enterField(null),
 
@@ -492,6 +547,9 @@ export const useShow = create<ShowState>((set, get) => ({
     set({
       entry: { dive: diveId, phase: 'descend' },
       fieldReturn: snapshot(s),
+      // Кадром дальше владеет снижение — осмотр значка ему только мешал бы:
+      // камера тянулась бы одновременно к площадке и к точке обзора значка.
+      tokenView: false,
       paused: true,
       cycleShot: null,
       cyclePlaying: false,
@@ -531,6 +589,7 @@ export const useShow = create<ShowState>((set, get) => ({
     const s = get();
     set({
       explore: false,
+      tokenView: false,
       entry: null,
       dive: null,
       cycleShot: null,

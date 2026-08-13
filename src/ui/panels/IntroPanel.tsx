@@ -48,6 +48,7 @@ export function IntroPanel() {
   const naming = useShow((s) => s.naming);
   const openDive = useShow((s) => s.openDive);
   const enterExplore = useShow((s) => s.enterExplore);
+  const setTokenView = useShow((s) => s.setTokenView);
 
   const total = IT_LANDSCAPE.reduce((n, s) => n + s.systems.length, 0);
 
@@ -156,6 +157,23 @@ export function IntroPanel() {
       */}
       <div className="flex shrink-0 items-center gap-2 border-t border-[var(--color-line)] pt-2.5">
         <span className="kicker text-[var(--color-txt-faint)]">Пилотный актив</span>
+        {/*
+          Ступень между картой и сценой. На карте промысел стоит значком, и с
+          высоты этапа видна расстановка, но не сами объекты. Кнопка подводит
+          камеру к значку по поверхности глобуса и ставит её на пологий ракурс —
+          промысел из плана становится предметом. Сцена месторождения при этом
+          не поднимается: это по-прежнему карта, просто вблизи.
+
+          Кнопка дублирует клик по самому значку. На показе за мышью не гоняются:
+          докладчик ведёт кадр с плашки, а не выцеливает объект в углу экрана.
+        */}
+        <button
+          type="button"
+          onClick={() => setTokenView(true)}
+          className="rounded border border-[var(--color-line)] px-3 py-1 font-mono text-[9.5px] tracking-[0.12em] uppercase transition-colors hover:border-[var(--color-accent)]"
+        >
+          Рассмотреть промысел вблизи
+        </button>
         <button
           type="button"
           onClick={enterExplore}

@@ -5,17 +5,23 @@ import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import countries110m from 'world-atlas/countries-110m.json';
 import kzOblasts from '../../data/geo/kz-oblasts.json';
-import { progressRef, selectFieldMode, useShow } from '../../store/useShow';
+import { progressRef, selectFieldMode, tokenCloseRef, useShow } from '../../store/useShow';
 import { FieldToken } from './FieldToken';
 import { FLAT_BEATS, TOTAL_BEATS } from '../../data/stages';
 import {
   geometryRings,
   ringToSurface,
   ringsToSegments,
-  lonLatToVec3,
   GLOBE_R,
-  MOLDABEK,
 } from './projection';
+import {
+  LAYOUT_OFFSET,
+  TOKEN_ANCHOR,
+  TOKEN_BOUNDS,
+  TOKEN_QUAT,
+  TOKEN_SCALE,
+  tokenScale,
+} from './tokenLayout';
 
 /**
  * Открывающая гео-последовательность (ТЗ §3.1): планета → Казахстан →
@@ -41,7 +47,6 @@ const GEO_STAGES = new Set(['globe', 'intro', 'outro', 'descend']);
 const R_COAST = GLOBE_R * 1.0015;
 const R_OBLAST = GLOBE_R * 1.003;
 const R_FILL = GLOBE_R * 1.0022;
-const R_MARK = GLOBE_R * 1.006;
 
 interface GeoFeature {
   geometry: { type: string; coordinates: unknown };
@@ -122,37 +127,8 @@ export function Globe() {
   const { worldGeom, kzGeom } = useCountryBorders();
   const { lineGeom, atyrauFill } = useOblasts();
 
-  const moldabekPos = useMemo(
-    () => lonLatToVec3(MOLDABEK[0], MOLDABEK[1], R_MARK),
-    [],
-  );
-
-  /**
-   * Разворот значка по местному горизонту: вверх — нормаль к поверхности,
-   * вправо — восток, вниз по экрану — юг.
-   *
-   * Сценка построена в обычных координатах — «вверх» у неё по оси Y. На сфере
-   * вверх у каждой точки своё направление; без разворота качалки на широте
-   * Атырау лежали бы на боку.
-   *
-   * Но одной нормали мало. Поворот «кратчайшей дугой» доворачивает сценку
-   * вокруг нормали на произвольный угол, и план промысла вставал на карту
-   * наискось — ряды качалок шли по диагонали, коллектор наперекос к контуру
-   * области. Здесь базис задан явно, поэтому ряды идут по параллели, а
-   * читатель карты видит план так же, как видел бы его на бумаге.
-   */
-  const moldabekQuat = useMemo(() => {
-    const up = moldabekPos.clone().normalize();
-    // Восток = вертикаль мира × нормаль. На полюсе вырождается, на широте
-    // Атырау — нет; проверка стоит одной строки и снимает вопрос.
-    const east = new THREE.Vector3(0, 1, 0).cross(up);
-    if (east.lengthSq() < 1e-8) east.set(1, 0, 0);
-    east.normalize();
-    const south = east.clone().cross(up).normalize();
-    return new THREE.Quaternion().setFromRotationMatrix(
-      new THREE.Matrix4().makeBasis(east, up, south),
-    );
-  }, [moldabekPos]);
+  const tokenView = useShow((s) => s.tokenView);
+  const setTokenView = useShow((s) => s.setTokenView);
 
   /**
    * Планета уходит из сцены, как только показ перешёл на промысел.
@@ -229,11 +205,16 @@ export function Globe() {
      *
      * Пульсации нет. Она годилась точке-маркеру, а сценка с работающими
      * качалками, дышащая целиком, читается сбоем масштаба, а не акцентом.
+     *
+     * НА ПОДХОДЕ ВБЛИЗИ ПРАВИЛО ОТПУСКАЕТСЯ. Постоянный экранный размер и есть
+     * то, что делает приближение невидимым: камера подходит, значок ужимается
+     * ей навстречу. Доля подхода переводит его в постоянный мировой размер, и
+     * дальше промысел растёт в кадре сам — см. `tokenScale`.
      */
     if (markerRef.current) {
       markerRef.current.visible = callout > 0.05;
       const dist = camera.position.distanceTo(markerRef.current.getWorldPosition(_worldPos));
-      markerRef.current.scale.setScalar(callout * dist * 0.04);
+      markerRef.current.scale.setScalar(callout * tokenScale(dist, tokenCloseRef.current));
     }
 
     if (root.current) root.current.visible = true;
@@ -294,7 +275,19 @@ export function Globe() {
           />
         </lineSegments>
 
-        {/* Атырауская область */}
+        {/*
+          Атырауская область.
+
+          ЗАЛИВКА ПРОВЕРЯЕТ ГЛУБИНУ, в отличие от линий поверх неё. Значок
+          промысла стоит НА ней, а прозрачное всегда рисуется после
+          непрозрачного: без проверки глубины заливка ложилась поверх сценки
+          ровным янтарным полупрозрачным слоем. С отвесного ракурса это читалось
+          «значок в цвет области», вблизи — что промысел затянут плёнкой.
+
+          Проверку можно включить, потому что заливка нигде не тонет в планете:
+          её триангуляция мелкая, хорды проседают под номинальный радиус не
+          более чем на 0,1 единицы при просвете над сферой в 0,66.
+        */}
         {atyrauFill && (
           <mesh ref={atyrauMesh} geometry={atyrauFill} renderOrder={3}>
             <meshBasicMaterial
@@ -303,7 +296,6 @@ export function Globe() {
               opacity={0}
               side={THREE.DoubleSide}
               depthWrite={false}
-              depthTest={false}
             />
           </mesh>
         )}
@@ -319,12 +311,57 @@ export function Globe() {
         */}
         <group
           ref={markerRef}
-          position={moldabekPos}
-          quaternion={moldabekQuat}
+          position={TOKEN_ANCHOR}
+          quaternion={TOKEN_QUAT}
           visible={false}
           renderOrder={4}
         >
           <FieldToken />
+
+          {/*
+            ПЛОЩАДКА ДЛЯ КУРСОРА — ОДНА НА ВЕСЬ ЗНАЧОК.
+
+            Ловить луч самими качалками нельзя: с высоты этапа они по паре
+            пикселей, и попасть в ферму балансира мышью невозможно — зритель
+            решит, что значок просто не кликается. Прямоугольник по габариту
+            расстановки ловит клик всюду, где значок виден.
+
+            В осмотре вблизи площадка молчит: там она занимает почти весь кадр,
+            и случайный клик выбрасывал бы докладчика обратно на карту. Уйти
+            оттуда можно кнопкой или Escape — намеренно.
+          */}
+          {!tokenView && (
+            <mesh
+              position={[
+                ((TOKEN_BOUNDS.xMin + TOKEN_BOUNDS.xMax) / 2 + LAYOUT_OFFSET[0]) * TOKEN_SCALE,
+                0.2 * TOKEN_SCALE,
+                ((TOKEN_BOUNDS.zMin + TOKEN_BOUNDS.zMax) / 2 + LAYOUT_OFFSET[1]) * TOKEN_SCALE,
+              ]}
+              rotation={[-Math.PI / 2, 0, 0]}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={() => {
+                document.body.style.cursor = '';
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                document.body.style.cursor = '';
+                setTokenView(true);
+              }}
+            >
+              <planeGeometry
+                args={[
+                  (TOKEN_BOUNDS.xMax - TOKEN_BOUNDS.xMin) * TOKEN_SCALE,
+                  (TOKEN_BOUNDS.zMax - TOKEN_BOUNDS.zMin) * TOKEN_SCALE,
+                ]}
+              />
+              {/* Невидимая, но не `visible={false}`: луч не проходит сквозь
+                  выключенные объекты, и площадка перестала бы ловить клик. */}
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+          )}
         </group>
       </group>
     </group>

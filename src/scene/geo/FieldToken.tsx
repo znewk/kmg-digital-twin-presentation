@@ -9,6 +9,10 @@ import {
   buildPumpjackPitman,
   buildPumpjackStatic,
   pumpjackPose,
+  CRANK_X,
+  CRANK_Y,
+  PIVOT_X,
+  PIVOT_Y,
 } from '../field/facilities/pumpjack';
 import { buildGzu } from '../field/facilities/gzu';
 import { buildSp } from '../field/facilities/sp';
@@ -66,6 +70,13 @@ function partsMesh(m: Map<MatKey, THREE.BufferGeometry>) {
  * без тёмного основания стальная ферма на ней теряется. Отсыпка под каждым
  * объектом даёт этот контраст локально — в отличие от общего круга, который
  * читался чужой границей поверх контура области.
+ *
+ * ПОДВИЖНЫЕ УЗЛЫ СТОЯТ НА СВОИХ ОСЯХ. Балансир построен с началом координат на
+ * оси качания, кривошип — на валу редуктора: так их можно вращать одной
+ * матрицей, не пересчитывая геометрию. Но и ставить их тогда обязано что-то
+ * внешнее — иначе оба ложатся в подошву станка, балансир с головкой тонет в
+ * отсыпке, и от качалки остаётся голая пирамида стойки. Смещения те же, что у
+ * промыслового фонда в `WellFarm`, и берутся из одних констант.
  */
 function Pumpjack({ at, phase }: { at: P2; phase: number }) {
   const beam = useRef<THREE.Group>(null);
@@ -100,8 +111,12 @@ function Pumpjack({ at, phase }: { at: P2; phase: number }) {
         <meshStandardMaterial color="#2b2117" roughness={1} metalness={0} />
       </mesh>
       {partsMesh(geo.base)}
-      <group ref={beam}>{partsMesh(geo.beam)}</group>
-      <group ref={crank}>{partsMesh(geo.crank)}</group>
+      <group ref={beam} position={[PIVOT_X, PIVOT_Y, 0]}>
+        {partsMesh(geo.beam)}
+      </group>
+      <group ref={crank} position={[CRANK_X, CRANK_Y, 0]}>
+        {partsMesh(geo.crank)}
+      </group>
       <group ref={pitman}>{partsMesh(geo.pitman)}</group>
     </group>
   );

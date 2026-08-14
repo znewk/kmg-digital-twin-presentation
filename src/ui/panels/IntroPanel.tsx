@@ -50,8 +50,6 @@ export function IntroPanel() {
   const enterExplore = useShow((s) => s.enterExplore);
   const setTokenView = useShow((s) => s.setTokenView);
 
-  const total = IT_LANDSCAPE.reduce((n, s) => n + s.systems.length, 0);
-
   /** Контур ресурсной базы вне периметра пилота — в этой сводке не участвует. */
   const contours = CONTOURS.filter((c) => !c.future);
 
@@ -188,7 +186,7 @@ export function IntroPanel() {
       </div>
 
       {/* ── Чем работают сегодня ─────────────────────────────────────────── */}
-      <Row title={`Инженерный ИТ-ландшафт · ${total} систем, единого слоя между ними нет`}>
+      <Row title="Инженерный ИТ-ландшафт">
         <div className="grid min-h-0 gap-2 overflow-hidden" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
           {IT_LANDSCAPE.map((stage) => (
             <div key={stage.stage} className="flex min-h-0 flex-col">
